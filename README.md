@@ -187,10 +187,6 @@ Contributions are welcome, whether that's code, translations, design feedback, o
 - **Match the style** of the surrounding code.
 - **Be respectful.** Harassment or discrimination of any kind isn't tolerated.
 
-### Reporting a security or privacy problem
-
-Please **don't** open a public issue for a vulnerability or anything that could expose users. Email a maintainer directly instead (see [Contact](#contact)).
-
 ---
 
 ## License
@@ -203,13 +199,7 @@ This project is licensed under the **MIT License**. See the [LICENSE](LICENSE) f
 
 Questions, feedback, or want to get involved?
 
-- **GitHub Issues:** [github.com/nthanvii/icepik/issues](https://github.com/nthanvii/icepik/issues) (best for bugs and feature requests)
-- **Email the maintainers:**
-  - Sebastian Jeremiah: <sjere0254@launchpadphilly.org>
-  - Nathan Inggita: <ningg0252@launchpadphilly.org>
-  - Juan Melvin: <jmelv0267@launchpadphilly.org>
-  - Oswaldo Mendez Perez: <omend0268@launchpadphilly.org>
-  - Killian Murphy: <kmurp0309@launchpadphilly.org>
+**Open an issue:** [github.com/nthanvii/icepik/issues](https://github.com/nthanvii/icepik/issues)
 
 ---
 
