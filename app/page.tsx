@@ -1,10 +1,9 @@
 "use client";
 
-import Image from "next/image";
 import type { LatLngExpression, Layer, Map as LeafletMap, Marker } from "leaflet";
 import { useEffect, useRef, useState } from "react";
 import logo from "../public/brand/icepik-logo.png";
-import rightsPhoto from "../public/brand/know-your-rights.jpg";
+import { icepikLogoSrc, knowYourRightsSrc } from "./brand-assets";
 import { reports, type Report, type Status } from "./reports";
 
 type SearchResult = {
@@ -196,18 +195,18 @@ export default function Home() {
     <div className="app">
       <aside className="sidebar">
         <header className="sidebar-header">
-          <Image className="brand-logo" src={logo} alt="ICEPik" preload />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img className="brand-logo" src={icepikLogoSrc} alt="ICEPik" />
 
           <button
             type="button"
             className="rights-pill"
             onClick={() => setModal("rights")}
           >
-            <Image
-              src={rightsPhoto}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={knowYourRightsSrc}
               alt=""
-              fill
-              sizes="240px"
               className="rights-photo"
             />
             <span>Know Your Rights</span>
