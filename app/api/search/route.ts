@@ -6,6 +6,13 @@ const HEADERS = {
   Accept: "application/json",
 };
 
+type NominatimResult = {
+  display_name: string;
+  lat: string;
+  lon: string;
+  type: string;
+};
+
 export async function GET(request: NextRequest) {
   const query = request.nextUrl.searchParams.get("q")?.trim() ?? "";
 
@@ -31,9 +38,9 @@ export async function GET(request: NextRequest) {
       throw new Error(`Nominatim responded with ${response.status}`);
     }
 
-    const rawResults = await response.json();
+    const rawResults: NominatimResult[] = await response.json();
 
-    const results = rawResults.map((item: any) => ({
+    const results = rawResults.map((item) => ({
       display_name: item.display_name,
       lat: item.lat,
       lon: item.lon,
