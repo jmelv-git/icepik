@@ -1,518 +1,516 @@
 "use client";
 
-import Script from "next/script";
-import { useEffect, useMemo, useRef, useState } from "react";
+import Image from "next/image";
+import type { LatLngExpression, Layer, Map as LeafletMap, Marker } from "leaflet";
+import { useEffect, useRef, useState } from "react";
+import logo from "../public/brand/icepik-logo.png";
+import rightsPhoto from "../public/brand/know-your-rights.jpg";
+import { reports, type Report, type Status } from "./reports";
 
-declare global {
-  interface Window {
-    L: any;
-  }
-}
-
-type Status = "confirmed" | "suspected";
-
-type Report = {
-  id: string;
-  lat: number;
-  lon: number;
-  address: string;
-  title: string;
-  time: string;
-  reporter: string;
-  status: Status;
-  votesUp: number;
-  votesDown: number;
-  count: string;
-  accent: "purple" | "green" | "gray";
+type SearchResult = {
+  display_name: string;
+  lat: string;
+  lon: string;
 };
 
-const reports: Report[] = [
-  {
-    id: "1",
-    lat: 26.1244,
-    lon: -80.1435,
-    address: "400 North 5th Street",
-    title: "Unmarked White Vans & Officers Outside Tr...",
-    time: "2 hours ago",
-    reporter: "Flying Seal",
-    status: "confirmed",
-    votesUp: 2,
-    votesDown: 1,
-    count: "2+",
-    accent: "purple",
-  },
-  {
-    id: "2",
-    lat: 26.1172,
-    lon: -80.1493,
-    address: "Northwest 6th Avenue",
-    title: "Possible officers near the intersection",
-    time: "48 min ago",
-    reporter: "Blue Finch",
-    status: "confirmed",
-    votesUp: 1,
-    votesDown: 0,
-    count: "1+",
-    accent: "green",
-  },
-  {
-    id: "3",
-    lat: 26.109,
-    lon: -80.1375,
-    address: "Southwest 4th Avenue",
-    title: "Unmarked vehicles parked outside",
-    time: "3 hours ago",
-    reporter: "Quiet Harbor",
-    status: "suspected",
-    votesUp: 0,
-    votesDown: 1,
-    count: "3+",
-    accent: "gray",
-  },
-];
+type Vote = "up" | "down";
 
-function markerMarkup(status: Status) {
-  const fill = status === "confirmed" ? "#ff161c" : "#ffc516";
-  const icon =
+const MAP_CENTER: LatLngExpression = [26.1165, -80.1365];
+
+const STATUS_LABEL: Record<Status, string> = {
+  confirmed: "Confirmed sighting",
+  suspected: "Unconfirmed sighting",
+};
+
+const PIN_COLOR: Record<Status, string> = {
+  confirmed: "#ff1d25",
+  suspected: "#ffc800",
+};
+
+function pinMarkup(status: Status) {
+  const color = PIN_COLOR[status];
+  const glyph =
     status === "confirmed"
-      ? `
-        <circle cx="24" cy="22" r="11" fill="none" stroke="#fff" stroke-width="3"/>
-        <rect x="16" y="16" width="16" height="12" rx="2" fill="none" stroke="#fff" stroke-width="3"/>
-        <circle cx="24" cy="22" r="3.5" fill="#fff"/>
-      `
-      : `
-        <path d="M24 13 34 31H14Z" fill="none" stroke="#fff" stroke-width="3" stroke-linejoin="round"/>
-        <path d="M24 19v7" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
-        <circle cx="24" cy="29" r="1.4" fill="#fff"/>
-      `;
+      ? `<path d="M25 23l3-5h8l3 5z" fill="${color}"/>
+         <rect x="15" y="23" width="34" height="24" rx="5" fill="${color}"/>
+         <circle cx="32" cy="35" r="8" fill="#fff"/>
+         <circle cx="32" cy="35" r="4.5" fill="${color}"/>
+         <circle cx="20" cy="28" r="1.8" fill="#fff"/>`
+      : `<path d="M32 17 50 48H14Z" fill="${color}" stroke="${color}" stroke-width="5" stroke-linejoin="round"/>
+         <rect x="29.5" y="26" width="5" height="13" rx="2.5" fill="#fff"/>
+         <circle cx="32" cy="43.5" r="2.7" fill="#fff"/>`;
 
-  return `
-    <div class="report-marker">
-      <svg viewBox="0 0 48 64" aria-hidden="true">
-        <path d="M24 2C13 2 4 11 4 22c0 15 20 39 20 39s20-24 20-39C44 11 35 2 24 2Z" fill="${fill}" stroke="#fff" stroke-width="3"/>
-        ${icon}
-      </svg>
-    </div>`;
-}
-
-function ReportThumbnail({
-  accent,
-  label = "ICEPik Report",
-}: {
-  accent: Report["accent"];
-  label?: string;
-}) {
-  const imageByAccent: Record<Report["accent"], string> = {
-    purple: "https://placehold.co/800x500/7c5cff/ffffff?text=ICEPik+Report",
-    green: "https://placehold.co/800x500/35b779/ffffff?text=ICEPik+Sighting",
-    gray: "https://placehold.co/800x500/6b7280/ffffff?text=ICEPik+Report",
-  };
-
-  return (
-    <div className="report-thumbnail">
-      <img
-        src={imageByAccent[accent]}
-        alt={label}
-        loading="lazy"
-      />
-    </div>
-  );
+  return `<svg class="pin" viewBox="0 0 64 100" aria-hidden="true">
+    <path d="M32 95C26 79 7 59 6 36a26 26 0 0 1 52 0c-1 23-20 43-26 59Z" fill="#fff" stroke="${color}" stroke-width="6" stroke-linejoin="round"/>
+    ${glyph}
+  </svg>`;
 }
 
 export default function Home() {
-  const mapNode = useRef<HTMLDivElement | null>(null);
-  const map = useRef<any>(null);
-  const markerLayer = useRef<any>(null);
-  const [ready, setReady] = useState(false);
-  const [selectedId, setSelectedId] = useState(reports[0].id);
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [query, setQuery] = useState("");
-  const [results, setResults] = useState<any[]>([]);
-  const [searching, setSearching] = useState(false);
-  const [rightsOpen, setRightsOpen] = useState(false);
-  const [reportOpen, setReportOpen] = useState(false);
+  const mapNode = useRef<HTMLDivElement>(null);
+  const map = useRef<LeafletMap | null>(null);
+  const markers = useRef(new Map<string, Marker>());
+  const searchMarker = useRef<Layer | null>(null);
 
-  const selected = useMemo(
-    () => reports.find((report) => report.id === selectedId) ?? reports[0],
-    [selectedId],
-  );
+  const [selectedId, setSelectedId] = useState<string | null>(reports[0].id);
+  const [votes, setVotes] = useState<Record<string, Vote>>({});
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<SearchResult[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState(false);
+  const [modal, setModal] = useState<"rights" | "report" | null>(null);
+
+  const selected = reports.find((report) => report.id === selectedId) ?? null;
 
   useEffect(() => {
-    if (!ready || !mapNode.current || map.current) return;
+    let cancelled = false;
+    const markerMap = markers.current;
 
-    const instance = window.L.map(mapNode.current, {
-      zoomControl: true,
-      minZoom: 9,
-      maxZoom: 19,
-    }).setView([26.1185, -80.144], 13);
+    import("leaflet").then((L) => {
+      if (cancelled || !mapNode.current) return;
 
-    instance.zoomControl.setPosition("bottomleft");
+      const instance = L.map(mapNode.current, {
+        center: MAP_CENTER,
+        zoom: 14,
+        minZoom: 9,
+        maxZoom: 19,
+        zoomControl: false,
+      });
 
-    window.L.tileLayer(
-      "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-      {
+      L.control.zoom({ position: "bottomleft" }).addTo(instance);
+
+      L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
         maxZoom: 19,
         attribution:
-          '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> contributors',
-      },
-    ).addTo(instance);
+          '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      }).addTo(instance);
 
-    const layer = window.L.layerGroup().addTo(instance);
-    markerLayer.current = layer;
+      reports.forEach((report) => {
+        const marker = L.marker([report.lat, report.lon], {
+          title: report.title,
+          alt: STATUS_LABEL[report.status],
+          icon: L.divIcon({
+            className: "pin-icon",
+            html: pinMarkup(report.status),
+            iconSize: [44, 69],
+            iconAnchor: [22, 67],
+          }),
+        })
+          .on("click", () => setSelectedId(report.id))
+          .addTo(instance);
 
-    reports.forEach((report) => {
-      const marker = window.L.marker([report.lat, report.lon], {
-        icon: window.L.divIcon({
-          className: "report-marker-icon",
-          html: markerMarkup(report.status),
-          iconSize: [48, 64],
-          iconAnchor: [24, 62],
-        }),
+        markerMap.set(report.id, marker);
       });
 
-      marker.on("click", () => setSelectedId(report.id));
-      marker.addTo(layer);
+      map.current = instance;
     });
-
-    map.current = instance;
 
     return () => {
-      instance.remove();
+      cancelled = true;
+      map.current?.remove();
       map.current = null;
-      markerLayer.current = null;
+      markerMap.clear();
     };
-  }, [ready]);
+  }, []);
 
   useEffect(() => {
-    if (!map.current || !selected) return;
-
-    map.current.setView([selected.lat, selected.lon], 14, {
-      animate: true,
-      duration: 0.35,
+    markers.current.forEach((marker, id) => {
+      const active = id === selectedId;
+      marker.getElement()?.classList.toggle("pin-active", active);
+      marker.setZIndexOffset(active ? 1000 : 0);
     });
-  }, [selected]);
+  }, [selectedId]);
 
-  async function searchPlaces() {
-    const q = query.trim();
-    if (!q) {
-      setResults([]);
-      return;
+  useEffect(() => {
+    if (!modal) return;
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setModal(null);
     }
 
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [modal]);
+
+  function showReport(report: Report) {
+    setSelectedId(report.id);
+    map.current?.panTo([report.lat, report.lon], { duration: 0.35 });
+  }
+
+  function vote(id: string, value: Vote) {
+    setVotes((current) => {
+      const next = { ...current };
+      if (next[id] === value) delete next[id];
+      else next[id] = value;
+      return next;
+    });
+  }
+
+  async function searchPlaces(event: React.FormEvent) {
+    event.preventDefault();
+    const q = query.trim();
+    if (!q) return;
+
     setSearching(true);
+    setSearchError(false);
 
     try {
-      const response = await fetch(`/api/search?q=${encodeURIComponent(q)}`, {
-        cache: "no-store",
-      });
-      const data = await response.json();
-      setResults(Array.isArray(data) ? data : []);
+      const response = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
+      if (!response.ok) throw new Error(`Search failed: ${response.status}`);
+      setResults(await response.json());
     } catch {
       setResults([]);
+      setSearchError(true);
     } finally {
       setSearching(false);
     }
   }
 
-  function chooseSearchResult(item: any) {
+  async function chooseSearchResult(item: SearchResult) {
     const lat = Number(item.lat);
     const lon = Number(item.lon);
+    const instance = map.current;
 
-    if (map.current && Number.isFinite(lat) && Number.isFinite(lon)) {
-      map.current.setView([lat, lon], 15, { animate: true, duration: 0.35 });
-      window.L.marker([lat, lon])
-        .addTo(map.current)
-        .bindPopup(item.display_name)
-        .openPopup();
+    if (instance && Number.isFinite(lat) && Number.isFinite(lon)) {
+      const L = await import("leaflet");
+      searchMarker.current?.remove();
+      searchMarker.current = L.circleMarker([lat, lon], {
+        radius: 9,
+        color: "#fff",
+        weight: 3,
+        fillColor: "#4f93c8",
+        fillOpacity: 1,
+      })
+        .bindTooltip(item.display_name)
+        .addTo(instance);
+      instance.setView([lat, lon], 15, { animate: true });
     }
 
     setQuery(item.display_name);
     setResults([]);
-    setSearchOpen(false);
   }
 
-  return (
-    <>
-      <Script
-        src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-        strategy="afterInteractive"
-        onLoad={() => setReady(true)}
-      />
+  const selectedVote = selected ? votes[selected.id] : undefined;
 
+  return (
+    <div className="app">
       <aside className="sidebar">
         <header className="sidebar-header">
-          <div className="brand-lockup">
-            <div className="brand-camera" aria-hidden="true">
-              <div className="camera-body">
-                <div className="camera-lens" />
-              </div>
-            </div>
-            <div className="brand-wordmark">
-              <span>ICE</span>
-              <span>Pik</span>
-            </div>
-          </div>
+          <Image className="brand-logo" src={logo} alt="ICEPik" preload />
 
           <button
             type="button"
-            className="rights-card"
-            onClick={() => setRightsOpen(true)}
+            className="rights-pill"
+            onClick={() => setModal("rights")}
           >
-            <div className="rights-bg" aria-hidden="true">
-              <div className="rights-statue" />
-              <div className="rights-blue-glow" />
-            </div>
+            <Image
+              src={rightsPhoto}
+              alt=""
+              fill
+              sizes="240px"
+              className="rights-photo"
+            />
             <span>Know Your Rights</span>
           </button>
         </header>
 
-        <button
-          type="button"
-          className={`sidebar-handle ${searchOpen ? "sidebar-handle-open" : ""}`}
-          aria-label="Toggle search"
-          onClick={() => setSearchOpen((open) => !open)}
-        >
-          <span />
-        </button>
+        <form className="search" role="search" onSubmit={searchPlaces}>
+          <SearchIcon />
+          <input
+            type="search"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search an address or place"
+            aria-label="Search an address or place"
+          />
+          {searching ? <span className="search-status">Searching…</span> : null}
 
-        {searchOpen ? (
-          <div className="search-box">
-            <div className="search-box-row">
-              <input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") searchPlaces();
-                }}
-                placeholder="Search a place..."
-                autoFocus
-              />
-              <button type="button" onClick={searchPlaces} disabled={searching}>
-                {searching ? "..." : "Search"}
-              </button>
-            </div>
-            {results.length > 0 ? (
-              <div className="search-results">
-                {results.map((item) => (
-                  <button
-                    key={`${item.lat}-${item.lon}-${item.display_name}`}
-                    type="button"
-                    onClick={() => chooseSearchResult(item)}
-                  >
-                    {item.display_name}
-                  </button>
-                ))}
-              </div>
-            ) : null}
-          </div>
-        ) : null}
+          {results.length > 0 || searchError ? (
+            <ul className="search-results">
+              {searchError ? (
+                <li className="search-empty">Search is unavailable right now.</li>
+              ) : (
+                results.map((item) => (
+                  <li key={`${item.lat},${item.lon}`}>
+                    <button
+                      type="button"
+                      onClick={() => chooseSearchResult(item)}
+                    >
+                      {item.display_name}
+                    </button>
+                  </li>
+                ))
+              )}
+            </ul>
+          ) : null}
+        </form>
 
         <section className="report-list" aria-label="Recent reports">
-          {reports.map((report) => (
-            <button
-              key={report.id}
-              type="button"
-              className={`report-card ${selectedId === report.id ? "report-card-active" : ""}`}
-              onClick={() => setSelectedId(report.id)}
-            >
-              <div className="report-card-head">
-                <span
-                  className={`report-status report-status-${report.status}`}
-                />
-                <span className="report-address">{report.address}</span>
-                <span className="report-count">{report.count}</span>
-              </div>
-              <ReportThumbnail accent={report.accent} />
-              <div className="report-title">{report.title}</div>
-              <div className="report-meta">
-                {report.time} - reported by {report.reporter}
-              </div>
-            </button>
-          ))}
+          <div className="report-list-inner">
+            {reports.map((report) => (
+              <button
+                key={report.id}
+                type="button"
+                className="report-card"
+                aria-pressed={report.id === selectedId}
+                onClick={() => showReport(report)}
+              >
+                <span className="report-card-head">
+                  <span className={`status-dot status-${report.status}`}>
+                    <span className="sr-only">{STATUS_LABEL[report.status]}</span>
+                  </span>
+                  <span className="report-card-address">{report.address}</span>
+                </span>
+                <span className={`photo photo-${report.accent}`} />
+                <span className="report-card-title">{report.title}</span>
+                <span className="report-card-meta">
+                  {report.time} · {report.reporter}
+                </span>
+              </button>
+            ))}
+          </div>
         </section>
       </aside>
 
       <main className="map-shell">
-        <div ref={mapNode} id="map" />
+        <div ref={mapNode} className="map" />
 
-        <section className="detail-card">
-          <div className="detail-head">
-            <div className="detail-location">
-              <span className="detail-pin" aria-hidden="true">
-                <svg viewBox="0 0 24 30">
-                  <path
-                    d="M12 1C5.9 1 1.5 5.6 1.5 11.1 1.5 18.4 12 29 12 29s10.5-10.6 10.5-17.9C22.5 5.6 18.1 1 12 1Z"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2.5"
-                  />
-                  <circle cx="12" cy="11" r="3" fill="currentColor" />
-                </svg>
-              </span>
-              <span>{selected.address}...</span>
-            </div>
+        {selected ? (
+          <section className="detail-card" aria-labelledby="detail-address">
+            <header className="detail-head">
+              <PinIcon />
+              <h2 id="detail-address" title={selected.address}>
+                {selected.address}
+              </h2>
+              <button
+                type="button"
+                className="icon-button"
+                onClick={() => setSelectedId(null)}
+                aria-label="Close report"
+              >
+                <CloseIcon />
+              </button>
+            </header>
 
-            <button
-              type="button"
-              className="detail-close"
-              onClick={() => setSelectedId(reports[0].id)}
-              aria-label="Close report"
-            >
-              ×
-            </button>
-          </div>
-
-          <div className="detail-body">
-            <div className="detail-images">
-              <ReportThumbnail
-                accent={selected.accent}
-                label={selected.title}
-              />
-              <div className="detail-secondary">
-                <img
-                  src="https://placehold.co/500x500/374151/ffffff?text=Additional+Photo"
-                  alt="Additional report photo placeholder"
-                  loading="lazy"
-                />
-                <span>{selected.count}</span>
+            <div className="detail-body">
+              <div className="detail-media">
+                <span className={`photo photo-${selected.accent}`} />
+                {selected.photoCount > 1 ? (
+                  <span className="photo photo-more">
+                    {selected.photoCount - 1}+
+                  </span>
+                ) : null}
               </div>
-            </div>
 
-            <div className="detail-title">{selected.title}</div>
-            <div className="detail-meta">
-              {selected.time} - reported by {selected.reporter}
-            </div>
+              <p className="detail-title" title={selected.title}>
+                {selected.title}
+              </p>
+              <p className="detail-meta">
+                {selected.time} - reported by {selected.reporter}
+              </p>
 
-            <div className="detail-votes">
-              <button type="button" className="vote-button vote-up" aria-label="Agree">
-                <span>⌃</span>
-              </button>
-              <button type="button" className="vote-button vote-down" aria-label="Disagree">
-                <span>⌄</span>
-              </button>
-              <button type="button" className="still-button">
-                <span className="still-icon">?</span>
-                <span>Are they still there?</span>
-              </button>
+              <div className="detail-actions">
+                <button
+                  type="button"
+                  className="vote vote-up"
+                  aria-label="Confirm sighting"
+                  aria-pressed={selectedVote === "up"}
+                  onClick={() => vote(selected.id, "up")}
+                >
+                  <ChevronIcon direction="up" />
+                </button>
+                <button
+                  type="button"
+                  className="vote vote-down"
+                  aria-label="Dispute sighting"
+                  aria-pressed={selectedVote === "down"}
+                  onClick={() => vote(selected.id, "down")}
+                >
+                  <ChevronIcon direction="down" />
+                </button>
+                <button type="button" className="still-there">
+                  <span className="still-there-icon" aria-hidden="true">
+                    ???
+                  </span>
+                  Are they still there?
+                </button>
+              </div>
             </div>
 
             <div className="comments">
-              <div className="comments-title">Comment Thread</div>
-              <div className="comment-user">
-                <span className="comment-avatar">F</span>
-                <span>Flying Seal</span>
-              </div>
-              <p>
-                Lorem&nbsp;&nbsp;ipsum&nbsp;&nbsp;dolor&nbsp;&nbsp;sit&nbsp;&nbsp;amet,
-                consectetur adipiscing elit. Pellentesque vel tellus sed tellus.
-              </p>
+              <h3>Comment Thread</h3>
+              {selected.comments.length > 0 ? (
+                selected.comments.map((comment, index) => (
+                  <article key={index} className="comment">
+                    <div className="comment-author">
+                      <AvatarIcon />
+                      {comment.author}
+                    </div>
+                    <p>{comment.body}</p>
+                  </article>
+                ))
+              ) : (
+                <p className="comments-empty">No comments yet.</p>
+              )}
             </div>
-          </div>
-        </section>
+          </section>
+        ) : null}
 
         <button
           type="button"
-          className="report-action"
-          onClick={() => setReportOpen(true)}
+          className="report-button"
+          onClick={() => setModal("report")}
         >
           REPORT
         </button>
       </main>
 
-      {rightsOpen ? (
+      {modal ? (
         <div
           className="modal-layer"
-          onClick={() => setRightsOpen(false)}
+          onClick={() => setModal(null)}
           role="presentation"
         >
           <section
-            className="modal-card"
+            className="modal"
             role="dialog"
             aria-modal="true"
-            aria-labelledby="rights-title"
+            aria-labelledby="modal-title"
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="modal-header">
-              <div>
-                <div className="modal-kicker">RESOURCES</div>
-                <h2 id="rights-title">Know Your Rights</h2>
-              </div>
-              <button type="button" className="modal-x" onClick={() => setRightsOpen(false)}>
-                ×
+            <header className="modal-head">
+              <h2 id="modal-title">
+                {modal === "rights" ? "Know Your Rights" : "Report a sighting"}
+              </h2>
+              <button
+                type="button"
+                className="icon-button"
+                onClick={() => setModal(null)}
+                aria-label="Close"
+              >
+                <CloseIcon />
               </button>
-            </div>
-            <p>
-              Keep trusted legal and public resources close at hand while you
-              navigate the city.
-            </p>
-            <div className="resource-list">
-              <a href="https://www.ilrc.org/" target="_blank" rel="noreferrer">
-                Immigrant Legal Resource Center
-              </a>
-              <a
-                href="https://www.immigrantdefenseproject.org/ice-ruses/"
-                target="_blank"
-                rel="noreferrer"
+            </header>
+
+            {modal === "rights" ? (
+              <>
+                <p>
+                  Trusted legal resources to keep close at hand. You have rights
+                  regardless of your immigration status.
+                </p>
+                <ul className="resource-list">
+                  <li>
+                    <a href="https://www.ilrc.org/" target="_blank" rel="noreferrer">
+                      Immigrant Legal Resource Center
+                    </a>
+                  </li>
+                  <li>
+                    <a
+                      href="https://www.immigrantdefenseproject.org/ice-ruses/"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Immigrant Defense Project
+                    </a>
+                  </li>
+                  <li>
+                    <a
+                      href="https://www.phila.gov/departments/office-of-immigrant-affairs/resources/"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Philadelphia Office of Immigrant Affairs
+                    </a>
+                  </li>
+                </ul>
+              </>
+            ) : (
+              <form
+                className="report-form"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  setModal(null);
+                }}
               >
-                Immigrant Defense Project
-              </a>
-              <a
-                href="https://www.phila.gov/departments/office-of-immigrant-affairs/resources/"
-                target="_blank"
-                rel="noreferrer"
-              >
-                Philadelphia Office of Immigrant Affairs
-              </a>
-            </div>
+                <label>
+                  Location
+                  <input defaultValue={selected?.address} required />
+                </label>
+                <label>
+                  What did you see?
+                  <textarea
+                    rows={5}
+                    placeholder="Describe only what you personally observed."
+                    required
+                  />
+                </label>
+                <div className="report-form-actions">
+                  <span>Reports aren&apos;t saved yet in this prototype.</span>
+                  <button type="submit">Submit</button>
+                </div>
+              </form>
+            )}
           </section>
         </div>
       ) : null}
+    </div>
+  );
+}
 
-      {reportOpen ? (
-        <div
-          className="modal-layer"
-          onClick={() => setReportOpen(false)}
-          role="presentation"
-        >
-          <section
-            className="modal-card report-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="report-title"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="modal-header">
-              <div>
-                <div className="modal-kicker">NEW SIGHTING</div>
-                <h2 id="report-title">Report what you saw</h2>
-              </div>
-              <button type="button" className="modal-x" onClick={() => setReportOpen(false)}>
-                ×
-              </button>
-            </div>
+function PinIcon() {
+  return (
+    <svg className="detail-pin" viewBox="0 0 24 32" aria-hidden="true">
+      <path
+        d="M12 0C5.4 0 0 5.2 0 11.7 0 20.4 12 32 12 32s12-11.6 12-20.3C24 5.2 18.6 0 12 0Zm0 16.5a4.8 4.8 0 1 1 0-9.6 4.8 4.8 0 0 1 0 9.6Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
 
-            <label>
-              Location
-              <input defaultValue={selected.address} />
-            </label>
+function CloseIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        d="M5 5l14 14M19 5 5 19"
+        stroke="currentColor"
+        strokeWidth="3.5"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
 
-            <label>
-              What happened?
-              <textarea
-                rows={5}
-                placeholder="Describe only what you personally observed."
-              />
-            </label>
+function ChevronIcon({ direction }: { direction: "up" | "down" }) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        d={direction === "up" ? "M5 15l7-7 7 7" : "M5 9l7 7 7-7"}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
 
-            <div className="report-modal-actions">
-              <span>Prototype flow</span>
-              <button type="button" onClick={() => setReportOpen(false)}>
-                Done
-              </button>
-            </div>
-          </section>
-        </div>
-      ) : null}
-    </>
+function SearchIcon() {
+  return (
+    <svg className="search-icon" viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" strokeWidth="2.2" />
+      <path d="m16.5 16.5 4 4" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function AvatarIcon() {
+  return (
+    <svg className="avatar" viewBox="0 0 32 32" aria-hidden="true">
+      <circle cx="16" cy="16" r="16" fill="#4f93c8" />
+      <circle cx="16" cy="12.5" r="5.5" fill="#fff" />
+      <path d="M6.5 26.5c1.8-4.6 5.4-7 9.5-7s7.7 2.4 9.5 7a13 13 0 0 1-19 0Z" fill="#fff" />
+    </svg>
   );
 }
