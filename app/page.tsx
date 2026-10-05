@@ -2,7 +2,6 @@
 
 import type { LatLngExpression, Layer, Map as LeafletMap, Marker } from "leaflet";
 import { useEffect, useRef, useState } from "react";
-import logo from "../public/brand/icepik-logo.png";
 import { icepikLogoSrc, knowYourRightsSrc } from "./brand-assets";
 import { reports, type Report, type Status } from "./reports";
 
