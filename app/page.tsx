@@ -95,16 +95,26 @@ function markerMarkup(status: Status) {
     </div>`;
 }
 
-function ReportThumbnail({ accent }: { accent: Report["accent"] }) {
+function ReportThumbnail({
+  accent,
+  label = "ICEPik Report",
+}: {
+  accent: Report["accent"];
+  label?: string;
+}) {
+  const imageByAccent: Record<Report["accent"], string> = {
+    purple: "https://placehold.co/800x500/7c5cff/ffffff?text=ICEPik+Report",
+    green: "https://placehold.co/800x500/35b779/ffffff?text=ICEPik+Sighting",
+    gray: "https://placehold.co/800x500/6b7280/ffffff?text=ICEPik+Report",
+  };
+
   return (
-    <div className={`report-thumbnail thumbnail-${accent}`}>
-      <div className="thumb-noise" />
-      <div className="thumb-van">
-        <span className="thumb-window" />
-        <span className="thumb-window thumb-window-2" />
-        <span className="thumb-wheel thumb-wheel-1" />
-        <span className="thumb-wheel thumb-wheel-2" />
-      </div>
+    <div className="report-thumbnail">
+      <img
+        src={imageByAccent[accent]}
+        alt={label}
+        loading="lazy"
+      />
     </div>
   );
 }
@@ -354,13 +364,16 @@ export default function Home() {
 
           <div className="detail-body">
             <div className="detail-images">
-              <ReportThumbnail accent={selected.accent} />
+              <ReportThumbnail
+                accent={selected.accent}
+                label={selected.title}
+              />
               <div className="detail-secondary">
-                <div className="detail-people" aria-hidden="true">
-                  <span />
-                  <span />
-                  <span />
-                </div>
+                <img
+                  src="https://placehold.co/500x500/374151/ffffff?text=Additional+Photo"
+                  alt="Additional report photo placeholder"
+                  loading="lazy"
+                />
                 <span>{selected.count}</span>
               </div>
             </div>
