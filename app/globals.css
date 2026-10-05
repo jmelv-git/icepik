@@ -48,9 +48,9 @@ button {
   position: fixed;
   inset: 0 auto 0 0;
   z-index: 900;
-  width: 33.55vw;
-  min-width: 480px;
-  max-width: 560px;
+  width: 29vw;
+  min-width: 380px;
+  max-width: 470px;
   overflow-y: auto;
   background:
     linear-gradient(180deg, rgba(255,255,255,0.015), transparent 22%),
@@ -59,25 +59,25 @@ button {
 }
 
 .sidebar-header {
-  height: 184px;
+  height: 142px;
   display: flex;
   align-items: center;
-  gap: 30px;
-  padding: 28px 38px 24px 42px;
+  gap: 18px;
+  padding: 20px 24px;
   border-bottom: 2px solid #30333b;
 }
 
 .brand-lockup {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   min-width: 158px;
 }
 
 .brand-camera {
   position: relative;
-  width: 92px;
-  height: 92px;
+  width: 68px;
+  height: 68px;
   transform: rotate(-3deg);
 }
 
@@ -130,7 +130,7 @@ button {
   flex-direction: column;
   color: white;
   font-family: Georgia, "Times New Roman", serif;
-  font-size: 36px;
+  font-size: 30px;
   font-weight: 700;
   letter-spacing: -0.09em;
   line-height: 0.76;
@@ -138,9 +138,9 @@ button {
 
 .rights-card {
   position: relative;
-  width: 282px;
-  height: 118px;
-  border: 4px solid #363942;
+  width: 210px;
+  height: 88px;
+  border: 3px solid #363942;
   border-radius: 64px;
   overflow: hidden;
   background: #11131a;
@@ -181,19 +181,19 @@ button {
   position: relative;
   z-index: 2;
   display: block;
-  padding-top: 64px;
+  padding-top: 48px;
   font-family: Georgia, "Times New Roman", serif;
-  font-size: 27px;
+  font-size: 21px;
   text-shadow: 0 2px 5px rgba(0,0,0,0.65);
 }
 
 .sidebar-handle {
   position: absolute;
-  top: 194px;
+  top: 152px;
   left: 0;
   z-index: 950;
   width: 24px;
-  height: 63px;
+  height: 53px;
   border: 0;
   padding: 0;
   background: transparent;
@@ -202,17 +202,17 @@ button {
 
 .sidebar-handle span {
   display: block;
-  width: 11px;
-  height: 61px;
+  width: 9px;
+  height: 51px;
   margin-left: 6px;
   border-radius: 999px;
   background: #f5f6f7;
 }
 
 .search-box {
-  margin: 24px 36px 0;
-  padding: 12px;
-  border-radius: 18px;
+  margin: 16px 24px 0;
+  padding: 9px;
+  border-radius: 14px;
   background: #292b32;
   border: 1px solid #3b3e47;
 }
@@ -267,15 +267,15 @@ button {
 
 .report-list {
   display: grid;
-  gap: 26px;
-  padding: 28px 38px 60px;
+  gap: 16px;
+  padding: 18px 24px 40px;
 }
 
 .report-card {
   width: 100%;
-  padding: 18px 30px 24px;
+  padding: 12px 18px 16px;
   border: 0;
-  border-radius: 30px;
+  border-radius: 22px;
   background: var(--card);
   color: var(--white);
   text-align: left;
@@ -291,13 +291,13 @@ button {
 .report-card-head {
   display: flex;
   align-items: center;
-  gap: 14px;
-  margin-bottom: 18px;
+  gap: 10px;
+  margin-bottom: 12px;
 }
 
 .report-status {
-  width: 32px;
-  height: 32px;
+  width: 24px;
+  height: 24px;
   flex: 0 0 auto;
   border-radius: 50%;
 }
@@ -314,30 +314,30 @@ button {
   flex: 1;
   min-width: 0;
   display: block;
-  height: 35px;
-  border-radius: 18px;
+  height: 26px;
+  border-radius: 15px;
   background: #f4f5f6;
   color: #202229;
-  padding: 8px 14px;
+  padding: 6px 11px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  font-size: 13px;
+  font-size: 11px;
 }
 
 .report-count {
   min-width: 29px;
   color: white;
   text-align: right;
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 700;
 }
 
 .report-thumbnail {
   position: relative;
-  height: 168px;
+  height: 118px;
   overflow: hidden;
-  border-radius: 28px;
+  border-radius: 20px;
 }
 
 .thumbnail-purple {
@@ -420,8 +420,8 @@ button {
 .thumb-wheel-2 { right: 12%; }
 
 .report-title {
-  margin-top: 17px;
-  font-size: 16px;
+  margin-top: 12px;
+  font-size: 14px;
   font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
@@ -429,9 +429,9 @@ button {
 }
 
 .report-meta {
-  margin-top: 5px;
+  margin-top: 4px;
   color: var(--muted);
-  font-size: 13px;
+  font-size: 11px;
 }
 
 .map-shell {
@@ -439,7 +439,7 @@ button {
   top: 0;
   right: 0;
   bottom: 0;
-  left: min(33.55vw, 560px);
+  left: min(29vw, 470px);
   background: #dfe6e2;
 }
 
@@ -450,22 +450,22 @@ button {
 
 .detail-card {
   position: absolute;
-  top: 31px;
-  right: 47px;
+  top: 20px;
+  right: 24px;
   z-index: 700;
-  width: 388px;
+  width: 320px;
   overflow: hidden;
-  border-radius: 31px;
+  border-radius: 22px;
   background: #1d1f25;
   box-shadow: 0 20px 46px rgba(0,0,0,0.28);
 }
 
 .detail-head {
-  min-height: 88px;
+  min-height: 64px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 28px;
+  padding: 0 18px;
   border-bottom: 3px solid #343740;
 }
 
@@ -473,8 +473,8 @@ button {
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 14px;
-  font-size: 19px;
+  gap: 10px;
+  font-size: 13px;
   font-weight: 700;
   white-space: nowrap;
   overflow: hidden;
@@ -506,13 +506,13 @@ button {
   background: transparent;
   color: white;
   cursor: pointer;
-  font-size: 43px;
+  font-size: 34px;
   font-weight: 300;
   line-height: 29px;
 }
 
 .detail-body {
-  padding: 23px 28px 0;
+  padding: 16px 18px 0;
 }
 
 .detail-images {
@@ -522,8 +522,8 @@ button {
 }
 
 .detail-images > .report-thumbnail {
-  height: 106px;
-  border-radius: 15px;
+  height: 84px;
+  border-radius: 12px;
 }
 
 .detail-secondary {
@@ -540,7 +540,7 @@ button {
   position: absolute;
   right: 15px;
   bottom: 12px;
-  font-size: 18px;
+  font-size: 15px;
   font-weight: 700;
 }
 
@@ -571,12 +571,12 @@ button {
 }
 
 .detail-title {
-  margin-top: 18px;
+  margin-top: 13px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   color: #f4f5f7;
-  font-size: 15px;
+  font-size: 13px;
 }
 
 .detail-meta {
@@ -589,17 +589,17 @@ button {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-top: 18px;
+  margin-top: 12px;
 }
 
 .vote-button {
-  width: 43px;
-  height: 29px;
+  width: 36px;
+  height: 26px;
   border: 0;
   border-radius: 9px;
   color: white;
   cursor: pointer;
-  font-size: 23px;
+  font-size: 19px;
   line-height: 1;
 }
 
@@ -619,24 +619,24 @@ button {
   background: var(--blue);
   color: white;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 11px;
   font-weight: 600;
 }
 
 .still-icon {
   display: grid;
   place-items: center;
-  width: 23px;
-  height: 23px;
+  width: 20px;
+  height: 20px;
   border-radius: 6px;
   background: rgba(255,255,255,0.18);
-  font-size: 17px;
+  font-size: 14px;
   font-weight: 800;
 }
 
 .comments {
-  margin-top: 13px;
-  padding: 11px 0 19px;
+  margin-top: 10px;
+  padding: 9px 0 14px;
   border-top: 3px solid #343740;
 }
 
@@ -649,14 +649,14 @@ button {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-top: 9px;
-  font-size: 13px;
+  margin-top: 7px;
+  font-size: 11px;
   font-weight: 600;
 }
 
 .comment-avatar {
-  width: 30px;
-  height: 30px;
+  width: 26px;
+  height: 26px;
   display: grid;
   place-items: center;
   border-radius: 50%;
@@ -668,25 +668,25 @@ button {
 .comments p {
   margin: 8px 0 0;
   color: #878c95;
-  font-size: 12px;
-  line-height: 1.45;
+  font-size: 10px;
+  line-height: 1.4;
   max-height: 37px;
   overflow: hidden;
 }
 
 .report-action {
   position: absolute;
-  right: 48px;
-  bottom: 25px;
+  right: 24px;
+  bottom: 18px;
   z-index: 800;
-  min-width: 221px;
-  height: 90px;
-  border: 9px solid #fff;
-  border-radius: 45px;
+  min-width: 150px;
+  height: 58px;
+  border: 6px solid #fff;
+  border-radius: 32px;
   background: var(--red);
   color: #fff;
   cursor: pointer;
-  font-size: 26px;
+  font-size: 18px;
   font-weight: 700;
   box-shadow: 0 10px 18px rgba(0,0,0,0.22);
 }
@@ -844,35 +844,36 @@ button {
 
 @media (max-width: 1180px) {
   .sidebar {
-    width: 39vw;
-    min-width: 410px;
+    width: 34vw;
+    min-width: 360px;
+    max-width: 430px;
   }
 
   .map-shell {
-    left: 39vw;
+    left: 34vw;
   }
 
   .sidebar-header {
-    padding-left: 30px;
-    padding-right: 26px;
-    gap: 16px;
+    padding-left: 22px;
+    padding-right: 18px;
+    gap: 12px;
   }
 
   .rights-card {
-    width: 235px;
+    width: 190px;
   }
 
   .brand-wordmark {
-    font-size: 32px;
+    font-size: 28px;
   }
 
   .detail-card {
-    right: 20px;
-    width: 360px;
+    right: 16px;
+    width: 300px;
   }
 
   .report-action {
-    right: 20px;
+    right: 16px;
   }
 }
 
@@ -935,9 +936,9 @@ button {
   .report-action {
     right: 14px;
     bottom: 14px;
-    min-width: 170px;
-    height: 68px;
-    border-width: 7px;
-    font-size: 22px;
+    min-width: 145px;
+    height: 58px;
+    border-width: 6px;
+    font-size: 18px;
   }
 }
