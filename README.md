@@ -2,11 +2,7 @@
 
 ICEPik is a map where immigrants in Philadelphia can view ICE sightings and report them anonymously. Other users can then help verify each report. We're building it because ICE alerts spread through family group chats today, and as one person we interviewed put it, "The group chat is fast, but it can't tell you if what someone saw is real."
 
-This walking skeleton proves the stack is connected. The live site shows the ICEPik map and design, and the reports on it are sample data.
-
 **Live site:** https://icepik.vercel.app
-
-**Team:** Sebastian Jeremiah, Nathan Inggita, Juan Melvin
 
 ---
 
@@ -53,12 +49,10 @@ The "Know Your Rights" pop-up with links to legal resources is already built.
 
 ```mermaid
 flowchart LR
-    U[User on a phone or laptop] -->|visits icepik.vercel.app| V[Vercel<br/>runs the live site]
-    U -->|map pictures| O[OpenStreetMap<br/>map pictures and address search]
-    V -->|address search| O
+    U[User on a phone or laptop] -->|visits the web address| V[Vercel<br/>runs the live site]
     V -->|sign up, log in, read and save data| S[Supabase<br/>user accounts and database]
-    CC[Claude Code] -->|push or pull request| G[GitHub<br/>nthanvii/icepik]
-    G -->|new commit on main starts a build| V
+    CC[Claude Code<br/>on my computer] -->|push| G[GitHub<br/>stores the code]
+    G -->|new push starts a build| V
 ```
 
 ---
@@ -84,19 +78,6 @@ flowchart LR
 ![After](screenshots/icepik-map-home.webp)
 
 ---
-
-## Running it yourself
-
-```bash
-npm ci
-npm run dev
-```
-
-Then open http://localhost:3000. Before you push, check that `npx eslint app` and `npx next build` pass.
-
-## Where these plans come from
-
-Our planning documents are the Research Report, the Persona Worksheet, the Solution Proposal and the Product Requirements Document. They're based on interviews with Indonesian immigrants in Philadelphia.
 
 ## License
 
