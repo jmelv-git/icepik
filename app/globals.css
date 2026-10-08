@@ -11,7 +11,7 @@
   --green: #10c25b;
   --vote-red: #f43b3b;
   --blue: #4f93c8;
-  --sidebar-width: clamp(340px, 33.75vw, 520px);
+  --sidebar-width: min(32.5rem, 40vw);
   --font-sans: var(--font-outfit), "Glacial Indifference", Arial, sans-serif;
   --font-serif: "Cooper BT", Georgia, "Times New Roman", serif;
 }
@@ -19,6 +19,13 @@
 html,
 body {
   height: 100%;
+}
+
+/* Every size below is in rem, so the whole layout scales with this one
+   value. It is 16px on a 1920x1080 window (the mockup's size), shrinks on
+   smaller or shorter windows and grows on larger ones. */
+html {
+  font-size: clamp(12px, min(calc(6px + 0.52vw), calc(4px + 1.1vh)), 22px);
 }
 
 body {
@@ -34,8 +41,8 @@ button {
 }
 
 :focus-visible {
-  outline: 3px solid var(--blue);
-  outline-offset: 2px;
+  outline: 0.1875rem solid var(--blue);
+  outline-offset: 0.125rem;
 }
 
 .app {
@@ -54,14 +61,14 @@ button {
 .sidebar-header {
   display: flex;
   align-items: center;
-  gap: 20px;
-  padding: 28px 28px 24px 34px;
-  border-bottom: 3px solid var(--line);
+  gap: 1.25rem;
+  padding: 1.75rem 1.75rem 1.5rem 2.125rem;
+  border-bottom: 0.1875rem solid var(--line);
 }
 
 .brand-logo {
   width: auto;
-  height: 96px;
+  height: 6rem;
   flex: none;
 }
 
@@ -69,12 +76,12 @@ button {
   position: relative;
   flex: 1;
   min-width: 0;
-  height: 104px;
+  height: 6.5rem;
   overflow: hidden;
-  border-radius: 999px;
-  outline: 3px solid #393b42;
-  outline-offset: 10px;
-  margin: 10px;
+  border-radius: 62.4375rem;
+  outline: 0.1875rem solid #393b42;
+  outline-offset: 0.625rem;
+  margin: 0.625rem;
   color: #fff;
   isolation: isolate;
 }
@@ -99,27 +106,27 @@ button {
 
 .rights-pill span {
   position: absolute;
-  inset: auto 0 14px;
+  inset: auto 0 0.875rem;
   font-family: var(--font-serif);
-  font-size: clamp(18px, 1.6vw, 24px);
+  font-size: 1.5rem;
   white-space: nowrap;
-  text-shadow: 0 2px 6px rgb(0 0 0 / 0.6);
+  text-shadow: 0 0.125rem 0.375rem rgb(0 0 0 / 0.6);
 }
 
 .search {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin: 20px 28px 0 34px;
-  padding: 0 16px;
-  border-radius: 999px;
+  gap: 0.625rem;
+  margin: 1.25rem 1.75rem 0 2.125rem;
+  padding: 0 1rem;
+  border-radius: 62.4375rem;
   background: var(--card);
 }
 
 .search-icon {
-  width: 18px;
-  height: 18px;
+  width: 1.125rem;
+  height: 1.125rem;
   flex: none;
   color: var(--muted);
 }
@@ -127,7 +134,7 @@ button {
 .search input {
   flex: 1;
   min-width: 0;
-  height: 44px;
+  height: 2.75rem;
   background: transparent;
   color: var(--text);
   outline: none;
@@ -138,33 +145,33 @@ button {
 }
 
 .search:focus-within {
-  box-shadow: 0 0 0 2px var(--blue);
+  box-shadow: 0 0 0 0.125rem var(--blue);
 }
 
 .search-status {
   color: var(--muted);
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 
 .search-results {
   position: absolute;
-  top: calc(100% + 8px);
+  top: calc(100% + 0.5rem);
   inset-inline: 0;
   z-index: 10;
-  padding: 6px;
-  border-radius: 18px;
+  padding: 0.375rem;
+  border-radius: 1.125rem;
   background: #26282f;
-  box-shadow: 0 16px 40px rgb(0 0 0 / 0.45);
+  box-shadow: 0 1rem 2.5rem rgb(0 0 0 / 0.45);
 }
 
 .search-results button,
 .search-empty {
   display: block;
   width: 100%;
-  padding: 10px 12px;
-  border-radius: 12px;
+  padding: 0.625rem 0.75rem;
+  border-radius: 0.75rem;
   text-align: left;
-  font-size: 14px;
+  font-size: 0.875rem;
   line-height: 1.35;
 }
 
@@ -190,16 +197,16 @@ button {
   direction: ltr;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 24px;
-  padding: 24px 28px 64px 34px;
+  gap: 1.5rem;
+  padding: 1.5rem 1.75rem 4rem 2.125rem;
 }
 
 .report-card {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 18px;
-  padding: 22px 22px 20px;
-  border-radius: 36px;
+  gap: 1.125rem;
+  padding: 1.375rem 1.375rem 1.25rem;
+  border-radius: 2.25rem;
   background: var(--card);
   text-align: left;
   transition: background 0.15s, box-shadow 0.15s;
@@ -210,18 +217,18 @@ button {
 }
 
 .report-card[aria-pressed="true"] {
-  box-shadow: inset 0 0 0 2px rgb(255 255 255 / 0.55);
+  box-shadow: inset 0 0 0 0.125rem rgb(255 255 255 / 0.55);
 }
 
 .report-card-head {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 0.875rem;
 }
 
 .status-dot {
-  width: 34px;
-  height: 34px;
+  width: 2.125rem;
+  height: 2.125rem;
   flex: none;
   border-radius: 50%;
 }
@@ -237,11 +244,11 @@ button {
 .report-card-address {
   flex: 1;
   min-width: 0;
-  padding: 8px 18px;
-  border-radius: 999px;
+  padding: 0.5rem 1.125rem;
+  border-radius: 62.4375rem;
   background: #fff;
   color: #1d1f26;
-  font-size: 15px;
+  font-size: 0.9375rem;
   font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
@@ -249,14 +256,14 @@ button {
 }
 
 .report-card .photo {
-  height: 144px;
-  border-radius: 36px;
+  height: 9rem;
+  border-radius: 2.25rem;
 }
 
 .report-card-title {
-  margin-top: -2px;
-  padding-inline: 4px;
-  font-size: 16px;
+  margin-top: -0.125rem;
+  padding-inline: 0.25rem;
+  font-size: 1rem;
   font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
@@ -264,10 +271,10 @@ button {
 }
 
 .report-card-meta {
-  margin-top: -14px;
-  padding-inline: 4px;
+  margin-top: -0.875rem;
+  padding-inline: 0.25rem;
   color: var(--muted);
-  font-size: 14px;
+  font-size: 0.875rem;
 }
 
 .photo {
@@ -292,7 +299,7 @@ button {
   display: grid;
   place-items: center;
   background: linear-gradient(160deg, #4a5059, #1d2026);
-  font-size: 20px;
+  font-size: 1.25rem;
   font-weight: 700;
 }
 
@@ -314,22 +321,22 @@ button {
 
 .leaflet-bar {
   border: 0 !important;
-  border-radius: 14px !important;
+  border-radius: 0.875rem !important;
   overflow: hidden;
-  box-shadow: 0 6px 18px rgb(0 0 0 / 0.2) !important;
+  box-shadow: 0 0.375rem 1.125rem rgb(0 0 0 / 0.2) !important;
 }
 
 .leaflet-bar a {
-  width: 36px !important;
-  height: 36px !important;
-  line-height: 36px !important;
+  width: 2.25rem !important;
+  height: 2.25rem !important;
+  line-height: 2.25rem !important;
   border-color: #3a3c43 !important;
   background: var(--surface) !important;
   color: #fff !important;
 }
 
 .leaflet-bottom.leaflet-left {
-  margin: 0 0 12px 12px;
+  margin: 0 0 0.75rem 0.75rem;
 }
 
 .pin-icon {
@@ -338,12 +345,24 @@ button {
 }
 
 .pin {
+  position: absolute;
+  left: -1.375rem;
+  bottom: -0.125rem;
   display: block;
-  width: 44px;
-  height: 69px;
+  width: 2.75rem;
+  height: 4.3125rem;
   transform-origin: 50% 100%;
-  filter: drop-shadow(0 3px 3px rgb(0 0 0 / 0.25));
+  filter: drop-shadow(0 0.1875rem 0.1875rem rgb(0 0 0 / 0.25));
   transition: transform 0.15s;
+}
+
+.pin-icon:focus-visible {
+  outline: none;
+}
+
+.pin-icon:focus-visible .pin {
+  outline: 3px solid var(--blue);
+  outline-offset: 2px;
 }
 
 .pin-active .pin {
@@ -352,37 +371,37 @@ button {
 
 .detail-card {
   position: absolute;
-  top: 28px;
-  right: 44px;
+  top: 1.75rem;
+  right: 2.75rem;
   z-index: 1000;
   display: flex;
   flex-direction: column;
-  width: 336px;
-  max-height: min(400px, calc(100% - 160px));
+  width: 21rem;
+  max-height: min(25rem, calc(100% - 10rem));
   overflow: hidden;
-  border-radius: 36px;
+  border-radius: 2.25rem;
   background: var(--surface);
-  box-shadow: 0 18px 44px rgb(0 0 0 / 0.3);
+  box-shadow: 0 1.125rem 2.75rem rgb(0 0 0 / 0.3);
 }
 
 .detail-head {
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 20px 20px 18px 24px;
-  border-bottom: 3px solid var(--line);
+  gap: 0.875rem;
+  padding: 1.25rem 1.25rem 1.125rem 1.5rem;
+  border-bottom: 0.1875rem solid var(--line);
 }
 
 .detail-pin {
-  width: 20px;
-  height: 27px;
+  width: 1.25rem;
+  height: 1.6875rem;
   flex: none;
 }
 
 .detail-head h2 {
   flex: 1;
   min-width: 0;
-  font-size: 20px;
+  font-size: 1.25rem;
   font-weight: 700;
   white-space: nowrap;
   overflow: hidden;
@@ -392,8 +411,8 @@ button {
 .icon-button {
   display: grid;
   place-items: center;
-  width: 36px;
-  height: 36px;
+  width: 2.25rem;
+  height: 2.25rem;
   flex: none;
   border-radius: 50%;
 }
@@ -403,64 +422,64 @@ button {
 }
 
 .icon-button svg {
-  width: 24px;
-  height: 24px;
+  width: 1.5rem;
+  height: 1.5rem;
 }
 
 .detail-body {
-  padding: 20px 24px 16px;
-  border-bottom: 3px solid var(--line);
+  padding: 1.25rem 1.5rem 1rem;
+  border-bottom: 0.1875rem solid var(--line);
 }
 
 .detail-media {
   display: flex;
-  gap: 10px;
+  gap: 0.625rem;
 }
 
 .detail-media .photo {
   flex: 1;
-  height: 94px;
-  border-radius: 14px;
+  height: 5.875rem;
+  border-radius: 0.875rem;
 }
 
 .detail-media .photo-more {
-  flex: 0 0 96px;
+  flex: 0 0 6rem;
 }
 
 .detail-title {
-  margin-top: 14px;
-  font-size: 15px;
+  margin-top: 0.875rem;
+  font-size: 0.9375rem;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .detail-meta {
-  margin-top: 2px;
+  margin-top: 0.125rem;
   color: var(--muted);
-  font-size: 14px;
+  font-size: 0.875rem;
 }
 
 .detail-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-top: 14px;
+  gap: 0.5rem;
+  margin-top: 0.875rem;
 }
 
 .vote {
   display: grid;
   place-items: center;
-  width: 34px;
-  height: 22px;
-  border-radius: 7px;
+  width: 2.125rem;
+  height: 1.375rem;
+  border-radius: 0.4375rem;
   color: #fff;
   transition: transform 0.1s, box-shadow 0.1s;
 }
 
 .vote svg {
-  width: 18px;
-  height: 18px;
+  width: 1.125rem;
+  height: 1.125rem;
 }
 
 .vote-up {
@@ -472,7 +491,7 @@ button {
 }
 
 .vote[aria-pressed="true"] {
-  box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px #fff;
+  box-shadow: 0 0 0 0.125rem var(--surface), 0 0 0 0.25rem #fff;
 }
 
 .vote:active {
@@ -482,12 +501,12 @@ button {
 .still-there {
   position: relative;
   flex: 1;
-  height: 22px;
-  margin-left: 10px;
-  padding-left: 40px;
-  border-radius: 7px;
+  height: 1.375rem;
+  margin-left: 0.625rem;
+  padding-left: 2.5rem;
+  border-radius: 0.4375rem;
   background: var(--blue);
-  font-size: 14px;
+  font-size: 0.875rem;
   white-space: nowrap;
 }
 
@@ -496,50 +515,50 @@ button {
   left: 0;
   top: 50%;
   transform: translateY(-58%) rotate(-8deg);
-  font-size: 26px;
+  font-size: 1.625rem;
   font-weight: 800;
   letter-spacing: -0.12em;
   line-height: 1;
-  -webkit-text-stroke: 1.5px var(--surface);
+  -webkit-text-stroke: 0.0938rem var(--surface);
   paint-order: stroke fill;
 }
 
 .comments {
   flex: 1;
   min-height: 0;
-  padding: 14px 24px 0;
+  padding: 0.875rem 1.5rem 0;
   overflow: hidden;
   mask-image: linear-gradient(180deg, #000 60%, transparent);
 }
 
 .comments h3 {
-  font-size: 15px;
+  font-size: 0.9375rem;
   font-weight: 700;
 }
 
 .comment {
-  margin-top: 8px;
+  margin-top: 0.5rem;
 }
 
 .comment-author {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding-left: 6px;
-  font-size: 15px;
+  gap: 0.75rem;
+  padding-left: 0.375rem;
+  font-size: 0.9375rem;
 }
 
 .avatar {
-  width: 26px;
-  height: 26px;
+  width: 1.625rem;
+  height: 1.625rem;
 }
 
 .comment p,
 .comments-empty {
-  margin-top: 6px;
-  padding-left: 22px;
+  margin-top: 0.375rem;
+  padding-left: 1.375rem;
   color: #a2a5ad;
-  font-size: 13px;
+  font-size: 0.8125rem;
   line-height: 1.45;
 }
 
@@ -549,25 +568,25 @@ button {
 
 .report-button {
   position: absolute;
-  right: 44px;
-  bottom: 28px;
+  right: 2.75rem;
+  bottom: 1.75rem;
   z-index: 1000;
-  min-width: 188px;
-  height: 84px;
-  padding: 0 28px;
-  border: 7px solid #fff;
-  border-radius: 999px;
+  min-width: 11.75rem;
+  height: 5.25rem;
+  padding: 0 1.75rem;
+  border: 0.4375rem solid #fff;
+  border-radius: 62.4375rem;
   background: var(--red);
   color: #fff;
-  font-size: 34px;
+  font-size: 2.125rem;
   font-weight: 700;
   letter-spacing: 0.01em;
-  box-shadow: 0 10px 24px rgb(0 0 0 / 0.25);
+  box-shadow: 0 0.625rem 1.5rem rgb(0 0 0 / 0.25);
   transition: transform 0.1s;
 }
 
 .report-button:hover {
-  transform: translateY(-1px);
+  transform: translateY(-0.0625rem);
 }
 
 .report-button:active {
@@ -580,29 +599,29 @@ button {
   z-index: 2000;
   display: grid;
   place-items: center;
-  padding: 20px;
+  padding: 1.25rem;
   background: rgb(5 7 10 / 0.7);
-  backdrop-filter: blur(6px);
+  backdrop-filter: blur(0.375rem);
 }
 
 .modal {
-  width: min(560px, 100%);
-  padding: 24px 28px 28px;
-  border-radius: 32px;
+  width: min(35rem, 100%);
+  padding: 1.5rem 1.75rem 1.75rem;
+  border-radius: 2rem;
   background: var(--surface);
-  box-shadow: 0 30px 80px rgb(0 0 0 / 0.4);
+  box-shadow: 0 1.875rem 5rem rgb(0 0 0 / 0.4);
 }
 
 .modal-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 12px;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
 }
 
 .modal-head h2 {
-  font-size: 26px;
+  font-size: 1.625rem;
   font-weight: 700;
 }
 
@@ -613,14 +632,14 @@ button {
 
 .resource-list {
   display: grid;
-  gap: 10px;
-  margin-top: 18px;
+  gap: 0.625rem;
+  margin-top: 1.125rem;
 }
 
 .resource-list a {
   display: block;
-  padding: 14px 18px;
-  border-radius: 16px;
+  padding: 0.875rem 1.125rem;
+  border-radius: 1rem;
   background: var(--card);
   font-weight: 600;
 }
@@ -631,21 +650,21 @@ button {
 
 .report-form {
   display: grid;
-  gap: 16px;
+  gap: 1rem;
 }
 
 .report-form label {
   display: grid;
-  gap: 6px;
-  font-size: 14px;
+  gap: 0.375rem;
+  font-size: 0.875rem;
   font-weight: 600;
 }
 
 .report-form input,
 .report-form textarea {
   width: 100%;
-  padding: 12px 14px;
-  border-radius: 14px;
+  padding: 0.75rem 0.875rem;
+  border-radius: 0.875rem;
   background: var(--card);
   color: var(--text);
   font-weight: 400;
@@ -655,26 +674,30 @@ button {
 
 .report-form input:focus,
 .report-form textarea:focus {
-  box-shadow: 0 0 0 2px var(--blue);
+  box-shadow: 0 0 0 0.125rem var(--blue);
 }
 
 .report-form-actions {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 0.75rem;
   color: var(--muted);
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 
 .report-form-actions button {
-  padding: 10px 22px;
-  border-radius: 999px;
+  padding: 0.625rem 1.375rem;
+  border-radius: 62.4375rem;
   background: var(--red);
   font-weight: 700;
 }
 
-@media (max-width: 780px) {
+@media (max-width: 899px) {
+  html {
+    font-size: 16px;
+  }
+
   .app {
     display: flex;
     flex-direction: column;
@@ -687,35 +710,36 @@ button {
 
   .sidebar-header {
     order: 1;
-    gap: 8px;
-    padding: 16px;
+    gap: 0.5rem;
+    padding: 1rem;
   }
 
   .brand-logo {
-    height: 64px;
+    height: 4rem;
   }
 
   .rights-pill {
-    height: 68px;
-    outline-offset: 6px;
-    margin: 6px;
+    max-width: 22rem;
+    height: 4.25rem;
+    outline-offset: 0.375rem;
+    margin: 0.375rem;
   }
 
   .rights-pill span {
-    bottom: 10px;
-    font-size: 17px;
+    bottom: 0.625rem;
+    font-size: 1.0625rem;
   }
 
   .search {
     order: 2;
     z-index: 1100;
-    margin: 16px 16px 0;
+    margin: 1rem 1rem 0;
   }
 
   .map-shell {
     order: 3;
     height: 75svh;
-    margin-top: 16px;
+    margin-top: 1rem;
   }
 
   .report-list {
@@ -726,25 +750,26 @@ button {
   }
 
   .report-list-inner {
-    padding: 20px 16px 32px;
+    grid-template-columns: repeat(auto-fill, minmax(min(20rem, 100%), 1fr));
+    padding: 1.25rem 1rem 2rem;
   }
 
   .detail-card {
-    top: 12px;
-    right: 12px;
-    left: 12px;
-    width: auto;
-    max-height: min(340px, calc(100% - 110px));
-    border-radius: 28px;
+    top: 0.75rem;
+    right: 0.75rem;
+    left: auto;
+    width: min(26rem, calc(100% - 1.5rem));
+    max-height: min(21.25rem, calc(100% - 6.875rem));
+    border-radius: 1.75rem;
   }
 
   .report-button {
-    right: 16px;
-    bottom: 16px;
+    right: 1rem;
+    bottom: 1rem;
     min-width: 0;
-    height: 64px;
-    padding: 0 26px;
-    border-width: 5px;
-    font-size: 24px;
+    height: 4rem;
+    padding: 0 1.625rem;
+    border-width: 0.3125rem;
+    font-size: 1.5rem;
   }
 }

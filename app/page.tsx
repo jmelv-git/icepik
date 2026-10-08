@@ -92,8 +92,8 @@ export default function Home() {
           icon: L.divIcon({
             className: "pin-icon",
             html: pinMarkup(report.status),
-            iconSize: [44, 69],
-            iconAnchor: [22, 67],
+            // The pin is drawn and sized in CSS (.pin) so it scales with the UI.
+            iconSize: [0, 0],
           }),
         })
           .on("click", () => setSelectedId(report.id))
@@ -207,7 +207,7 @@ export default function Home() {
               src={rightsPhoto}
               alt=""
               fill
-              sizes="240px"
+              sizes="(max-width: 899px) 60vw, 22rem"
               className="rights-photo"
             />
             <span>Know Your Rights</span>
