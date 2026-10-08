@@ -22,13 +22,13 @@ The reports on the map aren't in a database yet. They're sample data written int
 
 1. We ask Claude Code to make a change in the code.
 2. We check it at `localhost:3000` by running `npm run dev`.
-3. We commit the change and push it to GitHub. Juan's changes go through a pull request from his fork into nthanvii/icepik.
+3. We commit the change and push it to GitHub.
 4. Vercel sees the new commit on `main` and starts a new build on its own.
 5. After about a minute the build shows **Ready** in Vercel, and the change is live at https://icepik.vercel.app.
 
 ## 4. What will we need to add to turn this into our team's app?
 
-Our [Product Requirements Document](#where-these-plans-come-from) and Solution Proposal describe the first real version of ICEPik. To get there from this skeleton, we'd need to add:
+We'd need to add these things to make a production-ready build:
 
 - **Optional accounts:** people must be able to view and report sightings without an account, so they never have to give us their email.
 - **Philadelphia:** move the map and the sample reports from Fort Lauderdale, where the mockup's map was, to Philadelphia.
