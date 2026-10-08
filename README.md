@@ -2,7 +2,7 @@
 
 ICEPik is a map where immigrants in Philadelphia can view ICE sightings and report them anonymously. Other users can then help verify each report. We're building it because ICE alerts spread through family group chats today, and as one person we interviewed put it, "The group chat is fast, but it can't tell you if what someone saw is real."
 
-This walking skeleton proves the stack is connected. The live site shows the ICEPik map and design, but the reports on it are sample data.
+This walking skeleton proves the stack is connected. The live site shows the ICEPik map and design, and the reports on it are sample data.
 
 **Live site:** https://icepik.vercel.app
 
@@ -14,11 +14,11 @@ This walking skeleton proves the stack is connected. The live site shows the ICE
 
 On GitHub, in [nthanvii/icepik](https://github.com/nthanvii/icepik). Vercel deploys the live site from this repo's `main` branch. Juan works in a fork, [jmelv-git/icepik](https://github.com/jmelv-git/icepik), and sends changes back as pull requests. `main` on nthanvii/icepik is always the latest version.
 
-The first version of the site was Vercel's Next.js and Supabase starter, which had working sign-up and login. We then rebuilt the site from Vercel's Next.js example to match our design mockup: a map, report cards, a report detail card and a "Know Your Rights" pop-up. That rebuild didn't carry the login code over, so sign-up and login aren't on the live site right now.
+It started as Vercel's Next.js and Supabase starter. We then used Claude Code to build our design mockup on top of it: a map, report cards, a report detail card and a "Know Your Rights" pop-up.
 
 ## 2. Where does the data live, and what is stored there right now?
 
-Our user accounts are in Supabase, a database with user accounts built in. Right now the only thing stored there is the three accounts the team made in the first version of the site: each person's email address, when they signed up, and when they last logged in. Supabase stores passwords in a scrambled form, so nobody can read them, including us.
+Our user accounts are in Supabase, a database with user accounts built in. Right now the only thing stored there is the team's three accounts: each person's email address, when they signed up, and when they last logged in. Supabase stores passwords in a scrambled form, so nobody can read them, including us.
 
 The reports on the map aren't in a database yet. They're sample data written into the code (`app/reports.ts`), so they're the same for every visitor and new reports aren't saved. The map pictures and the address search come from OpenStreetMap, and we don't store anything from them.
 
@@ -34,7 +34,7 @@ The reports on the map aren't in a database yet. They're sample data written int
 
 Our [Product Requirements Document](#where-these-plans-come-from) and Solution Proposal describe the first real version of ICEPik. To get there from this skeleton, we'd need to add:
 
-- **Login again:** connect this codebase to our Supabase project. Accounts should stay optional, because people must be able to view and report sightings without giving us their email.
+- **Optional accounts:** people must be able to view and report sightings without an account, so they never have to give us their email.
 - **Philadelphia:** move the map and the sample reports from Fort Lauderdale, where the mockup's map was, to Philadelphia.
 - **Saved reports:** a reports table in Supabase with the location, a description, the time, and whether the sighting is *suspected* (yellow pin) or *confirmed* (red camera pin). It won't store who sent the report.
 - **Photos and videos:** a place to store them (Supabase Storage). A confirmed report needs one. Before storing a photo, we remove the hidden data inside it that can show where it was taken and on what phone.
@@ -56,21 +56,19 @@ flowchart LR
     U[User on a phone or laptop] -->|visits icepik.vercel.app| V[Vercel<br/>runs the live site]
     U -->|map pictures| O[OpenStreetMap<br/>map pictures and address search]
     V -->|address search| O
-    V -.->|sign up, log in<br/>first version, to reconnect| S[Supabase<br/>user accounts and database]
+    V -->|sign up, log in, read and save data| S[Supabase<br/>user accounts and database]
     CC[Claude Code] -->|push or pull request| G[GitHub<br/>nthanvii/icepik]
     G -->|new commit on main starts a build| V
 ```
-
-The dotted line is the Supabase connection from the first version of the site. We still need to add it back.
 
 ---
 
 ## Screenshots
 
-**Sign-up page on the first version of the site, with the web address showing**
+**Sign-up page on the live site, with the web address showing**
 ![Sign up page](screenshots/template-sign-up.webp)
 
-**The page we saw after logging in to the first version**
+**The page we see after logging in**
 ![Logged in page](screenshots/template-protected-page.webp)
 
 **Our users in Supabase, under Authentication > Users**
