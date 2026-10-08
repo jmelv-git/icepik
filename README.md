@@ -1,4 +1,4 @@
-# ICEPik Walking Skeleton
+# ICEPik
 
 ICEPik is a map where immigrants in Philadelphia can view ICE sightings and report them anonymously. Other users can then help verify each report. We're building it because ICE alerts spread through family group chats today, and as one person we interviewed put it, "The group chat is fast, but it can't tell you if what someone saw is real."
 
