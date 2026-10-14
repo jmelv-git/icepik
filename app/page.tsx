@@ -17,6 +17,9 @@ type Vote = "up" | "down";
 
 const MAP_CENTER: LatLngExpression = [26.1165, -80.1365];
 
+// Matches the stacked phone layout in globals.css.
+const PHONE_QUERY = "(max-width: 899px)";
+
 const STATUS_LABEL: Record<Status, string> = {
   confirmed: "Confirmed sighting",
   suspected: "Unconfirmed sighting",
@@ -59,6 +62,10 @@ export default function Home() {
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState(false);
   const [modal, setModal] = useState<"rights" | "report" | null>(null);
+  // null until the user toggles it: CSS then shows the panel on desktop and
+  // hides it on phones, so neither layout flashes the wrong state on load.
+  const [panelOpen, setPanelOpen] = useState<boolean | null>(null);
+  const [rightsCardHidden, setRightsCardHidden] = useState(false);
 
   const selected = reports.find((report) => report.id === selectedId) ?? null;
 
@@ -77,7 +84,7 @@ export default function Home() {
         zoomControl: false,
       });
 
-      L.control.zoom({ position: "bottomleft" }).addTo(instance);
+      L.control.zoom({ position: "bottomright" }).addTo(instance);
 
       L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
         maxZoom: 19,
@@ -132,9 +139,53 @@ export default function Home() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [modal]);
 
+  function isPhone() {
+    return window.matchMedia(PHONE_QUERY).matches;
+  }
+
+  function togglePanel() {
+    setPanelOpen((open) => !(open ?? !isPhone()));
+  }
+
+  // Keep the floating panel and the detail card from covering a point the map
+  // is asked to show.
+  function mapPadding(): { paddingTopLeft: [number, number]; paddingBottomRight: [number, number] } {
+    const shell = mapNode.current?.getBoundingClientRect();
+    const panel = document.querySelector(".panel-cards");
+    const detail = document.querySelector(".detail-card")?.getBoundingClientRect();
+    if (!shell) return { paddingTopLeft: [48, 96], paddingBottomRight: [48, 48] };
+
+    // On phones the detail card spans the top of the map.
+    if (isPhone()) {
+      const top = detail ? detail.bottom - shell.top : 96;
+      // Leave room for the pin, which is drawn above its point.
+      return { paddingTopLeft: [24, top + 88], paddingBottomRight: [24, 96] };
+    }
+
+    const left =
+      panel && getComputedStyle(panel).visibility !== "hidden"
+        ? panel.getBoundingClientRect().right - shell.left
+        : 0;
+    const right = detail ? shell.right - detail.left : 0;
+    return { paddingTopLeft: [left + 48, 96], paddingBottomRight: [right + 48, 48] };
+  }
+
   function showReport(report: Report) {
     setSelectedId(report.id);
-    map.current?.panTo([report.lat, report.lon], { duration: 0.35 });
+    // On phones the panel covers the map, so get it out of the way.
+    if (isPhone()) setPanelOpen(false);
+    map.current?.panInside([report.lat, report.lon], mapPadding());
+  }
+
+  async function showAllReports() {
+    const instance = map.current;
+    if (!instance) return;
+    if (isPhone()) setPanelOpen(false);
+    const L = await import("leaflet");
+    instance.fitBounds(
+      L.latLngBounds(reports.map((report) => [report.lat, report.lon])),
+      { ...mapPadding(), maxZoom: 15 },
+    );
   }
 
   function vote(id: string, value: Vote) {
@@ -191,90 +242,166 @@ export default function Home() {
   }
 
   const selectedVote = selected ? votes[selected.id] : undefined;
+  const confirmedCount = reports.filter((r) => r.status === "confirmed").length;
+  const panelState = panelOpen === null ? "auto" : panelOpen ? "open" : "closed";
 
   return (
-    <div className="app">
-      <aside className="sidebar">
-        <header className="sidebar-header">
-          <Image src={logo} alt="ICEPik" preload className="brand-logo" />
+    <div className="app" data-panel={panelState}>
+      <nav className="rail" aria-label="ICEPik">
+        <Image src={logo} alt="ICEPik" preload className="brand-logo" />
 
-          <button
-            type="button"
-            className="rights-pill"
-            onClick={() => setModal("rights")}
-          >
-            <Image
-              src={rightsPhoto}
-              alt=""
-              fill
-              sizes="(max-width: 899px) 60vw, 22rem"
-              className="rights-photo"
-            />
-            <span>Know Your Rights</span>
-          </button>
-        </header>
+        <button
+          type="button"
+          className="rail-item rail-reports"
+          aria-expanded={panelState !== "closed"}
+          aria-controls="panel-cards"
+          onClick={togglePanel}
+        >
+          <span className="rail-icon">
+            <ListIcon />
+          </span>
+          Reports
+        </button>
 
-        <form className="search" role="search" onSubmit={searchPlaces}>
-          <SearchIcon />
-          <input
-            type="search"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search an address or place"
-            aria-label="Search an address or place"
-          />
-          {searching ? <span className="search-status">Searching…</span> : null}
-
-          {results.length > 0 || searchError ? (
-            <ul className="search-results">
-              {searchError ? (
-                <li className="search-empty">Search is unavailable right now.</li>
-              ) : (
-                results.map((item) => (
-                  <li key={`${item.lat},${item.lon}`}>
-                    <button
-                      type="button"
-                      onClick={() => chooseSearchResult(item)}
-                    >
-                      {item.display_name}
-                    </button>
-                  </li>
-                ))
-              )}
-            </ul>
-          ) : null}
-        </form>
-
-        <section className="report-list" aria-label="Recent reports">
-          <div className="report-list-inner">
-            {reports.map((report) => (
-              <button
-                key={report.id}
-                type="button"
-                className="report-card"
-                aria-pressed={report.id === selectedId}
-                onClick={() => showReport(report)}
-              >
-                <span className="report-card-head">
-                  <span className={`status-dot status-${report.status}`}>
-                    <span className="sr-only">{STATUS_LABEL[report.status]}</span>
-                  </span>
-                  <span className="report-card-address">{report.address}</span>
-                </span>
-                <span className={`photo photo-${report.accent}`} />
-                <span className="report-card-title">{report.title}</span>
-                <span className="report-card-meta">
-                  {report.time} · {report.reporter}
-                </span>
-              </button>
-            ))}
-          </div>
-        </section>
-      </aside>
+        <button
+          type="button"
+          className="rail-item"
+          onClick={() => setModal("rights")}
+        >
+          <span className="rail-thumb">
+            <Image src={rightsPhoto} alt="" fill sizes="48px" className="rights-photo" />
+          </span>
+          Know Your Rights
+        </button>
+      </nav>
 
       <main className="map-shell">
         <div ref={mapNode} className="map" />
 
+        <div className="panel">
+          <form className="search" role="search" onSubmit={searchPlaces}>
+            <input
+              type="search"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search an address or place"
+              aria-label="Search an address or place"
+            />
+            {searching ? <span className="search-status">Searching…</span> : null}
+            <button type="submit" className="icon-button search-submit" aria-label="Search">
+              <SearchIcon />
+            </button>
+
+            {results.length > 0 || searchError ? (
+              <ul className="search-results">
+                {searchError ? (
+                  <li className="search-empty">Search is unavailable right now.</li>
+                ) : (
+                  results.map((item) => (
+                    <li key={`${item.lat},${item.lon}`}>
+                      <button
+                        type="button"
+                        onClick={() => chooseSearchResult(item)}
+                      >
+                        {item.display_name}
+                      </button>
+                    </li>
+                  ))
+                )}
+              </ul>
+            ) : null}
+          </form>
+
+          <button
+            type="button"
+            className="panel-toggle"
+            aria-expanded={panelState !== "closed"}
+            aria-controls="panel-cards"
+            aria-label={panelState === "closed" ? "Show side panel" : "Hide side panel"}
+            onClick={togglePanel}
+          >
+            <ChevronIcon direction="left" />
+          </button>
+
+          <div id="panel-cards" className="panel-cards" inert={panelState === "closed"}>
+            <section className="card report-list" aria-label="Recent reports">
+              {reports.map((report) => (
+                <button
+                  key={report.id}
+                  type="button"
+                  className="report-row"
+                  aria-pressed={report.id === selectedId}
+                  onClick={() => showReport(report)}
+                >
+                  <span className={`row-icon status-${report.status}`}>
+                    <StatusIcon status={report.status} />
+                  </span>
+                  <span className="row-text">
+                    <span className="row-address">{report.address}</span>
+                    <span className="row-title">{report.title}</span>
+                    <span className="row-meta">
+                      <span className={`row-status status-text-${report.status}`}>
+                        {STATUS_LABEL[report.status]}
+                      </span>
+                      {" · "}
+                      {report.time} · {report.reporter}
+                    </span>
+                  </span>
+                  <span className={`photo photo-${report.accent} row-thumb`} />
+                </button>
+              ))}
+            </section>
+
+            {rightsCardHidden ? null : (
+              <section className="card rights-card" aria-labelledby="rights-card-title">
+                <button
+                  type="button"
+                  className="icon-button rights-card-close"
+                  aria-label="Dismiss"
+                  onClick={() => setRightsCardHidden(true)}
+                >
+                  <CloseIcon />
+                </button>
+                <div className="rights-card-body">
+                  <h2 id="rights-card-title">Know Your Rights</h2>
+                  <p>
+                    You have rights regardless of your immigration status. Keep
+                    trusted legal help close.
+                  </p>
+                </div>
+                <span className="rights-card-photo">
+                  <Image src={rightsPhoto} alt="" fill sizes="10rem" className="rights-photo" />
+                </span>
+                <button
+                  type="button"
+                  className="rights-card-button"
+                  onClick={() => setModal("rights")}
+                >
+                  See legal resources
+                </button>
+              </section>
+            )}
+
+            <section className="card area-card" aria-labelledby="area-title">
+              <header>
+                <h2 id="area-title">This area</h2>
+                <span>{reports.length} reports</span>
+              </header>
+              <button type="button" className="area-row" onClick={showAllReports}>
+                <span className="row-icon status-suspected">
+                  <StatusIcon status="suspected" />
+                </span>
+                <span className="row-text">
+                  <span className="row-address">Activity reported nearby</span>
+                  <span className="row-meta">
+                    {confirmedCount} confirmed · {reports.length - confirmedCount} unconfirmed
+                  </span>
+                </span>
+                <ChevronIcon direction="right" />
+              </button>
+            </section>
+          </div>
+        </div>
         {selected ? (
           <section className="detail-card" aria-labelledby="detail-address">
             <header className="detail-head">
@@ -481,11 +608,18 @@ function CloseIcon() {
   );
 }
 
-function ChevronIcon({ direction }: { direction: "up" | "down" }) {
+const CHEVRON_PATH = {
+  up: "M5 15l7-7 7 7",
+  down: "M5 9l7 7 7-7",
+  left: "M15 5l-7 7 7 7",
+  right: "M9 5l7 7-7 7",
+};
+
+function ChevronIcon({ direction }: { direction: keyof typeof CHEVRON_PATH }) {
   return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
+    <svg className="chevron" viewBox="0 0 24 24" aria-hidden="true">
       <path
-        d={direction === "up" ? "M5 15l7-7 7 7" : "M5 9l7 7 7-7"}
+        d={CHEVRON_PATH[direction]}
         fill="none"
         stroke="currentColor"
         strokeWidth="2.5"
@@ -511,6 +645,35 @@ function AvatarIcon() {
       <circle cx="16" cy="16" r="16" fill="#4f93c8" />
       <circle cx="16" cy="12.5" r="5.5" fill="#fff" />
       <path d="M6.5 26.5c1.8-4.6 5.4-7 9.5-7s7.7 2.4 9.5 7a13 13 0 0 1-19 0Z" fill="#fff" />
+    </svg>
+  );
+}
+
+function ListIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        d="M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01"
+        stroke="currentColor"
+        strokeWidth="2.2"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function StatusIcon({ status }: { status: Status }) {
+  return status === "confirmed" ? (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M8.5 6.5 9.8 4.5h4.4l1.3 2H18a2.5 2.5 0 0 1 2.5 2.5v8A2.5 2.5 0 0 1 18 19.5H6A2.5 2.5 0 0 1 3.5 17V9A2.5 2.5 0 0 1 6 6.5Z" fill="currentColor" />
+      <circle cx="12" cy="13" r="3.6" fill="#fff" />
+      <circle cx="12" cy="13" r="2" fill="currentColor" />
+    </svg>
+  ) : (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12 4 21 19.5H3Z" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+      <path d="M12 9.5v4.5" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" />
+      <circle cx="12" cy="16.8" r="1.2" fill="#fff" />
     </svg>
   );
 }
