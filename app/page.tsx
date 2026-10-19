@@ -5,6 +5,7 @@ import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import logo from "../public/brand/icepik-logo.png";
 import rightsPhoto from "../public/brand/know-your-rights.jpg";
+import { AccountButton } from "./account-button";
 import { reports, type Report, type Status } from "./reports";
 
 type SearchResult = {
@@ -273,6 +274,8 @@ export default function Home() {
           </span>
           Know Your Rights
         </button>
+
+        <AccountButton className="rail-item rail-account" />
       </nav>
 
       <main className="map-shell">

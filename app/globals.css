@@ -114,6 +114,10 @@ button {
   background: rgb(79 147 200 / 0.3);
 }
 
+.rail-account {
+  margin-top: auto;
+}
+
 .rail-thumb {
   position: relative;
   width: 3rem;
@@ -893,6 +897,134 @@ button {
   font-weight: 700;
 }
 
+/* Log in, sign up and auth error pages. */
+.auth-page {
+  display: grid;
+  place-items: center;
+  min-height: 100dvh;
+  padding: 1.5rem 1rem;
+}
+
+.auth-card {
+  display: grid;
+  gap: 1rem;
+  width: min(26rem, 100%);
+  padding: 2rem 2rem 1.5rem;
+  border-radius: 2rem;
+  background: #262830;
+  box-shadow: 0 1.875rem 5rem rgb(0 0 0 / 0.35);
+}
+
+.auth-logo {
+  justify-self: center;
+  width: 9rem;
+}
+
+.auth-card h1 {
+  font-size: 1.75rem;
+  font-weight: 700;
+}
+
+.auth-intro {
+  margin-top: -0.5rem;
+  color: #b5b8bf;
+  line-height: 1.5;
+}
+
+.auth-form {
+  display: grid;
+  gap: 1rem;
+}
+
+.auth-form label {
+  display: grid;
+  gap: 0.375rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.auth-form input {
+  width: 100%;
+  padding: 0.75rem 0.875rem;
+  border-radius: 0.875rem;
+  background: var(--card);
+  color: var(--text);
+  font-weight: 400;
+  outline: none;
+}
+
+.auth-form input:focus {
+  box-shadow: 0 0 0 0.125rem var(--blue);
+}
+
+.auth-error {
+  padding: 0.625rem 0.875rem;
+  border-radius: 0.875rem;
+  background: rgb(244 59 59 / 0.15);
+  color: #ffb4b4;
+  font-size: 0.875rem;
+  line-height: 1.4;
+}
+
+.auth-button {
+  display: block;
+  width: 100%;
+  padding: 0.75rem 1.25rem;
+  border-radius: 62.4375rem;
+  background: var(--blue);
+  color: #fff;
+  font-weight: 700;
+  text-align: center;
+  transition: background 0.15s;
+}
+
+.auth-button:hover {
+  background: #3f80b3;
+}
+
+.auth-button:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.auth-switch {
+  color: #b5b8bf;
+  font-size: 0.875rem;
+  text-align: center;
+}
+
+.auth-switch a,
+.auth-back {
+  color: #8ec3ee;
+  font-weight: 600;
+}
+
+.auth-switch a:hover,
+.auth-back:hover {
+  text-decoration: underline;
+}
+
+.auth-back {
+  justify-self: center;
+  margin-top: 0.25rem;
+  font-size: 0.875rem;
+}
+
+.auth-sent {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.auth-sent h2 {
+  font-size: 1.125rem;
+  font-weight: 700;
+}
+
+.auth-sent p {
+  color: #b5b8bf;
+  line-height: 1.5;
+}
+
 @media (max-width: 899px) {
   html {
     font-size: 16px;
@@ -925,6 +1057,10 @@ button {
   .rail-reports {
     padding-top: 0.25rem;
     border-top: 0;
+  }
+
+  .rail-account {
+    margin-top: 0;
   }
 
   .rail-thumb {
