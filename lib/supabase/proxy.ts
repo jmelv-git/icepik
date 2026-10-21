@@ -2,8 +2,9 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { isSupabaseConfigured, supabaseKey, supabaseUrl } from "./config";
 
-// Refreshes the signed-in user's session before the page renders, so Server
-// Components and Server Actions see valid auth cookies.
+// Refreshes the signed-in user's session before the page renders, so server
+// actions see valid auth cookies. The anonymous session is the user's account,
+// so keeping its cookie fresh keeps their account.
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
 

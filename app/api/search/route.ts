@@ -1,20 +1,27 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 
 const NOMINATIM_BASE = "https://nominatim.openstreetmap.org";
+// Nominatim's usage policy asks for a User-Agent that identifies the app.
 const HEADERS = {
-  "User-Agent": "icepik-osm-demo/1.0 (Next.js demo)",
+  "User-Agent": "ICEPik/1.0 (community safety map)",
   Accept: "application/json",
 };
+// Prefer results around Philadelphia without excluding other places.
+const PHILADELPHIA_VIEWBOX = "-75.30,40.14,-74.95,39.86";
 
 type NominatimResult = {
   display_name: string;
   lat: string;
   lon: string;
-  type: string;
 };
 
-export async function GET(request: NextRequest) {
-  const query = request.nextUrl.searchParams.get("q")?.trim() ?? "";
+// The search text arrives in the request body, not the URL, so an address
+// someone looks up never lands in request logs. Never log it here either.
+// Nominatim sees this server's IP address, not the visitor's.
+export async function POST(request: Request) {
+  const body: unknown = await request.json().catch(() => null);
+  const raw = (body as { q?: unknown } | null)?.q;
+  const query = typeof raw === "string" ? raw.trim().slice(0, 200) : "";
 
   if (!query) {
     return NextResponse.json([]);
@@ -27,6 +34,8 @@ export async function GET(request: NextRequest) {
         format: "jsonv2",
         limit: "5",
         addressdetails: "0",
+        countrycodes: "us",
+        viewbox: PHILADELPHIA_VIEWBOX,
       }).toString()}`,
       {
         headers: HEADERS,
@@ -44,7 +53,6 @@ export async function GET(request: NextRequest) {
       display_name: item.display_name,
       lat: item.lat,
       lon: item.lon,
-      type: item.type,
     }));
 
     return NextResponse.json(results);
