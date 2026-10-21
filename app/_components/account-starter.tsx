@@ -1,32 +1,62 @@
 "use client";
 
+import type { User } from "@supabase/supabase-js";
 import { useEffect, useRef, useState } from "react";
 import { authErrorMessage } from "@/lib/accounts";
 import type { Client } from "@/lib/supabase/client";
 import { Captcha, captchaEnabled } from "./captcha";
 
+// What getSession() found for one attempt.
+type Found = { attempt: number; result: "no-session" | "error" };
+
 // Creates an anonymous account when this device has none: on the first visit
 // after agreeing to the terms, and after the account is deleted. There's no
 // sign-up screen. When it works, the auth listener in MapApp picks up the new
 // session and this disappears.
+//
+// The listener reporting "no session" isn't proof there is none: when a token
+// refresh fails (no signal, a brief auth outage), auth-js reports no session
+// but keeps the stored one, and retries in the background. Creating an account
+// then would replace it, and an unsaved anonymous account can't be recovered.
+// So every attempt asks getSession() first, and creates an account only when
+// it finds no session and no error.
 export function AccountStarter({
   supabase,
+  onSession,
   onDismiss,
 }: {
   supabase: Client;
+  onSession: (user: User) => void;
   onDismiss: () => void;
 }) {
+  const [attempt, setAttempt] = useState(0);
+  const [found, setFound] = useState<Found | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [captchaReset, setCaptchaReset] = useState(0);
-  const [attempt, setAttempt] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const started = useRef(-1);
+  // One check and one sign-up per attempt, even when effects run twice in
+  // development.
+  const checked = useRef(-1);
+  const created = useRef(-1);
 
   useEffect(() => {
-    if (captchaEnabled && !token) return;
-    // One request per attempt, even when effects run twice in development.
-    if (started.current === attempt) return;
-    started.current = attempt;
+    if (checked.current === attempt) return;
+    checked.current = attempt;
+
+    void supabase.auth.getSession().then(({ data, error }) => {
+      if (error) setFound({ attempt, result: "error" });
+      else if (data.session) onSession(data.session.user);
+      else setFound({ attempt, result: "no-session" });
+    });
+  }, [supabase, attempt, onSession]);
+
+  const noSession = found?.attempt === attempt && found.result === "no-session";
+  const cantRestore = found?.attempt === attempt && found.result === "error";
+
+  useEffect(() => {
+    if (!noSession || (captchaEnabled && !token)) return;
+    if (created.current === attempt) return;
+    created.current = attempt;
 
     void supabase.auth
       .signInAnonymously(token ? { options: { captchaToken: token } } : undefined)
@@ -36,13 +66,17 @@ export function AccountStarter({
         // A CAPTCHA token works once.
         if (captchaEnabled) setCaptchaReset((count) => count + 1);
       });
-  }, [supabase, token, attempt]);
+  }, [supabase, noSession, token, attempt]);
+
+  const message = cantRestore
+    ? "We couldn't restore your account. Check your connection, then try again."
+    : error;
 
   return (
     <div className="starter" role="status">
-      {error ? (
+      {message ? (
         <>
-          <p className="form-error">{error}</p>
+          <p className="form-error">{message}</p>
           <div className="form-actions">
             <button type="button" className="secondary-button" onClick={onDismiss}>
               Just view the map
@@ -50,7 +84,7 @@ export function AccountStarter({
             <button
               type="button"
               className="primary-button"
-              disabled={captchaEnabled && !token}
+              disabled={noSession && captchaEnabled && !token}
               onClick={() => {
                 setError(null);
                 setAttempt((count) => count + 1);
@@ -63,7 +97,9 @@ export function AccountStarter({
       ) : (
         <p>Setting up your anonymous account…</p>
       )}
-      {captchaEnabled ? <Captcha onToken={setToken} resetKey={captchaReset} /> : null}
+      {noSession && captchaEnabled ? (
+        <Captcha onToken={setToken} resetKey={captchaReset} />
+      ) : null}
     </div>
   );
 }

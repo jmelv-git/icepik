@@ -667,7 +667,11 @@ export function MapApp() {
       ) : null}
 
       {supabase && user === null && !starterHidden ? (
-        <AccountStarter supabase={supabase} onDismiss={() => setStarterHidden(true)} />
+        <AccountStarter
+          supabase={supabase}
+          onSession={setUser}
+          onDismiss={() => setStarterHidden(true)}
+        />
       ) : null}
     </div>
   );
