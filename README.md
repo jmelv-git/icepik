@@ -14,9 +14,22 @@ It started as Vercel's Next.js and Supabase starter. We then used Claude Code to
 
 ## 2. Where does the data live, and what is stored there right now?
 
-Our user accounts are in Supabase, a database with user accounts built in. Right now the only thing stored there is the team's three accounts: each person's email address, when they signed up, and when they last logged in. Supabase stores passwords in a scrambled form, so nobody can read them, including us.
+Everything is in Supabase, a database with user accounts built in. The tables and their access rules are in `database/icepik_schema.sql`, and `docs/database-handoff.md` explains them and the Supabase settings they need.
 
-The reports on the map aren't in a database yet. They're sample data written into the code (`app/reports.ts`), so they're the same for every visitor and new reports aren't saved. The map pictures and the address search come from OpenStreetMap, and we don't store anything from them.
+- **Accounts:** everyone gets an anonymous account when they first agree to the terms, with no name, email or phone number. Saving it adds a username and password. Supabase stores passwords in a scrambled form, so nobody can read them, including us. The three email accounts the team made while testing the starter are still there too.
+- **Sightings:** each pin's location (rounded to about 100 m), street label, category, counts, description, times, and confirmation and dispute totals. Everyone can see a pin while it's on the map, at least 4 hours. Expired pins stay in the database so we can measure how accurate reports are, but the app can't read them.
+- **Who posted or voted on a sighting:** kept in two private tables that only that person can read, and deleted within an hour after the pin expires.
+- **Profiles:** each account's language setting, and how many sightings it has posted and votes it has cast in total.
+
+Home and work places stay in the browser and never reach the database. The map pictures and the address search come from OpenStreetMap, and we don't store anything from them.
+
+The site needs these environment variables, in Vercel and in `.env.local` for `npm run dev`:
+
+| Variable | What it is |
+| --- | --- |
+| `NEXT_PUBLIC_SUPABASE_URL` | The Supabase project's URL. |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | The project's publishable key. The older `NEXT_PUBLIC_SUPABASE_ANON_KEY` works too. Never use the secret or `service_role` key. |
+| `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | Optional. The Cloudflare Turnstile site key, needed only when CAPTCHA is on in Supabase. |
 
 ## 3. How does a change get from Claude Code to the live site?
 

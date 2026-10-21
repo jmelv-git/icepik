@@ -229,8 +229,8 @@ export function ReportForm({
       </label>
 
       <p className="form-tip">
-        For your safety, you can post after you&apos;ve left the area. A new pin shows roughly where
-        it was posted from.
+        For your safety, you can post after you&apos;ve left the area. A pin posted on the spot shows
+        people you were just there.
       </p>
 
       {message ? (

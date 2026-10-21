@@ -419,9 +419,11 @@ function ClearDevice({ supabase, user, onBack }: Props & { onBack: () => void })
 
   async function clearDevice() {
     setBusy(true);
-    await supabase.auth.signOut({ scope: "local" });
-    // Forgetting the accepted policy also returns to the first screen.
+    // Clear storage first. Forgetting the accepted policy returns to the first
+    // screen, which unmounts the map and its auth listener. Signing out first
+    // would let AccountStarter create a new account before the terms show.
     clearDeviceStorage();
+    await supabase.auth.signOut({ scope: "local" });
   }
 
   return (
