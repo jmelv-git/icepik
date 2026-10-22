@@ -39,12 +39,14 @@ function loadTurnstile() {
     const script = document.createElement("script");
     script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
     script.async = true;
-    script.onload = () => (window.turnstile ? resolve(window.turnstile) : reject());
-    script.onerror = () => {
+    // Forget a failed load, so the next attempt fetches the script again.
+    const fail = () => {
       loading = null;
       script.remove();
       reject();
     };
+    script.onload = () => (window.turnstile ? resolve(window.turnstile) : fail());
+    script.onerror = fail;
     document.head.appendChild(script);
   });
   return loading;
@@ -52,19 +54,23 @@ function loadTurnstile() {
 
 // Shows the check and reports each new token, or null when it expires or
 // fails. A token works once: change resetKey after using one to get another.
+// onError means the check couldn't load at all, for example when the script
+// is blocked; mounting it again tries again.
 export function Captcha({
   onToken,
+  onError,
   resetKey = 0,
 }: {
   onToken: (token: string | null) => void;
+  onError: () => void;
   resetKey?: number;
 }) {
   const box = useRef<HTMLDivElement>(null);
   const widget = useRef<{ turnstile: Turnstile; id: string } | null>(null);
-  const latestOnToken = useRef(onToken);
+  const latest = useRef({ onToken, onError });
 
   useEffect(() => {
-    latestOnToken.current = onToken;
+    latest.current = { onToken, onError };
   });
 
   useEffect(() => {
@@ -75,13 +81,15 @@ export function Captcha({
         const id = turnstile.render(box.current, {
           sitekey: SITE_KEY!,
           theme: "dark",
-          callback: (token) => latestOnToken.current(token),
-          "expired-callback": () => latestOnToken.current(null),
-          "error-callback": () => latestOnToken.current(null),
+          callback: (token) => latest.current.onToken(token),
+          "expired-callback": () => latest.current.onToken(null),
+          "error-callback": () => latest.current.onToken(null),
         });
         widget.current = { turnstile, id };
       },
-      () => latestOnToken.current(null),
+      () => {
+        if (!cancelled) latest.current.onError();
+      },
     );
 
     return () => {
@@ -93,7 +101,7 @@ export function Captcha({
 
   useEffect(() => {
     if (resetKey && widget.current) {
-      latestOnToken.current(null);
+      latest.current.onToken(null);
       widget.current.turnstile.reset(widget.current.id);
     }
   }, [resetKey]);

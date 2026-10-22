@@ -1,4 +1,7 @@
+"use client";
+
 import Image from "next/image";
+import { useState } from "react";
 import logo from "../../public/brand/icepik-logo.png";
 import { acceptPolicy } from "@/lib/device-storage";
 import { POLICY_VERSION, PolicyText } from "./policy";
@@ -7,6 +10,8 @@ import { POLICY_VERSION, PolicyText } from "./policy";
 // the person agrees. Agreeing is remembered in this browser only; nothing
 // about it is sent to the server.
 export function ConsentScreen({ updated }: { updated: boolean }) {
+  const [blocked, setBlocked] = useState(false);
+
   return (
     <main className="consent">
       <section className="consent-card" aria-labelledby="consent-title">
@@ -19,10 +24,16 @@ export function ConsentScreen({ updated }: { updated: boolean }) {
         <div className="consent-text" tabIndex={0} aria-label="Terms and privacy">
           <PolicyText />
         </div>
+        {blocked ? (
+          <p className="form-error" role="alert">
+            Your browser is blocking site data for ICEPik, so it can&apos;t remember that you agreed
+            or keep your account. Allow site data for this site, then reload the page.
+          </p>
+        ) : null}
         <button
           type="button"
           className="primary-button consent-agree"
-          onClick={() => acceptPolicy(POLICY_VERSION)}
+          onClick={() => setBlocked(!acceptPolicy(POLICY_VERSION))}
         >
           I agree
         </button>

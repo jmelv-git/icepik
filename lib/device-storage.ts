@@ -52,8 +52,11 @@ export function useAcceptedPolicyVersion() {
   return useStored(POLICY_KEY);
 }
 
+// False when the browser blocks site data. ICEPik can't work then, even from
+// memory: the account's session cookies are blocked too.
 export function acceptPolicy(version: string) {
   write(POLICY_KEY, version);
+  return read(POLICY_KEY) === version;
 }
 
 export function useSavedPlaces(): SavedPlaces {

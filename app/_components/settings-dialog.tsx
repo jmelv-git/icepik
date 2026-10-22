@@ -19,7 +19,7 @@ import {
 } from "@/lib/device-storage";
 import { ONE_MILE_M, distanceMeters } from "@/lib/geo";
 import type { Sighting } from "@/lib/sightings";
-import type { Client } from "@/lib/supabase/client";
+import { forgetSession, type Client } from "@/lib/supabase/client";
 import type { ProfileTotals } from "@/lib/use-my-activity";
 import { Captcha, captchaEnabled } from "./captcha";
 import { PlaceIcon } from "./icons";
@@ -348,7 +348,15 @@ function LogIn({ supabase, user, activePosts, onNotice, onClose, onBack }: Props
           onChange={(event) => setPassword(event.target.value)}
         />
       </label>
-      {captchaEnabled ? <Captcha onToken={setToken} resetKey={captchaReset} /> : null}
+      {captchaEnabled ? (
+        <Captcha
+          onToken={setToken}
+          onError={() =>
+            setMessage("The security check couldn't load. Check your connection, then go back and try again.")
+          }
+          resetKey={captchaReset}
+        />
+      ) : null}
       {message ? (
         <p className="form-error" role="alert">
           {message}
@@ -423,7 +431,10 @@ function ClearDevice({ supabase, user, onBack }: Props & { onBack: () => void })
     // screen, which unmounts the map and its auth listener. Signing out first
     // would let AccountStarter create a new account before the terms show.
     clearDeviceStorage();
-    await supabase.auth.signOut({ scope: "local" });
+    const { error } = await supabase.auth.signOut({ scope: "local" });
+    // When signOut() can't remove the session (offline with an expired token),
+    // delete it here, so the next person who agrees doesn't get this account.
+    if (error) forgetSession();
   }
 
   return (

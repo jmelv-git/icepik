@@ -33,6 +33,7 @@ export function AccountStarter({
   const [found, setFound] = useState<Found | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [captchaReset, setCaptchaReset] = useState(0);
+  const [captchaFailed, setCaptchaFailed] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // One check and one sign-up per attempt, even when effects run twice in
   // development.
@@ -68,9 +69,13 @@ export function AccountStarter({
       });
   }, [supabase, noSession, token, attempt]);
 
+  // auth-js keeps a failed refresh for 60 seconds before trying again, so
+  // "Try again" can't help right away. Its own retry restores the account.
   const message = cantRestore
-    ? "We couldn't restore your account. Check your connection, then try again."
-    : error;
+    ? "We couldn't restore your account. It comes back on its own when you're online."
+    : captchaFailed
+      ? "The security check couldn't load. Check your connection, then try again."
+      : error;
 
   return (
     <div className="starter" role="status">
@@ -84,9 +89,10 @@ export function AccountStarter({
             <button
               type="button"
               className="primary-button"
-              disabled={noSession && captchaEnabled && !token}
+              disabled={noSession && captchaEnabled && !token && !captchaFailed}
               onClick={() => {
                 setError(null);
+                setCaptchaFailed(false);
                 setAttempt((count) => count + 1);
               }}
             >
@@ -98,7 +104,11 @@ export function AccountStarter({
         <p>Setting up your anonymous account…</p>
       )}
       {noSession && captchaEnabled ? (
-        <Captcha onToken={setToken} resetKey={captchaReset} />
+        <Captcha
+          onToken={setToken}
+          onError={() => setCaptchaFailed(true)}
+          resetKey={captchaReset}
+        />
       ) : null}
     </div>
   );
