@@ -1,35 +1,49 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
+import { roundCoord } from "@/lib/geo";
 
 const NOMINATIM_BASE = "https://nominatim.openstreetmap.org";
+// Nominatim's usage policy asks for a User-Agent that identifies the app.
 const HEADERS = {
-  "User-Agent": "icepik-osm-demo/1.0 (Next.js demo)",
+  "User-Agent": "ICEPik/1.0 (community safety map)",
   Accept: "application/json",
 };
+const MAX_LABEL = 120;
 
-export async function GET(request: NextRequest) {
-  const lat = request.nextUrl.searchParams.get("lat");
-  const lon = request.nextUrl.searchParams.get("lon");
+type NominatimAddress = Partial<
+  Record<
+    | "house_number"
+    | "road"
+    | "pedestrian"
+    | "footway"
+    | "path"
+    | "neighbourhood"
+    | "quarter"
+    | "suburb"
+    | "city_district",
+    string
+  >
+>;
 
-  if (!lat || !lon) {
-    return NextResponse.json(
-      { error: "lat and lon are required" },
-      { status: 400 },
-    );
-  }
-
-  const latNumber = Number(lat);
-  const lonNumber = Number(lon);
+// Suggests a label for a new pin: street names only, never a full address.
+// The point arrives in the request body, not the URL, and is rounded to
+// about 100 m before it leaves this server, so Nominatim sees this server's
+// IP address and only the rounded point. Never log the request.
+export async function POST(request: Request) {
+  const body: unknown = await request.json().catch(() => null);
+  const { lat, lng } = (body ?? {}) as { lat?: unknown; lng?: unknown };
 
   if (
-    !Number.isFinite(latNumber) ||
-    !Number.isFinite(lonNumber) ||
-    latNumber < -90 ||
-    latNumber > 90 ||
-    lonNumber < -180 ||
-    lonNumber > 180
+    typeof lat !== "number" ||
+    typeof lng !== "number" ||
+    !Number.isFinite(lat) ||
+    !Number.isFinite(lng) ||
+    lat < -90 ||
+    lat > 90 ||
+    lng < -180 ||
+    lng > 180
   ) {
     return NextResponse.json(
-      { error: "lat and lon must be valid coordinates" },
+      { error: "lat and lng must be valid coordinates" },
       { status: 400 },
     );
   }
@@ -37,9 +51,11 @@ export async function GET(request: NextRequest) {
   try {
     const response = await fetch(
       `${NOMINATIM_BASE}/reverse?${new URLSearchParams({
-        lat,
-        lon,
+        lat: String(roundCoord(lat)),
+        lon: String(roundCoord(lng)),
         format: "jsonv2",
+        zoom: "17",
+        addressdetails: "1",
       }).toString()}`,
       {
         headers: HEADERS,
@@ -51,15 +67,29 @@ export async function GET(request: NextRequest) {
       throw new Error(`Nominatim responded with ${response.status}`);
     }
 
-    const data = await response.json();
-
-    return NextResponse.json({
-      display_name: data.display_name ?? "No address found",
-    });
+    const data: { address?: NominatimAddress } = await response.json();
+    return NextResponse.json({ label: streetLabel(data.address ?? {}) });
   } catch {
     return NextResponse.json(
       { error: "Reverse geocoding service unavailable" },
       { status: 502 },
     );
   }
+}
+
+// "1200 block of North Broad Street", "North Broad Street", or the
+// neighborhood when there's no street.
+function streetLabel(address: NominatimAddress) {
+  const street = address.road ?? address.pedestrian ?? address.footway ?? address.path;
+  const area =
+    address.neighbourhood ?? address.quarter ?? address.suburb ?? address.city_district;
+
+  if (!street) return (area ?? "").slice(0, MAX_LABEL);
+
+  const houseNumber = Number.parseInt(address.house_number ?? "", 10);
+  const label =
+    houseNumber >= 100
+      ? `${Math.floor(houseNumber / 100) * 100} block of ${street}`
+      : street;
+  return label.slice(0, MAX_LABEL);
 }
