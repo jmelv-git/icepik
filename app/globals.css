@@ -192,10 +192,24 @@ button {
   color: var(--muted);
 }
 
+/* Only some browsers draw a clear button in search inputs; we draw our own. */
+.search input::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+}
+
 .search:focus-within {
   box-shadow:
     0 0 0 0.125rem var(--blue),
     0 0.25rem 1rem rgb(0 0 0 / 0.3);
+}
+
+.search-clear {
+  color: var(--muted);
+}
+
+.search-clear svg {
+  width: 1.125rem;
+  height: 1.125rem;
 }
 
 .search-submit {
