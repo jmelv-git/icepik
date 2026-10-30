@@ -26,7 +26,7 @@ Everything is in Supabase, a database with user accounts built in. The tables an
 - **Who posted or voted on a sighting:** kept in two private tables that only that person can read, and deleted within an hour after the pin expires.
 - **Profiles:** each account's language setting, and how many sightings it has posted and votes it has cast in total.
 
-Home and work places stay in the browser and never reach the database. The map pictures and the address search come from OpenStreetMap, and we don't store anything from them.
+Home and work places stay in the browser and never reach the database. The map pictures come from CARTO and the address search from OpenStreetMap, and we don't store anything from them.
 
 The site needs these environment variables, in Vercel and in `.env.local` for `npm run dev`:
 
@@ -34,7 +34,15 @@ The site needs these environment variables, in Vercel and in `.env.local` for `n
 | --- | --- |
 | `NEXT_PUBLIC_SUPABASE_URL` | The Supabase project's URL. |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | The project's publishable key. The older `NEXT_PUBLIC_SUPABASE_ANON_KEY` works too. Never use the secret or `service_role` key. |
+| `NEXT_PUBLIC_CARTO_KEY` | CARTO's free basemap key, from https://carto.com/basemaps/apikey. Without it, every map picture reads "API KEY REQUIRED". |
 | `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | Optional. The Cloudflare Turnstile site key, needed only when CAPTCHA is on in Supabase. |
+
+Vercel builds these values into the site, so after adding or changing one, redeploy (Deployments > ⋯ > Redeploy). A production build stops with an error if `NEXT_PUBLIC_CARTO_KEY` is missing, so the live map never shows "API KEY REQUIRED".
+
+Anyone can copy the CARTO key from the page, and our free 5 million map tiles a month count across all our keys, so we use two keys:
+
+- **Vercel's Production environment:** a key restricted in CARTO's dashboard to `icepik.vercel.app`. It shows blank map pictures anywhere else.
+- **Vercel's Preview environment and `.env.local`:** a second key with no restriction, because preview addresses change with every branch and CARTO doesn't let one key list both `localhost` and public sites. Anyone who gets hold of it can use our tile quota, so we don't share it.
 
 ## 3. How does a change get from Claude Code to the live site?
 
@@ -59,6 +67,7 @@ The first version is built:
 Before we launch it, we need to:
 
 - set up Supabase and the environment variables, as `docs/database-handoff.md` describes;
+- add the two CARTO keys to Vercel (see section 2) before the map change is merged. Until then, production builds stop with an error. The keys are free for non-commercial use up to 5 million map tiles a month, and a visit uses about 12 to 90. Above that, CARTO may block the map without notice, so before a wider launch we'll ask support-basemaps@carto.com to raise the limit, which it normally does for free for non-commercial use. CARTO can also withdraw free keys without notice;
 - add a rate limit in Vercel's firewall;
 - test the handoff's "Done when" list on two real phones;
 - have someone review the terms and privacy text, which is a draft.
@@ -80,14 +89,14 @@ flowchart LR
     U[Person on a phone or laptop] -->|opens the site, sends posts and votes| V[Vercel<br/>runs the live site]
     U -->|account, pins and live updates| S[Supabase<br/>accounts and database]
     V -->|saves posts and votes| S
-    U -->|map pictures| O[OpenStreetMap]
-    V -->|address search| O
+    U -->|map pictures| M[CARTO]
+    V -->|address search| O[OpenStreetMap]
     CC[Claude Code] -->|commits to main| F[GitHub<br/>Juan's fork]
     F -->|pull request| G[GitHub<br/>nthanvii/icepik]
     G -->|a merge into main starts a build| V
 ```
 
-Posting, voting on and deleting sightings go through Vercel, so Supabase sees Vercel's IP address for them instead of the person's. Address searches and street-name suggestions go through Vercel too. Signing in, loading pins and loading map pictures go straight from the browser, so Supabase and OpenStreetMap see the person's IP address for those.
+Posting, voting on and deleting sightings go through Vercel, so Supabase sees Vercel's IP address for them instead of the person's. Address searches and street-name suggestions go through Vercel too. Signing in, loading pins and loading map pictures go straight from the browser, so Supabase and CARTO see the person's IP address for those.
 
 ---
 

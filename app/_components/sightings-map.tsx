@@ -12,6 +12,10 @@ import {
   sameSpot,
 } from "./map-pins";
 
+// CARTO's free basemap key (https://carto.com/basemaps/apikey). Without it,
+// every tile reads "API KEY REQUIRED".
+const CARTO_KEY = (process.env.NEXT_PUBLIC_CARTO_KEY ?? "").trim();
+
 export type Point = { lat: number; lng: number };
 export type Padding = {
   paddingTopLeft: [number, number];
@@ -87,7 +91,7 @@ export function SightingsMap({
   useEffect(() => {
     let cancelled = false;
 
-    import("leaflet").then((L) => {
+    import("./leaflet").then(({ L }) => {
       if (cancelled || !node.current) return;
 
       const instance = L.map(node.current, {
@@ -100,13 +104,9 @@ export function SightingsMap({
 
       L.control.zoom({ position: "bottomright" }).addTo(instance);
 
-      // Exactly this URL, with the attribution visible (OpenStreetMap's
-      // tile usage policy). Tiles load only after the policy is accepted.
-      L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        maxZoom: 19,
-        attribution:
-          '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-      }).addTo(instance);
+      // CARTO's Positron style, with its attribution visible. Tiles load
+      // only after the policy is accepted.
+      L.tileLayer.provider("CartoDB.Positron", { apikey: CARTO_KEY }).addTo(instance);
 
       instance.on("zoomend", () => setZoom(instance.getZoom()));
       instance.on("click", (event) => {

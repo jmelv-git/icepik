@@ -459,7 +459,7 @@ button {
 .map-shell {
   position: relative;
   min-width: 0;
-  background: #f2efe9;
+  background: #fafaf8;
 }
 
 .map {
@@ -469,7 +469,7 @@ button {
 
 .leaflet-container {
   font-family: var(--font-sans);
-  background: #f2efe9;
+  background: #fafaf8;
 }
 
 .leaflet-bar {
@@ -1386,6 +1386,10 @@ button {
 @media (max-width: 899px) {
   html {
     font-size: 16px;
+    /* The map credits get their own row at the bottom, and everything else
+       at the bottom sits above it. One line fits from 320px wide; on
+       narrower phones the second line still ends below the REPORT button. */
+    --map-credits: 1.125rem;
   }
 
   /* Phones: the rail becomes a top bar and the panel covers the map. */
@@ -1435,7 +1439,7 @@ button {
   .panel {
     top: 0.75rem;
     right: 0.75rem;
-    bottom: 0.75rem;
+    bottom: calc(0.75rem + var(--map-credits));
     left: 0.75rem;
     width: auto;
   }
@@ -1464,13 +1468,13 @@ button {
     right: 0.75rem;
     left: auto;
     width: min(26rem, calc(100% - 1.5rem));
-    max-height: min(21.25rem, calc(100% - 11rem));
+    max-height: min(21.25rem, calc(100% - 11rem - var(--map-credits)));
     border-radius: 1.75rem;
   }
 
   .report-button {
     right: 1rem;
-    bottom: 1rem;
+    bottom: calc(1rem + var(--map-credits));
     min-width: 0;
     height: 4rem;
     padding: 0 1.625rem;
@@ -1479,19 +1483,34 @@ button {
   }
 
   .leaflet-bottom.leaflet-right .leaflet-control-zoom {
-    margin: 0 1rem 6rem 0;
+    margin: 0 1rem calc(7rem + var(--map-credits)) 0;
+  }
+
+  .leaflet-bottom.leaflet-right {
+    left: 0;
+  }
+
+  .leaflet-bottom.leaflet-right .leaflet-control-attribution {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    max-width: 100%;
   }
 
   .notice {
-    bottom: 6rem;
+    bottom: calc(6rem + var(--map-credits));
   }
 
   .pick-banner {
-    bottom: 1rem;
+    bottom: calc(1rem + var(--map-credits));
   }
 
   .pick-banner ~ .notice {
-    bottom: 11rem;
+    bottom: calc(11rem + var(--map-credits));
+  }
+
+  .starter {
+    bottom: calc(1.5rem + var(--map-credits));
   }
 
   .choices {

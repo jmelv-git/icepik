@@ -3,8 +3,7 @@ import { supabaseUrl } from "@/lib/supabase/config";
 import { updateSession } from "@/lib/supabase/proxy";
 
 // Content-Security-Policy: scripts, data and frames may come only from this
-// site, the Supabase project, OpenStreetMap's tile server and the CAPTCHA
-// provider. No analytics, ads or other third-party code can load or send data
+// site, the Supabase project, CARTO's tile servers and the CAPTCHA provider. No analytics, ads or other third-party code can load or send data
 // anywhere else.
 function contentSecurityPolicy(nonce: string) {
   const supabase = supabaseUrl ? new URL(supabaseUrl) : null;
@@ -18,7 +17,7 @@ function contentSecurityPolicy(nonce: string) {
     default-src 'self';
     script-src 'self' 'nonce-${nonce}' 'strict-dynamic' ${captcha}${isDev ? " 'unsafe-eval'" : ""};
     style-src 'self' 'unsafe-inline';
-    img-src 'self' blob: data: https://tile.openstreetmap.org;
+    img-src 'self' blob: data: https://*.basemaps.cartocdn.com;
     font-src 'self';
     connect-src 'self' ${supabaseSources} ${captcha};
     frame-src ${captcha};
@@ -44,8 +43,8 @@ export async function proxy(request: NextRequest) {
   const response = await updateSession(request);
   response.headers.set("Content-Security-Policy", csp);
   // The browser default, set explicitly: other sites get only this site's
-  // origin, never the page path. Not "no-referrer": OpenStreetMap's tile
-  // servers expect a Referer.
+  // origin, never the page path. Not "no-referrer": a CARTO key restricted
+  // to our website is checked against the Referer.
   response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
   response.headers.set("X-Content-Type-Options", "nosniff");
   response.headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=(self)");

@@ -1,6 +1,6 @@
 // Change the version whenever the text below changes: everyone is asked to
 // agree again. The accepted version is kept in localStorage only.
-export const POLICY_VERSION = "2026-10-21-draft";
+export const POLICY_VERSION = "2026-10-30-draft";
 
 // Plain-language terms and privacy notice, shown before anything else loads.
 // DRAFT: the team must review this text before launch.
@@ -52,8 +52,11 @@ export function PolicyText() {
           <strong>What our providers see.</strong> Supabase (our database) and Vercel (our
           website host) see your IP address when you connect. Supabase keeps request logs with
           your IP address and a rough location worked out from it for about a day, and backups
-          for up to 7 days. OpenStreetMap’s map servers see your IP address and which area of
-          the map you view. A security check by Cloudflare may also see your IP address.
+          for up to 7 days. CARTO, which provides the map images, and its delivery network,
+          Fastly, see your IP address and which area of the map you view. Fastly keeps full IP
+          addresses for up to 2 business days, or longer for errors or traffic it flags as
+          suspicious. CARTO shortens IP addresses before saving them and keeps those logs for
+          30 days. A security check by Cloudflare may also see your IP address.
         </li>
         <li>
           <strong>We can’t promise complete anonymity.</strong> A subpoena or warrant can
