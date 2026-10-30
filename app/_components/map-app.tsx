@@ -79,6 +79,10 @@ export function MapApp() {
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState(false);
   const [searchResult, setSearchResult] = useState<(Point & { label: string }) | null>(null);
+  const searchForm = useRef<HTMLFormElement>(null);
+  const searchInput = useRef<HTMLInputElement>(null);
+  const searchAbort = useRef<AbortController | null>(null);
+  const resultsOpen = results.length > 0 || searchError;
 
   // The saved session is this device's account. Keep up with sign-ins,
   // sign-outs and token refreshes.
@@ -113,6 +117,23 @@ export function MapApp() {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [modal, picking, reportFormOpen, cancelReport]);
+
+  const closeResults = useCallback(() => {
+    setResults([]);
+    setSearchError(false);
+  }, []);
+
+  // A click or tap anywhere outside the search box closes its results. Listen
+  // in the capture phase so the map can't swallow the event first.
+  useEffect(() => {
+    if (!resultsOpen) return;
+    function onPointerDown(event: PointerEvent) {
+      if (!searchForm.current?.contains(event.target as Node)) closeResults();
+    }
+
+    document.addEventListener("pointerdown", onPointerDown, true);
+    return () => document.removeEventListener("pointerdown", onPointerDown, true);
+  }, [resultsOpen, closeResults]);
 
   const selected = selectedId ? (sightings.find((s) => s.id === selectedId) ?? null) : null;
   const group = groupIds ? sightings.filter((s) => groupIds.includes(s.id)) : [];
@@ -245,6 +266,10 @@ export function MapApp() {
     const q = query.trim();
     if (!q) return;
 
+    // Only the latest search may show its results.
+    searchAbort.current?.abort();
+    const controller = new AbortController();
+    searchAbort.current = controller;
     setSearching(true);
     setSearchError(false);
 
@@ -254,15 +279,36 @@ export function MapApp() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ q }),
+        signal: controller.signal,
       });
       if (!response.ok) throw new Error(`Search failed: ${response.status}`);
-      setResults(await response.json());
+      const found: SearchResult[] = await response.json();
+      if (!controller.signal.aborted) setResults(found);
     } catch {
+      if (controller.signal.aborted) return;
       setResults([]);
       setSearchError(true);
     } finally {
-      setSearching(false);
+      if (searchAbort.current === controller) {
+        searchAbort.current = null;
+        setSearching(false);
+      }
     }
+  }
+
+  function clearSearch() {
+    searchAbort.current?.abort();
+    setQuery("");
+    setSearchResult(null);
+    closeResults();
+    searchInput.current?.focus();
+  }
+
+  function onSearchKeyDown(event: React.KeyboardEvent) {
+    if (event.key !== "Escape" || !resultsOpen) return;
+    // Don't also cancel whatever the window's Escape handler would.
+    event.stopPropagation();
+    closeResults();
   }
 
   function chooseSearchResult(item: SearchResult) {
@@ -343,20 +389,40 @@ export function MapApp() {
         />
 
         <div className="panel">
-          <form className="search" role="search" onSubmit={searchPlaces}>
+          <form
+            ref={searchForm}
+            className="search"
+            role="search"
+            onSubmit={searchPlaces}
+            onKeyDown={onSearchKeyDown}
+          >
             <input
+              ref={searchInput}
               type="search"
               value={query}
-              onChange={(event) => setQuery(event.target.value)}
+              onChange={(event) => {
+                setQuery(event.target.value);
+                if (!event.target.value) closeResults();
+              }}
               placeholder="Search an address or place"
               aria-label="Search an address or place"
             />
             {searching ? <span className="search-status">Searching…</span> : null}
+            {query ? (
+              <button
+                type="button"
+                className="icon-button search-clear"
+                aria-label="Clear search"
+                onClick={clearSearch}
+              >
+                <CloseIcon />
+              </button>
+            ) : null}
             <button type="submit" className="icon-button search-submit" aria-label="Search">
               <SearchIcon />
             </button>
 
-            {results.length > 0 || searchError ? (
+            {resultsOpen ? (
               <ul className="search-results">
                 {searchError ? (
                   <li className="search-empty">Search is unavailable right now.</li>
