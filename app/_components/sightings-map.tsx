@@ -3,12 +3,14 @@
 import type * as Leaflet from "leaflet";
 import { useEffect, useImperativeHandle, useRef, useState, type Ref } from "react";
 import { MAP_CENTER } from "@/lib/geo";
-import { STATUS_LABEL, sightingTitle, statusOf, type Sighting } from "@/lib/sightings";
+import { type Sighting } from "@/lib/sightings";
 import {
   DRAFT_PIN_MARKUP,
   clusterMarkup,
   clusterSightings,
+  clusterTitle,
   pinMarkup,
+  pinTitle,
   sameSpot,
 } from "./map-pins";
 
@@ -154,7 +156,7 @@ export function SightingsMap({
       }
 
       L.marker([cluster.lat, cluster.lng], {
-        title: `${members.length} sightings here`,
+        title: clusterTitle(members),
         icon: L.divIcon({
           className: "cluster-icon",
           html: clusterMarkup(members),
@@ -181,8 +183,7 @@ export function SightingsMap({
 
     function pinMarker(L: typeof Leaflet, sighting: Sighting, active: boolean) {
       return L.marker([sighting.lat, sighting.lng], {
-        title: sightingTitle(sighting),
-        alt: STATUS_LABEL[statusOf(sighting)],
+        title: pinTitle(sighting),
         zIndexOffset: active ? 1000 : 0,
         icon: L.divIcon({
           className: active ? "pin-icon pin-active" : "pin-icon",

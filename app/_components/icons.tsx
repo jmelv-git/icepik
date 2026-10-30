@@ -135,8 +135,8 @@ export function StatusIcon({ status }: { status: Status }) {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
       <path d="M12 4 21 19.5H3Z" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
-      <path d="M12 9.5v4.5" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" />
-      <circle cx="12" cy="16.8" r="1.2" fill="#fff" />
+      <path d="M12 9.5v4.5" stroke="#1d1f26" strokeWidth="2.2" strokeLinecap="round" />
+      <circle cx="12" cy="16.8" r="1.2" fill="#1d1f26" />
     </svg>
   );
 }

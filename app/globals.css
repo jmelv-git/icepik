@@ -7,6 +7,8 @@
   --text: #ffffff;
   --muted: #8d9099;
   --red: #ff1d25;
+  /* Behind small white text, where --red is too light (4.8:1 instead of 3.9:1). */
+  --red-strong: #e3101b;
   --yellow: #ffc800;
   --green: #10c25b;
   --vote-red: #f43b3b;
@@ -1019,7 +1021,7 @@ button {
 }
 
 .badge-verified {
-  background: var(--red);
+  background: var(--red-strong);
   color: #fff;
 }
 
@@ -1140,14 +1142,14 @@ button {
 }
 
 .cluster-verified {
-  background: var(--red);
+  background: var(--red-strong);
   color: #fff;
 }
 
 .cluster-disputed {
   border-style: dashed;
   background: #8d9099;
-  color: #fff;
+  color: #1d1f26;
 }
 
 .cluster-icon:focus-visible {
