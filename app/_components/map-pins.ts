@@ -5,7 +5,7 @@ const PIN_SHAPE = "M32 95C26 79 7 59 6 36a26 26 0 0 1 52 0c-1 23-20 43-26 59Z";
 const PIN_COLOR: Record<Status, string> = {
   verified: "#ff1d25",
   unverified: "#ffc800",
-  disputed: "#8d9099",
+  disputed: "#6b6f78",
 };
 
 const GLYPH: Record<Status, (color: string) => string> = {

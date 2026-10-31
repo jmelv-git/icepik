@@ -10,9 +10,12 @@
   /* Behind small white text, where --red is too light (4.8:1 instead of 3.9:1). */
   --red-strong: #e3101b;
   --yellow: #ffc800;
-  --green: #10c25b;
-  --vote-red: #f43b3b;
+  /* Behind dark text (6.2:1). It stays lighter than --red-strong, so the two
+     vote buttons differ for colour-blind people too. */
+  --green: #33b56b;
   --blue: #4f93c8;
+  /* Behind white text on buttons, where --blue is too light (5.4:1 instead of 3.3:1). */
+  --blue-strong: #2f6f9f;
   --rail-width: 6.5rem;
   --panel-width: min(26rem, calc(100vw - var(--rail-width) - 26rem));
   --font-sans: var(--font-outfit), "Glacial Indifference", Arial, sans-serif;
@@ -414,13 +417,13 @@ button {
   justify-self: start;
   padding: 0.75rem 1.5rem;
   border-radius: 62.4375rem;
-  background: var(--blue);
+  background: var(--blue-strong);
   font-size: 0.9375rem;
   font-weight: 600;
 }
 
 .rights-card-button:hover {
-  background: #5ea2d6;
+  background: #255a82;
 }
 
 .area-card header {
@@ -755,11 +758,11 @@ button {
 }
 
 .primary-button {
-  background: var(--blue);
+  background: var(--blue-strong);
 }
 
 .primary-button:hover {
-  background: #3f80b3;
+  background: #255a82;
 }
 
 .secondary-button {
@@ -771,11 +774,11 @@ button {
 }
 
 .danger-button {
-  background: var(--vote-red);
+  background: var(--red-strong);
 }
 
 .danger-button:hover {
-  background: #d92f2f;
+  background: #b82626;
 }
 
 .primary-button:disabled,
@@ -1087,10 +1090,11 @@ button {
 
 .vote-up {
   background: var(--green);
+  color: #1d1f26;
 }
 
 .vote-down {
-  background: var(--vote-red);
+  background: var(--red-strong);
 }
 
 .vote[aria-pressed="true"] {
@@ -1146,10 +1150,18 @@ button {
   color: #fff;
 }
 
+/* The same dark amber rim as unverified pins: yellow is nearly as light as
+   the map. */
+.cluster-unverified {
+  box-shadow:
+    0 0 0 0.125rem #8a6a00,
+    0 0.1875rem 0.5rem rgb(0 0 0 / 0.3);
+}
+
 .cluster-disputed {
   border-style: dashed;
-  background: #8d9099;
-  color: #1d1f26;
+  background: #646872;
+  color: #fff;
 }
 
 .cluster-icon:focus-visible {
