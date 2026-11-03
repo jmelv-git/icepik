@@ -12,6 +12,7 @@ import {
   pinMarkup,
   pinTitle,
   sameSpot,
+  searchedPlaceElement,
 } from "./map-pins";
 
 // CARTO's free basemap key (https://carto.com/basemaps/apikey). Without it,
@@ -58,7 +59,7 @@ export function SightingsMap({
   const map = useRef<Leaflet.Map | null>(null);
   const pins = useRef<Leaflet.LayerGroup | null>(null);
   const draftMarker = useRef<Leaflet.Marker | null>(null);
-  const searchMarker = useRef<Leaflet.CircleMarker | null>(null);
+  const searchMarker = useRef<Leaflet.Marker | null>(null);
   const [ready, setReady] = useState(false);
   const [zoom, setZoom] = useState(13);
 
@@ -120,6 +121,9 @@ export function SightingsMap({
       leaflet.current = L;
       map.current = instance;
       pins.current = L.layerGroup().addTo(instance);
+      // Searched places get their own layer: above the map, below every pin
+      // and cluster (Leaflet's marker pane is 600), so sightings stay on top.
+      instance.createPane("search").style.zIndex = "550";
       setReady(true);
     });
 
@@ -182,16 +186,22 @@ export function SightingsMap({
     if (selected) layer.addLayer(pinMarker(L, selected, true));
 
     function pinMarker(L: typeof Leaflet, sighting: Sighting, active: boolean) {
-      return L.marker([sighting.lat, sighting.lng], {
+      const marker = L.marker([sighting.lat, sighting.lng], {
         title: pinTitle(sighting),
         zIndexOffset: active ? 1000 : 0,
         icon: L.divIcon({
           className: active ? "pin-icon pin-active" : "pin-icon",
-          html: pinMarkup(sighting),
+          html: pinMarkup(sighting, active),
           // The pin is drawn and sized in CSS (.pin) so it scales with the UI.
           iconSize: [0, 0],
         }),
-      }).on("click", () => {
+      });
+      // Leaflet has no option for this. Like the report list, it tells screen
+      // readers which pin is selected.
+      marker.on("add", () => {
+        marker.getElement()?.setAttribute("aria-pressed", String(active));
+      });
+      return marker.on("click", () => {
         if (latest.current.placing) {
           latest.current.onPlace({ lat: sighting.lat, lng: sighting.lng });
         } else {
@@ -241,20 +251,18 @@ export function SightingsMap({
     searchMarker.current = null;
     if (!searchResult) return;
 
-    // Leaflet treats a string tooltip as HTML. Place names come from
-    // OpenStreetMap, which anyone can edit, so pass them as plain text.
-    const label = document.createElement("span");
-    label.textContent = searchResult.label;
-
-    searchMarker.current = L.circleMarker([searchResult.lat, searchResult.lng], {
-      radius: 9,
-      color: "#fff",
-      weight: 3,
-      fillColor: "#4f93c8",
-      fillOpacity: 1,
-    })
-      .bindTooltip(label)
-      .addTo(instance);
+    // Nothing happens when it's tapped, so it isn't a button or a Tab stop,
+    // and taps go through to the map (a report can still be placed here).
+    searchMarker.current = L.marker([searchResult.lat, searchResult.lng], {
+      pane: "search",
+      interactive: false,
+      keyboard: false,
+      icon: L.divIcon({
+        className: "searched-place",
+        html: searchedPlaceElement(searchResult.label),
+        iconSize: [0, 0],
+      }),
+    }).addTo(instance);
     instance.setView([searchResult.lat, searchResult.lng], 16, { animate: true });
   }, [ready, searchResult]);
 

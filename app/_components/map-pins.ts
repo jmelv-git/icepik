@@ -23,7 +23,7 @@ const GLYPH: Record<Status, (color: string) => string> = {
      <circle cx="32" cy="48" r="3" fill="${color}"/>`,
 };
 
-export function pinMarkup(sighting: Sighting) {
+export function pinMarkup(sighting: Sighting, selected = false) {
   const status = statusOf(sighting);
   const color = PIN_COLOR[status];
   const dash = status === "disputed" ? ` stroke-dasharray="9 7"` : "";
@@ -33,8 +33,17 @@ export function pinMarkup(sighting: Sighting) {
     status === "unverified"
       ? `<path d="${PIN_SHAPE}" fill="none" stroke="#8a6a00" stroke-width="11" stroke-linejoin="round"/>`
       : "";
+  // The selected pin gets a white gap, then a dark ring, around its outer
+  // edge: easy to spot on the light map, and it doesn't rely on colour.
+  // Widths follow the pin's outermost stroke so every status looks the same.
+  const outer = status === "unverified" ? 11 : 6;
+  const ring = selected
+    ? `<path d="${PIN_SHAPE}" fill="none" stroke="#1d1f26" stroke-width="${outer + 13}" stroke-linejoin="round"/>
+    <path d="${PIN_SHAPE}" fill="none" stroke="#fff" stroke-width="${outer + 5}" stroke-linejoin="round"/>`
+    : "";
 
   return `<svg class="pin pin-${status}" viewBox="0 0 64 100" overflow="visible" aria-hidden="true">
+    ${ring}
     ${rim}
     <path d="${PIN_SHAPE}" fill="#fff" stroke="${color}" stroke-width="6" stroke-linejoin="round"${dash}/>
     ${GLYPH[status](color)}
@@ -46,6 +55,37 @@ export const DRAFT_PIN_MARKUP = `<svg class="pin pin-draft" viewBox="0 0 64 100"
   <path d="${PIN_SHAPE}" fill="#4f93c8" stroke="#fff" stroke-width="6" stroke-linejoin="round"/>
   <path d="M32 24v22M21 35h22" stroke="#fff" stroke-width="6" stroke-linecap="round"/>
 </svg>`;
+
+// The same magnifier as the search button, drawn a little bolder for its size.
+const MAGNIFIER = `<svg viewBox="0 0 24 24" aria-hidden="true">
+  <circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="3"/>
+  <path d="m16.5 16.5 4 4" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+</svg>`;
+
+// The first part of an OpenStreetMap name, plus the street when that first
+// part is only a house number: "1500, Market Street, …" -> "1500 Market Street".
+export function shortPlaceName(label: string) {
+  const [first = "", second = ""] = label.split(",").map((part) => part.trim());
+  return /^\d+[a-z]?$/i.test(first) && second ? `${first} ${second}` : first;
+}
+
+// The label that marks a searched place on the map. Place names come from
+// OpenStreetMap, which anyone can edit, so they only ever go in as text.
+export function searchedPlaceElement(label: string) {
+  const element = document.createElement("span");
+  element.className = "searched-label";
+  // Screen readers get the full name; the label shows a short one.
+  element.setAttribute("role", "img");
+  element.setAttribute("aria-label", `Searched place: ${label}`);
+  element.innerHTML = MAGNIFIER;
+
+  const name = document.createElement("span");
+  name.className = "searched-name";
+  name.setAttribute("aria-hidden", "true");
+  name.textContent = `Searched: ${shortPlaceName(label)}`;
+  element.append(name);
+  return element;
+}
 
 const SEVERITY: Status[] = ["verified", "unverified", "disputed"];
 
