@@ -141,7 +141,11 @@ export function MapApp() {
   const panelState = panelOpen === null ? "auto" : panelOpen ? "open" : "closed";
 
   function togglePanel() {
-    setPanelOpen((open) => !(open ?? !isPhone()));
+    const opening = !(panelOpen ?? !isPhone());
+    // Hidden cards keep their scroll position. Start from the top, so the
+    // list of sightings is what shows first.
+    if (opening) document.getElementById("panel-cards")?.scrollTo(0, 0);
+    setPanelOpen(opening);
   }
 
   // Keep the floating panel and the detail card from covering a point the map
@@ -412,7 +416,12 @@ export function MapApp() {
               value={query}
               onChange={(event) => {
                 setQuery(event.target.value);
-                if (!event.target.value) closeResults();
+                // An emptied box (deleted, or Escape) ends the search, like
+                // the clear button: the place leaves the map too.
+                if (!event.target.value) {
+                  closeResults();
+                  setSearchResult(null);
+                }
               }}
               placeholder="Search an address or place"
               aria-label="Search an address or place"

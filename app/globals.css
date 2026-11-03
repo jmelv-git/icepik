@@ -288,6 +288,8 @@ button {
   margin: 0 -0.75rem -0.75rem;
   padding: 0 0.75rem 0.75rem;
   overflow-y: auto;
+  /* Keyboard focus scrolled into view keeps its ring clear of the edges. */
+  scroll-padding-block: 0.75rem;
   scrollbar-width: thin;
   scrollbar-color: #5a5c63 transparent;
   transition:
@@ -1246,6 +1248,19 @@ button {
   text-overflow: ellipsis;
 }
 
+/* High contrast mode drops background colours, which would hide the pointer
+   that marks the spot. */
+@media (forced-colors: active) {
+  .searched-label {
+    border: 0.125rem solid CanvasText;
+  }
+
+  .searched-label::before {
+    forced-color-adjust: none;
+    background: CanvasText;
+  }
+}
+
 .leaflet-container.placing {
   cursor: crosshair;
 }
@@ -1635,9 +1650,10 @@ button {
   }
 }
 
-/* Phones on their side: too short for a scrolling list inside a scrolling
-   panel, so the list stops scrolling on its own and the panel scrolls as one. */
-@media (max-width: 899px) and (max-height: 479px) {
+/* Phones on their side (wide ones get the desktop layout): too short for a
+   scrolling list inside a scrolling panel, so the list stops scrolling on its
+   own and the panel scrolls as one. */
+@media (max-width: 899px) and (max-height: 479px), (pointer: coarse) and (max-height: 479px) {
   .report-list {
     flex: none;
   }
