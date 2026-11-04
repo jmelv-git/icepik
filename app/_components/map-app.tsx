@@ -67,7 +67,7 @@ function phonePadding(shell: DOMRect, card: DOMRect | undefined): Padding {
   // On its side, the card leaves the left of the map free.
   if (card.left - shell.left > 120) {
     return {
-      paddingTopLeft: [24, 96 + 88],
+      paddingTopLeft: [32, 96 + 88],
       paddingBottomRight: [shell.right - card.left + 32, aboveCredits],
     };
   }
@@ -76,14 +76,14 @@ function phonePadding(shell: DOMRect, card: DOMRect | undefined): Padding {
   // Across the map above the REPORT button when there's room for it...
   if (report && report.top - shell.top - 8 >= top) {
     return {
-      paddingTopLeft: [24, top],
-      paddingBottomRight: [zoom ? shell.right - zoom.left + 32 : 24, shell.bottom - report.top + 8],
+      paddingTopLeft: [32, top],
+      paddingBottomRight: [zoom ? shell.right - zoom.left + 32 : 32, shell.bottom - report.top + 8],
     };
   }
   // ...or else beside the button, down to the credits.
   return {
-    paddingTopLeft: [24, top],
-    paddingBottomRight: [report ? shell.right - report.left + 32 : 24, aboveCredits],
+    paddingTopLeft: [32, top],
+    paddingBottomRight: [report ? shell.right - report.left + 32 : 32, aboveCredits],
   };
 }
 

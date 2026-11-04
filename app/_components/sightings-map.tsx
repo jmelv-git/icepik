@@ -112,8 +112,12 @@ export function SightingsMap({
       L.control.zoom({ position: "bottomright" }).addTo(instance);
 
       // CARTO's Positron style, with its attribution visible. Tiles load
-      // only after the policy is accepted.
-      L.tileLayer.provider("CartoDB.Positron", { apikey: CARTO_KEY }).addTo(instance);
+      // only after the policy is accepted. A pinch can briefly go past the
+      // deepest zoom before it springs back: enlarge the deepest tiles then,
+      // instead of asking for ones CARTO refuses.
+      L.tileLayer
+        .provider("CartoDB.Positron", { apikey: CARTO_KEY, maxNativeZoom: MAX_ZOOM })
+        .addTo(instance);
 
       instance.on("zoomend", () => setZoom(instance.getZoom()));
       instance.on("click", (event) => {
