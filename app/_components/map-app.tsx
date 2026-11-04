@@ -21,6 +21,7 @@ import { createClient, type Client } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { useLiveSightings } from "@/lib/use-live-sightings";
 import { useMyActivity } from "@/lib/use-my-activity";
+import { useMyPosition } from "@/lib/use-my-position";
 import { AccountStarter } from "./account-starter";
 import {
   ChevronIcon,
@@ -45,6 +46,13 @@ type Picking = "report" | PlaceName | null;
 
 // Matches the stacked phone layout in globals.css.
 const PHONE_QUERY = "(max-width: 899px)";
+
+// Shown while the browser asks for the person's location.
+const LOCATION_ASK =
+  "ICEPik asks for your location to show where you are and center the map. It stays on this device.";
+const LOCATION_DENIED =
+  "ICEPik can't see your location. To center the map on you, allow location for this site in your browser's settings.";
+const LOCATION_UNAVAILABLE = "Your device couldn't find your location. Try again in a moment.";
 
 function isPhone() {
   return window.matchMedia(PHONE_QUERY).matches;
@@ -96,7 +104,12 @@ export function MapApp() {
   const { sightings, loadState, now, upsert, remove } = useLiveSightings(supabase);
   const activity = useMyActivity(supabase, user?.id ?? null);
   const places = useSavedPlaces();
+  const me = useMyPosition();
   const mapApi = useRef<MapApi>(null);
+  // Center on the person's first position once, unless they're already
+  // looking at something else; and after the re-center button, once it's known.
+  const centeredOnMe = useRef(false);
+  const centerOnMeNext = useRef(false);
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   // Counts the times a sighting was chosen, so even choosing the same one
@@ -189,6 +202,44 @@ export function MapApp() {
   useEffect(() => {
     if (revealCount) revealSelected();
   }, [revealCount]);
+
+  const onMyPosition = useEffectEvent(() => {
+    const position = me.position;
+    if (!position || !mapApi.current) return;
+    if (centerOnMeNext.current) {
+      centerOnMeNext.current = false;
+      centeredOnMe.current = true;
+      mapApi.current.centerOn(position, mapPadding(), 15);
+    } else if (!centeredOnMe.current) {
+      centeredOnMe.current = true;
+      const busy = selectedId || groupIds || searchResult || picking || mapApi.current.moved();
+      if (!busy) mapApi.current.centerOn(position, mapPadding());
+    }
+  });
+  useEffect(() => {
+    onMyPosition();
+  }, [me.position]);
+
+  // The re-center button was used before the position was known, and it
+  // can't be: say why.
+  const onLocationStatus = useEffectEvent(() => {
+    if (!centerOnMeNext.current) return;
+    if (me.status === "denied") showNotice(LOCATION_DENIED);
+    else if (me.status === "unavailable") showNotice(LOCATION_UNAVAILABLE);
+    else return;
+    centerOnMeNext.current = false;
+  });
+  useEffect(() => {
+    onLocationStatus();
+  }, [me.status]);
+
+  function centerOnMe() {
+    if (me.position) return mapApi.current?.centerOn(me.position, mapPadding(), 15);
+    if (me.status === "denied") return showNotice(LOCATION_DENIED);
+    centerOnMeNext.current = true;
+    // Asks first if the browser hasn't been allowed; the line says why.
+    me.locate();
+  }
 
   function togglePanel() {
     const opening = !(panelOpen ?? !isPhone());
@@ -449,6 +500,8 @@ export function MapApp() {
           draft={draft}
           onPlace={place}
           searchResult={searchResult}
+          myPosition={me.position}
+          onLocate={centerOnMe}
         />
 
         <div className="panel">
@@ -696,7 +749,7 @@ export function MapApp() {
         )}
 
         <p className="notice" role="status" aria-live="polite">
-          {notice}
+          {notice || (me.status === "asking" ? LOCATION_ASK : "")}
         </p>
 
         {/* Tells screen readers the searched place is on the map. */}

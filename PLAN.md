@@ -10,9 +10,9 @@ difference under "Notes from session 2" at the end.
 - [x] 2. Terms and Privacy paragraph about location (policy.tsx, one paragraph only)
 - [x] 8. Agree button disabled until the terms are read to the end
 - [x] 7. Sticky Back button on the Terms and Privacy card in Settings
-- [ ] 1. Location access at the start, with the answer remembered on the device
-- [ ] 3. Blue dot at the user's position
-- [ ] 4. Re-center button
+- [x] 1. Location access at the start, with the answer remembered on the device
+- [ ] 3. Blue dot at the user's position (works; re-check once with the dot above the pins)
+- [x] 4. Re-center button
 - [ ] 5. Map icons for saved locations (home, work, custom)
 - [ ] 6. Custom saved locations (add, name, delete, localStorage only)
 - [ ] 9. Dark map with CartoDB.DarkMatter, switching live
@@ -304,3 +304,15 @@ Set `MOCK_COUNT=10` to add a second Market Street sighting at almost the same sp
   dialog's padding). Verified at 375x667 and 1280x800: the Back button is the topmost element at its
   centre at top, middle and bottom scroll, the last line ends above the bar, and Back returns to
   Settings.
+- Change 1: the "asks for your location" line shows only when the browser will really ask (status
+  "asking"); when location is already allowed the hook uses a separate "finding" status and shows
+  nothing. Verified granted (1280x800, 375x667), denied (both) and unavailable (375x667): line then
+  request on the first visit; answer stored; no line and no request after a reload; map, search and
+  REPORT work when denied; no coordinates in localStorage or any request.
+- Change 3: the plan put the dot below the pins, but a pin could then hide it completely (seen at
+  375x667). The dot's pane is now above the marker pane (610); it is non-interactive, so taps reach the
+  pin under it. The accuracy circle has its own pane below the pins (545) and is hidden when accuracy
+  is worse than 1.5 km.
+- Change 4: the button is a Leaflet control holding a real `<button>`, stacked above the zoom buttons,
+  with an inset focus ring (an outline would be clipped like the zoom buttons'). It centers the dot in
+  the middle of the map area left uncovered by the panel or card (`MapApi.centerOn` with `mapPadding()`).

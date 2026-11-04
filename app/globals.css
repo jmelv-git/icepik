@@ -528,6 +528,52 @@ button {
   margin: 0 2.75rem 8.5rem 0;
 }
 
+/* The re-center button, just above the zoom buttons and drawn like them. */
+.leaflet-bottom.leaflet-right .locate-control {
+  margin: 0 2.75rem 0.5rem 0;
+}
+
+.locate-button {
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  background: var(--surface);
+  color: #fff;
+  cursor: pointer;
+}
+
+.locate-button svg {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+/* Inside the bar: an outline would be cut off by its rounded corners. */
+.locate-button:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 0.1875rem var(--blue);
+}
+
+/* Where the person is. */
+.my-location-icon {
+  background: none;
+  border: 0;
+}
+
+.my-location {
+  position: absolute;
+  top: -0.6875rem;
+  left: -0.6875rem;
+  width: 1.375rem;
+  height: 1.375rem;
+  border: 0.25rem solid #fff;
+  border-radius: 50%;
+  background: #1a73e8;
+  box-shadow:
+    0 0 0 0.3125rem rgb(26 115 232 / 0.25),
+    0 0.125rem 0.375rem rgb(0 0 0 / 0.4);
+}
+
 .pin-icon {
   background: none;
   border: 0;
@@ -1647,6 +1693,10 @@ button {
 
   .leaflet-bottom.leaflet-right .leaflet-control-zoom {
     margin: 0 1rem calc(7rem + var(--map-credits)) 0;
+  }
+
+  .leaflet-bottom.leaflet-right .locate-control {
+    margin: 0 1rem 0.5rem 0;
   }
 
   .leaflet-bottom.leaflet-right {

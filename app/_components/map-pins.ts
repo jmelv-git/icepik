@@ -56,6 +56,18 @@ export const DRAFT_PIN_MARKUP = `<svg class="pin pin-draft" viewBox="0 0 64 100"
   <path d="M32 24v22M21 35h22" stroke="#fff" stroke-width="6" stroke-linecap="round"/>
 </svg>`;
 
+// Where the person is: a round blue dot with a white ring, the usual "you are
+// here" mark. Round, so it can't pass for a pin, and a stronger blue than the
+// new-report pin.
+export const MY_LOCATION_MARKUP = `<span class="my-location" role="img" aria-label="Your location"></span>`;
+
+// The re-center button's icon: a target.
+export const LOCATE_ICON = `<svg viewBox="0 0 24 24" aria-hidden="true">
+  <circle cx="12" cy="12" r="6.5" fill="none" stroke="currentColor" stroke-width="2"/>
+  <circle cx="12" cy="12" r="2.5" fill="currentColor"/>
+  <path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+</svg>`;
+
 // The same magnifier as the search button, drawn a little bolder for its size.
 const MAGNIFIER = `<svg viewBox="0 0 24 24" aria-hidden="true">
   <circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="3"/>

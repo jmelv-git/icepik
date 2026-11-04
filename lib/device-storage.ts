@@ -4,6 +4,8 @@ import { useMemo, useSyncExternalStore } from "react";
 // cookies travel to the server with every request.
 const POLICY_KEY = "icepik.policy-version";
 const PLACES_KEY = "icepik.places";
+// Only the answer to "may ICEPik use your location?", never a position.
+const LOCATION_KEY = "icepik.location";
 
 export type PlaceName = "home" | "work";
 export type SavedPlace = { lat: number; lng: number };
@@ -71,9 +73,23 @@ export function savePlace(name: PlaceName, place: SavedPlace | null) {
   write(PLACES_KEY, Object.keys(places).length ? JSON.stringify(places) : null);
 }
 
+export type LocationAnswer = "granted" | "denied" | "unavailable";
+
+// null until location has been asked for once on this device.
+export function useLocationAnswer(): LocationAnswer | null | undefined {
+  const raw = useStored(LOCATION_KEY);
+  if (raw === undefined) return undefined;
+  return raw === "granted" || raw === "denied" || raw === "unavailable" ? raw : null;
+}
+
+export function rememberLocationAnswer(answer: LocationAnswer) {
+  if (read(LOCATION_KEY) !== answer) write(LOCATION_KEY, answer);
+}
+
 // "Clear this device": forget everything ICEPik stored in this browser.
 export function clearDeviceStorage() {
   write(PLACES_KEY, null);
+  write(LOCATION_KEY, null);
   write(POLICY_KEY, null);
 }
 
