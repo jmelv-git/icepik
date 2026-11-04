@@ -135,6 +135,8 @@ export function SightingsMap({
 
   useEffect(() => {
     let cancelled = false;
+    const darkScheme = window.matchMedia("(prefers-color-scheme: dark)");
+    let stopFollowingScheme = () => {};
 
     import("./leaflet").then(({ L }) => {
       if (cancelled || !node.current) return;
@@ -167,13 +169,27 @@ export function SightingsMap({
       });
       new Locate({ position: "bottomright" }).addTo(instance);
 
-      // CARTO's Positron style, with its attribution visible. Tiles load
-      // only after the policy is accepted. A pinch can briefly go past the
-      // deepest zoom before it springs back: enlarge the deepest tiles then,
-      // instead of asking for ones CARTO refuses.
-      L.tileLayer
-        .provider("CartoDB.Positron", { apikey: CARTO_KEY, maxNativeZoom: MAX_ZOOM })
-        .addTo(instance);
+      // CARTO's Positron style, or its Dark Matter style when the device is
+      // set to dark, with their attribution visible. Both come from the same
+      // tile servers with the same key. Tiles load only after the policy is
+      // accepted. A pinch can briefly go past the deepest zoom before it
+      // springs back: enlarge the deepest tiles then, instead of asking for
+      // ones CARTO refuses.
+      let tiles: Leaflet.TileLayer | null = null;
+      const showTiles = () => {
+        const style = darkScheme.matches ? "CartoDB.DarkMatter" : "CartoDB.Positron";
+        const next = L.tileLayer
+          .provider(style, { apikey: CARTO_KEY, maxNativeZoom: MAX_ZOOM })
+          .addTo(instance);
+        // Switching live: keep the old style under the new one until it has
+        // loaded, so the map doesn't flash empty.
+        const previous = tiles;
+        tiles = next;
+        if (previous) next.once("load", () => previous.remove());
+      };
+      showTiles();
+      darkScheme.addEventListener("change", showTiles);
+      stopFollowingScheme = () => darkScheme.removeEventListener("change", showTiles);
 
       instance.on("zoomend", () => setZoom(instance.getZoom()));
       instance.on("dragstart", () => {
@@ -203,6 +219,7 @@ export function SightingsMap({
 
     return () => {
       cancelled = true;
+      stopFollowingScheme();
       map.current?.remove();
       map.current = null;
       pins.current = null;

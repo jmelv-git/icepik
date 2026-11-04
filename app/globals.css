@@ -1811,3 +1811,42 @@ button {
     flex: none;
   }
 }
+
+/* Dark map: CARTO's Dark Matter style when the device is set to dark (the
+   map switches with the setting). The rest of ICEPik is dark already; this
+   keeps what's drawn on the map and its controls readable on it. */
+@media (prefers-color-scheme: dark) {
+  .leaflet-container {
+    background: #1a1a1a;
+  }
+
+  /* The searched place turns light, or its dark pill and pointer would
+     vanish into the map. It keeps these colours in high contrast mode too. */
+  .searched-label,
+  .searched-label::before {
+    background: #f2f3f5;
+  }
+
+  .searched-label {
+    color: #1d1f26;
+    box-shadow:
+      0 0 0 0.125rem #1d1f26,
+      0 0.1875rem 0.5rem rgb(0 0 0 / 0.5);
+  }
+
+  /* A faint edge, so the dark buttons don't melt into the dark map. */
+  .leaflet-container .leaflet-bar {
+    box-shadow:
+      0 0 0 0.0625rem rgb(255 255 255 / 0.25),
+      0 0.375rem 1.125rem rgb(0 0 0 / 0.5) !important;
+  }
+
+  .leaflet-container .leaflet-control-attribution {
+    background: rgb(29 31 38 / 0.85);
+    color: #c6c8ce;
+  }
+
+  .leaflet-container .leaflet-control-attribution a {
+    color: #8ec3ee;
+  }
+}

@@ -15,7 +15,7 @@ difference under "Notes from session 2" at the end.
 - [x] 4. Re-center button
 - [x] 5. Map icons for saved locations (home, work, custom)
 - [x] 6. Custom saved locations (add, name, delete, localStorage only)
-- [ ] 9. Dark map with CartoDB.DarkMatter, switching live
+- [x] 9. Dark map with CartoDB.DarkMatter, switching live
 - [ ] Regression pass: every pin and cluster type, map credit at phone width, `npx tsc --noEmit`, `npx eslint`, `npx next build`
 - [ ] Final report (prose, as the prompt asks)
 
@@ -329,3 +329,10 @@ Set `MOCK_COUNT=10` to add a second Market Street sighting at almost the same sp
   tap and by search, Escape cancels, survives reload, Settings lists and deletes, "Clear this device"
   removes every `icepik.*` key), storage full at 375x667 (message shown, page still works), and no
   request carried a name or coordinates.
+- Change 9: the styles in dark mode use a `prefers-color-scheme: dark` media query (no class on the map),
+  so CSS and tiles switch together. On a live switch the new tile layer is added on top and the old one
+  removed once the new one has loaded, so the map never flashes empty. The app has no Leaflet popups.
+  Verified at 1280x800, 375x667 and 320x568 in dark: only `dark_all` tiles, every marker type present,
+  map credit visible and dark (text 9.7:1, links 8.7:1), searched label light (text 14.8:1, pointer
+  13.6:1 on dark tiles); switching to light and back live leaves one tile layer showing the right style,
+  with no reload and no page errors.
