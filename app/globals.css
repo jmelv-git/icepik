@@ -647,6 +647,13 @@ textarea::placeholder {
   height: 1.375rem;
 }
 
+/* Rows fill cards and lists that clip what spills over their edges, so
+   their focus ring is drawn just inside them. */
+.report-row:focus-visible,
+.place-link:focus-visible {
+  outline-offset: -0.1875rem;
+}
+
 /* Inside the group, an outline would be cut off by its rounded corners:
    draw the focus ring inside the button instead. */
 .map-control-group .map-control:focus-visible {
@@ -820,7 +827,8 @@ textarea::placeholder {
   height: 3.75rem;
   padding: 0 1.5rem 0 1.25rem;
   border-radius: 62.4375rem;
-  background: #f0313d;
+  /* White text needs 4.5:1: #f0313d gave 4.0:1, --red-strong gives 4.8:1. */
+  background: var(--red-strong);
   color: #fff;
   font-size: 1.3125rem;
   font-weight: 600;
@@ -836,7 +844,7 @@ textarea::placeholder {
 }
 
 .report-button:hover {
-  background: #e0222f;
+  background: #c90e18;
   transform: translateY(-0.0625rem);
 }
 
