@@ -38,8 +38,8 @@ export function pinMarkup(sighting: Sighting, selected = false) {
   // Widths follow the pin's outermost stroke so every status looks the same.
   const outer = status === "unverified" ? 11 : 6;
   const ring = selected
-    ? `<path d="${PIN_SHAPE}" fill="none" stroke="#1d1f26" stroke-width="${outer + 13}" stroke-linejoin="round"/>
-    <path d="${PIN_SHAPE}" fill="none" stroke="#fff" stroke-width="${outer + 5}" stroke-linejoin="round"/>`
+    ? `<path class="pin-ring-outer" d="${PIN_SHAPE}" fill="none" stroke="#1d1f26" stroke-width="${outer + 13}" stroke-linejoin="round"/>
+    <path class="pin-ring-gap" d="${PIN_SHAPE}" fill="none" stroke="#fff" stroke-width="${outer + 5}" stroke-linejoin="round"/>`
     : "";
 
   return `<svg class="pin pin-${status}" viewBox="0 0 64 100" overflow="visible" aria-hidden="true">
@@ -55,6 +55,34 @@ export const DRAFT_PIN_MARKUP = `<svg class="pin pin-draft" viewBox="0 0 64 100"
   <path d="${PIN_SHAPE}" fill="#4f93c8" stroke="#fff" stroke-width="6" stroke-linejoin="round"/>
   <path d="M32 24v22M21 35h22" stroke="#fff" stroke-width="6" stroke-linecap="round"/>
 </svg>`;
+
+// Where the person is: a round blue dot with a white ring, the usual "you are
+// here" mark. Round, so it can't pass for a pin, and a stronger blue than the
+// new-report pin.
+export const MY_LOCATION_MARKUP = `<span class="my-location" role="img" aria-label="Your location"></span>`;
+
+export type SavedPlaceKind = "home" | "work" | "custom";
+
+// The same glyphs as the saved-place icons in the side panel and Settings.
+const SAVED_PLACE_GLYPH: Record<SavedPlaceKind, string> = {
+  home: `<path d="M4 11 12 4l8 7v8.5a1 1 0 0 1-1 1h-4.5v-6h-5v6H5a1 1 0 0 1-1-1Z" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linejoin="round"/>`,
+  work: `<rect x="3.5" y="7.5" width="17" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="2.25"/>
+    <path d="M9 7.5V5.5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" fill="none" stroke="currentColor" stroke-width="2.25"/>`,
+  custom: `<path d="m12 4 2.4 4.9 5.4.8-3.9 3.8.9 5.4-4.8-2.6-4.8 2.6.9-5.4-3.9-3.8 5.4-.8Z" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>`,
+};
+
+// A place saved on this device: a dark diamond with a white edge and glyph.
+// Not a teardrop, a circle, a pill or a square, so it can't pass for a
+// sighting, a cluster, the blue dot, a searched place or a map button. Names are typed by
+// the person, so they only ever go in as text.
+export function savedPlaceElement(kind: SavedPlaceKind, label: string, pending = false) {
+  const element = document.createElement("span");
+  element.className = `saved-place saved-place-${kind}${pending ? " saved-place-new" : ""}`;
+  element.setAttribute("role", "img");
+  element.setAttribute("aria-label", `${label}, saved on this device`);
+  element.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${SAVED_PLACE_GLYPH[kind]}</svg>`;
+  return element;
+}
 
 // The same magnifier as the search button, drawn a little bolder for its size.
 const MAGNIFIER = `<svg viewBox="0 0 24 24" aria-hidden="true">

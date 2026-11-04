@@ -2,9 +2,18 @@
 
 import type { User } from "@supabase/supabase-js";
 import Image from "next/image";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import logo from "../../public/brand/icepik-logo.png";
-import { savePlace, useSavedPlaces, type PlaceName } from "@/lib/device-storage";
+import {
+  CUSTOM_PLACES_MAX,
+  PLACE_NAME_MAX,
+  addCustomPlace,
+  shorten,
+  savePlace,
+  useCustomPlaces,
+  useSavedPlaces,
+  type PlaceName,
+} from "@/lib/device-storage";
 import { ONE_MILE_M, distanceMeters, roundCoord } from "@/lib/geo";
 import {
   STATUS_LABEL,
@@ -20,6 +29,7 @@ import { createClient, type Client } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { useLiveSightings } from "@/lib/use-live-sightings";
 import { useMyActivity } from "@/lib/use-my-activity";
+import { useMyPosition } from "@/lib/use-my-position";
 import { AccountStarter } from "./account-starter";
 import {
   ArrowIcon,
@@ -46,22 +56,76 @@ import {
   SightingsMap,
   type Bounds,
   type MapApi,
+  type MapPlace,
   type Padding,
   type Point,
 } from "./sightings-map";
 
 type SearchResult = { display_name: string; lat: string; lon: string };
 
-// Choosing a spot on the map: for a new report, or for a saved place.
-type Picking = "report" | PlaceName | null;
+// Choosing a spot on the map: for a new report, or for a saved place (home,
+// work, or a new place to name).
+type Picking = "report" | PlaceName | "custom" | null;
+
+const PLACES_FULL = `You've saved ${CUSTOM_PLACES_MAX} places, as many as ICEPik keeps. Delete one in Settings first.`;
+// Named places listed in the side panel; the rest are in Settings.
+const PANEL_PLACES = 3;
+const PLACE_NOT_SAVED =
+  "Couldn't save this place on this device. Your browser's storage is full or blocked.";
 
 const STATUSES: Status[] = ["verified", "unverified", "disputed"];
 
 // Matches the stacked phone layout in globals.css.
 const PHONE_QUERY = "(max-width: 899px)";
 
+// Shown while the browser asks for the person's location.
+const LOCATION_ASK =
+  "ICEPik asks for your location to show where you are and center the map. It stays on this device.";
+const LOCATION_DENIED =
+  "ICEPik can't see your location. To center the map on you, allow location for this site in your browser's settings.";
+const LOCATION_UNAVAILABLE = "Your device couldn't find your location. Try again in a moment.";
+
 function isPhone() {
   return window.matchMedia(PHONE_QUERY).matches;
+}
+
+// On phones the detail card spans the top of the map. A point is shown in
+// the clear space below the card, or beside it on a phone on its side, away
+// from the report button, the map buttons and above the map credits. Pins are drawn
+// above their point, so this leaves room for one: 88px above the point and
+// 32px on either side.
+function phonePadding(shell: DOMRect, card: DOMRect | undefined): Padding {
+  if (!card) return { paddingTopLeft: [24, 96 + 88], paddingBottomRight: [24, 96] };
+
+  const box = (selector: string) => document.querySelector(selector)?.getBoundingClientRect();
+  const credits = box(".leaflet-control-attribution");
+  const report = box(".report-button");
+  const zoom = box(".map-controls");
+  const aboveCredits = (credits ? shell.bottom - credits.top : 0) + 8;
+
+  // On its side, the card leaves the left of the map free, above the map
+  // buttons, which sit at the bottom left there.
+  if (card.left - shell.left > 120) {
+    const aboveButtons = zoom && zoom.left < card.left ? shell.bottom - zoom.top + 8 : 0;
+    return {
+      paddingTopLeft: [32, 96 + 88],
+      paddingBottomRight: [shell.right - card.left + 32, Math.max(aboveCredits, aboveButtons)],
+    };
+  }
+
+  const top = card.bottom - shell.top + 88;
+  // Across the map above the REPORT button when there's room for it...
+  if (report && report.top - shell.top - 8 >= top) {
+    return {
+      paddingTopLeft: [32, top],
+      paddingBottomRight: [zoom ? shell.right - zoom.left + 32 : 32, shell.bottom - report.top + 8],
+    };
+  }
+  // ...or else beside the button, down to the credits.
+  return {
+    paddingTopLeft: [32, top],
+    paddingBottomRight: [report ? shell.right - report.left + 32 : 32, aboveCredits],
+  };
 }
 
 function reportCount(count: number) {
@@ -86,9 +150,23 @@ export function MapApp() {
   const { sightings, loadState, now, upsert, remove } = useLiveSightings(supabase);
   const activity = useMyActivity(supabase, user?.id ?? null);
   const places = useSavedPlaces();
+  const customPlaces = useCustomPlaces();
+  // A new place being named before it's saved.
+  const [naming, setNaming] = useState<(Point & { name: string }) | null>(null);
+  const namingOpener = useRef<HTMLElement | null>(null);
+  // On phones a sighting card can cover the map buttons.
+  const [controlsCovered, setControlsCovered] = useState(false);
+  const me = useMyPosition();
   const mapApi = useRef<MapApi>(null);
+  // Center on the person's first position once, unless they're already
+  // looking at something else; and after the re-center button, once it's known.
+  const centeredOnMe = useRef(false);
+  const centerOnMeNext = useRef(false);
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Counts the times a sighting was chosen, so even choosing the same one
+  // again brings its pin back into view.
+  const [revealCount, setRevealCount] = useState(0);
   const [groupIds, setGroupIds] = useState<string[] | null>(null);
   const [modal, setModal] = useState<"rights" | "settings" | null>(null);
   const [picking, setPicking] = useState<Picking>(null);
@@ -100,7 +178,6 @@ export function MapApp() {
   const [starterHidden, setStarterHidden] = useState(false);
   // The part of the map on screen, once the map has loaded.
   const [bounds, setBounds] = useState<Bounds | null>(null);
-  const [locating, setLocating] = useState(false);
   const [notice, setNotice] = useState("");
   const noticeTimer = useRef<number | undefined>(undefined);
 
@@ -140,13 +217,14 @@ export function MapApp() {
     function onKeyDown(event: KeyboardEvent) {
       if (event.key !== "Escape") return;
       if (modal) setModal(null);
+      else if (naming) closeNaming();
       else if (picking === "report" && !reportFormOpen) cancelReport();
       else if (picking) setPicking(null);
     }
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [modal, picking, reportFormOpen, cancelReport]);
+  }, [modal, naming, picking, reportFormOpen, cancelReport]);
 
   const closeResults = useCallback(() => {
     setResults([]);
@@ -169,6 +247,79 @@ export function MapApp() {
   const group = groupIds ? sightings.filter((s) => groupIds.includes(s.id)) : [];
   const panelState = panelOpen === null ? "auto" : panelOpen ? "open" : "closed";
 
+  // Move a chosen sighting's pin out from under its card. This waits until
+  // the card has rendered, because the card's size decides where the pin
+  // can show.
+  const revealSelected = useEffectEvent(() => {
+    if (selected) mapApi.current?.showPoint(selected, mapPadding());
+  });
+  useEffect(() => {
+    if (revealCount) revealSelected();
+  }, [revealCount]);
+
+  const onMyPosition = useEffectEvent(() => {
+    const position = me.position;
+    if (!position || !mapApi.current) return;
+    if (centerOnMeNext.current) {
+      centerOnMeNext.current = false;
+      centeredOnMe.current = true;
+      mapApi.current.centerOn(position, mapPadding(), 15);
+    } else if (!centeredOnMe.current) {
+      centeredOnMe.current = true;
+      const busy = selectedId || groupIds || searchResult || picking || mapApi.current.moved();
+      if (!busy) mapApi.current.centerOn(position, mapPadding());
+    }
+  });
+  useEffect(() => {
+    onMyPosition();
+  }, [me.position]);
+
+  // The re-center button was used before the position was known, and it
+  // can't be: say why.
+  // Whether the open card covers the map buttons (phones). Measured after the
+  // card has rendered, and again when the window changes size.
+  useEffect(() => {
+    const measure = () => {
+      const card = document.querySelector(".detail-card")?.getBoundingClientRect();
+      const controls = document.querySelector(".map-controls")?.getBoundingClientRect();
+      setControlsCovered(
+        Boolean(
+          card &&
+            controls &&
+            card.left < controls.right &&
+            card.right > controls.left &&
+            card.top < controls.bottom &&
+            card.bottom > controls.top,
+        ),
+      );
+    };
+    const frame = window.requestAnimationFrame(measure);
+    window.addEventListener("resize", measure);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("resize", measure);
+    };
+  }, [selectedId, groupIds]);
+
+  const onLocationStatus = useEffectEvent(() => {
+    if (!centerOnMeNext.current) return;
+    if (me.status === "denied") showNotice(LOCATION_DENIED);
+    else if (me.status === "unavailable") showNotice(LOCATION_UNAVAILABLE);
+    else return;
+    centerOnMeNext.current = false;
+  });
+  useEffect(() => {
+    onLocationStatus();
+  }, [me.status]);
+
+  function centerOnMe() {
+    if (me.position) return mapApi.current?.centerOn(me.position, mapPadding(), 15);
+    if (me.status === "denied") return showNotice(LOCATION_DENIED);
+    centerOnMeNext.current = true;
+    // Asks first if the browser hasn't been allowed; the line says why.
+    me.locate();
+  }
+
   function togglePanel() {
     const opening = !(panelOpen ?? !isPhone());
     // Hidden cards keep their scroll position. Start from the top, so the
@@ -185,12 +336,7 @@ export function MapApp() {
     const detail = document.querySelector(".detail-card")?.getBoundingClientRect();
     if (!shell) return { paddingTopLeft: [48, 96], paddingBottomRight: [48, 48] };
 
-    // On phones the detail card spans the top of the map.
-    if (isPhone()) {
-      const top = detail ? detail.bottom - shell.top : 96;
-      // Leave room for the pin, which is drawn above its point.
-      return { paddingTopLeft: [24, top + 88], paddingBottomRight: [24, 96] };
-    }
+    if (isPhone()) return phonePadding(shell, detail);
 
     const left =
       panel && getComputedStyle(panel).visibility !== "hidden"
@@ -200,13 +346,17 @@ export function MapApp() {
     return { paddingTopLeft: [left + 48, 96], paddingBottomRight: [right + 48, 48] };
   }
 
-  function showSighting(id: string) {
-    const sighting = sightings.find((s) => s.id === id);
+  // Open a sighting's card and bring its pin into view.
+  function selectSighting(id: string) {
     setSelectedId(id);
     setGroupIds(null);
+    setRevealCount((count) => count + 1);
+  }
+
+  function showSighting(id: string) {
+    selectSighting(id);
     // On phones the panel covers the map, so get it out of the way.
     if (isPhone()) setPanelOpen(false);
-    if (sighting) mapApi.current?.showPoint(sighting, mapPadding());
   }
 
   function showPoints(points: Point[]) {
@@ -214,40 +364,14 @@ export function MapApp() {
     mapApi.current?.showPoints(points, mapPadding());
   }
 
-  // The position only moves the map: it stays on this device and is never
-  // stored or sent anywhere.
-  function locate() {
-    if (!navigator.geolocation) return showNotice("This browser can't share your location.");
-    setLocating(true);
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        setLocating(false);
-        showPoints([{ lat: position.coords.latitude, lng: position.coords.longitude }]);
-      },
-      (error) => {
-        setLocating(false);
-        showNotice(
-          error.code === error.PERMISSION_DENIED
-            ? "Location is blocked. Allow it in your browser's settings to see where you are."
-            : "Couldn't find your location. Try again.",
-        );
-      },
-      { enableHighAccuracy: false, timeout: 15000, maximumAge: 30000 },
-    );
+  function nearPlace(place: Point) {
+    return sightings.filter((s) => distanceMeters(place.lat, place.lng, s.lat, s.lng) <= ONE_MILE_M);
   }
 
-  function nearPlace(name: PlaceName) {
-    const place = places[name];
-    return place
-      ? sightings.filter((s) => distanceMeters(place.lat, place.lng, s.lat, s.lng) <= ONE_MILE_M)
-      : [];
-  }
-
-  function showPlace(name: PlaceName) {
-    const place = places[name];
-    if (!place) return;
+  // A saved place and the sightings within a mile of it.
+  function showPlace(place: Point) {
     setModal(null);
-    showPoints([place, ...nearPlace(name)]);
+    showPoints([place, ...nearPlace(place)]);
   }
 
   function startReport() {
@@ -270,31 +394,93 @@ export function MapApp() {
     else setPicking(null);
   }
 
-  function pickPlace(name: PlaceName) {
+  function pickPlace(name: PlaceName | "custom") {
     setModal(null);
+    setNaming(null);
     setPicking(name);
     if (isPhone()) setPanelOpen(false);
   }
 
   function place(point: Point) {
-    if (picking === "report") {
+    if (naming) {
+      // Naming a place: a tap moves it.
+      setNaming({ ...naming, lat: point.lat, lng: point.lng });
+    } else if (picking === "report") {
       // Pins are rounded to about 100 m: show where it will really go.
       setDraft({ lat: roundCoord(point.lat), lng: roundCoord(point.lng) });
+    } else if (picking === "custom") {
+      namingOpener.current = null;
+      setNaming({ ...point, name: "" });
+      setPicking(null);
     } else if (picking) {
-      savePlace(picking, {
+      const saved = savePlace(picking, {
         lat: Math.round(point.lat * 1e4) / 1e4,
         lng: Math.round(point.lng * 1e4) / 1e4,
       });
-      showNotice(`${PLACE_LABEL[picking]} saved on this device.`);
+      showNotice(saved ? `${PLACE_LABEL[picking]} saved on this device.` : PLACE_NOT_SAVED);
       setPicking(null);
     }
   }
+
+  // Name and save a place chosen on the map or from the search results.
+  function saveNamedPlace(event: React.FormEvent) {
+    event.preventDefault();
+    if (!naming) return;
+    const { status, name } = addCustomPlace(naming.name, naming);
+    if (status === "saved") showNotice(`${name} saved on this device.`);
+    else if (status === "limit") showNotice(PLACES_FULL);
+    else showNotice(PLACE_NOT_SAVED);
+    closeNaming();
+  }
+
+  // Back to where the form was opened from, so keyboard users keep their place.
+  function closeNaming() {
+    setNaming(null);
+    const opener = namingOpener.current;
+    namingOpener.current = null;
+    if (!opener) return;
+    // The star hides while the form is open: focus the one shown again.
+    window.requestAnimationFrame(() =>
+      (opener.isConnected
+        ? opener
+        : (document.querySelector<HTMLElement>(".search-save") ?? searchInput.current)
+      )?.focus(),
+    );
+  }
+
+  function nameSearchedPlace(event: React.MouseEvent<HTMLButtonElement>) {
+    if (!searchResult) return;
+    if (customPlaces.length >= CUSTOM_PLACES_MAX) return showNotice(PLACES_FULL);
+    setPicking(null);
+    namingOpener.current = event.currentTarget;
+    setNaming({
+      lat: searchResult.lat,
+      lng: searchResult.lng,
+      name: shorten(shortPlaceName(searchResult.label), PLACE_NAME_MAX),
+    });
+  }
+
+  // Home, work and named places as the map draws them, plus one being named.
+  const mapPlaces = useMemo<MapPlace[]>(() => {
+    const list: MapPlace[] = [];
+    for (const name of ["home", "work"] as const) {
+      const spot = places[name];
+      if (spot) list.push({ ...spot, key: name, kind: name, label: PLACE_LABEL[name] });
+    }
+    for (const spot of customPlaces) {
+      list.push({ lat: spot.lat, lng: spot.lng, key: spot.id, kind: "custom", label: spot.name });
+    }
+    if (naming) {
+      list.push({ lat: naming.lat, lng: naming.lng, key: "new", kind: "custom", label: "New place", pending: true });
+    }
+    return list;
+  }, [places, customPlaces, naming]);
 
   function posted(sighting: Sighting) {
     upsert(sighting);
     activity.addPost(sighting.id);
     cancelReport();
-    setSelectedId(sighting.id);
+    selectSighting(sighting.id);
     showNotice("Sighting posted. Everyone can see it now.");
   }
 
@@ -362,7 +548,10 @@ export function MapApp() {
 
   function onSearchKeyDown(event: React.KeyboardEvent) {
     if (event.key !== "Escape" || !resultsOpen) return;
-    // Don't also cancel whatever the window's Escape handler would.
+    // Only close the results. Browsers would also empty the search box,
+    // which ends the search and takes the searched place off the map, and
+    // the window's Escape handler would cancel something else.
+    event.preventDefault();
     event.stopPropagation();
     closeResults();
   }
@@ -390,7 +579,18 @@ export function MapApp() {
   const nearby = bounds ? sightings.filter((s) => inBounds(s, bounds)) : [];
   const counts: Record<Status, number> = { verified: 0, unverified: 0, disputed: 0 };
   nearby.forEach((s) => counts[statusOf(s)]++);
-  const placeNames = (["home", "work"] as const).filter((name) => places[name]);
+  // The side panel's "Your places": home, work, then named places.
+  const placeRows: { key: string; kind: "home" | "work" | "custom"; label: string; spot: Point }[] = [];
+  for (const name of ["home", "work"] as const) {
+    const spot = places[name];
+    if (spot) placeRows.push({ key: name, kind: name, label: PLACE_LABEL[name], spot });
+  }
+  // A few named places here; the rest are in Settings, so the sightings
+  // list keeps its room.
+  for (const spot of customPlaces.slice(0, PANEL_PLACES)) {
+    placeRows.push({ key: spot.id, kind: "custom", label: spot.name, spot });
+  }
+  const morePlaces = customPlaces.length - PANEL_PLACES;
 
   let listMessage: { title: string; text?: string } | null = null;
   if (!supabase) {
@@ -448,18 +648,17 @@ export function MapApp() {
           ref={mapApi}
           sightings={sightings}
           selectedId={selectedId}
-          onSelect={(id) => {
-            setSelectedId(id);
-            setGroupIds(null);
-          }}
+          onSelect={selectSighting}
           onSelectGroup={(ids) => {
             setSelectedId(null);
             setGroupIds(ids);
           }}
-          placing={picking !== null}
+          placing={picking !== null || naming !== null}
           draft={draft}
           onPlace={place}
           searchResult={searchResult}
+          myPosition={me.position}
+          savedPlaces={mapPlaces}
           onViewChange={setBounds}
         />
 
@@ -498,6 +697,17 @@ export function MapApp() {
                 aria-label="Search an address or place"
               />
               {searching ? <span className="search-status">Searching…</span> : null}
+              {searchResult && query === searchResult.label && !naming ? (
+                <button
+                  type="button"
+                  className="icon-button search-save"
+                  aria-label="Save this place"
+                  title="Save this place"
+                  onClick={nameSearchedPlace}
+                >
+                  <PlaceIcon name="custom" />
+                </button>
+              ) : null}
               {query ? (
                 <button
                   type="button"
@@ -567,21 +777,21 @@ export function MapApp() {
               </div>
             </section>
 
-            {placeNames.length ? (
+            {placeRows.length ? (
               <section className="card" aria-labelledby="places-card-title">
                 <header className="card-head">
                   <h2 id="places-card-title">Your places</h2>
                   <span>within 1 mile</span>
                 </header>
-                {placeNames.map((name) => {
-                  const near = nearPlace(name).length;
+                {placeRows.map((row) => {
+                  const near = nearPlace(row.spot).length;
                   return (
-                    <button key={name} type="button" className="place-link" onClick={() => showPlace(name)}>
+                    <button key={row.key} type="button" className="place-link" onClick={() => showPlace(row.spot)}>
                       <span className="row-icon place-icon">
-                        <PlaceIcon name={name} />
+                        <PlaceIcon name={row.kind} />
                       </span>
                       <span className="row-text">
-                        <span className="row-address">{PLACE_LABEL[name]}</span>
+                        <span className="row-address">{row.label}</span>
                         <span className="row-meta">
                           {near
                             ? `${near} ${near === 1 ? "sighting" : "sightings"} nearby`
@@ -592,6 +802,12 @@ export function MapApp() {
                     </button>
                   );
                 })}
+                {morePlaces > 0 ? (
+                  <button type="button" className="link-button places-more" onClick={() => setModal("settings")}>
+                    {morePlaces} more saved {morePlaces === 1 ? "place" : "places"} in Settings
+                    <ArrowIcon />
+                  </button>
+                ) : null}
               </section>
             ) : null}
 
@@ -668,14 +884,39 @@ export function MapApp() {
           </section>
         ) : null}
 
-        {picking ? (
+        {naming ? (
+          <form className="pick-banner place-form" onSubmit={saveNamedPlace}>
+            <label className="place-form-field">
+              Name this place
+              <input
+                value={naming.name}
+                maxLength={PLACE_NAME_MAX}
+                placeholder="For example: Mom's house"
+                autoComplete="off"
+                autoFocus
+                onChange={(event) => setNaming({ ...naming, name: event.target.value })}
+              />
+            </label>
+            <p className="place-form-tip">Saved on this device only, never sent anywhere.</p>
+            <div className="form-actions">
+              <button type="button" className="secondary-button" onClick={closeNaming}>
+                Cancel
+              </button>
+              <button type="submit" className="primary-button">
+                Save place
+              </button>
+            </div>
+          </form>
+        ) : picking ? (
           <div className="pick-banner">
             <p>
               {picking === "report"
                 ? draft
                   ? "Drag the pin, or tap somewhere else to move it."
                   : "Tap the map where you saw ICE."
-                : `Tap your ${picking === "home" ? "home" : "workplace"} on the map. It's saved on this device only.`}
+                : picking === "custom"
+                  ? "Tap the place you want to save. It's saved on this device only."
+                  : `Tap your ${picking === "home" ? "home" : "workplace"} on the map. It's saved on this device only.`}
             </p>
             <div className="form-actions">
               <button type="button" className="secondary-button" onClick={leavePicking}>
@@ -702,14 +943,14 @@ export function MapApp() {
           </button>
         )}
 
-        <div className="map-controls">
+        {/* Hidden, and out of the Tab order, while a card covers them. */}
+        <div className="map-controls" data-covered={controlsCovered || undefined} inert={controlsCovered}>
           <button
             type="button"
             className="map-control"
             aria-label="Show where I am"
-            aria-busy={locating}
-            disabled={locating}
-            onClick={locate}
+            aria-busy={me.status === "asking" || me.status === "finding"}
+            onClick={centerOnMe}
           >
             <LocateIcon />
           </button>
@@ -734,7 +975,7 @@ export function MapApp() {
         </div>
 
         <p className="notice" role="status" aria-live="polite">
-          {notice}
+          {notice || (me.status === "asking" ? LOCATION_ASK : "")}
         </p>
 
         {/* Tells screen readers the searched place is on the map. */}
@@ -833,6 +1074,7 @@ export function MapApp() {
                 reloadActivity={activity.reload}
                 sightings={sightings}
                 places={places}
+                customPlaces={customPlaces}
                 onPickPlace={pickPlace}
                 onShowPlace={showPlace}
                 onNotice={showNotice}

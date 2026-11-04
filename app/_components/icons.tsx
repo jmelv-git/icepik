@@ -168,7 +168,21 @@ export function GearIcon() {
   );
 }
 
-export function PlaceIcon({ name }: { name: "home" | "work" }) {
+// Home, work, or a place someone added and named (a star).
+export function PlaceIcon({ name }: { name: "home" | "work" | "custom" }) {
+  if (name === "custom") {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path
+          d="m12 4 2.4 4.9 5.4.8-3.9 3.8.9 5.4-4.8-2.6-4.8 2.6.9-5.4-3.9-3.8 5.4-.8Z"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinejoin="round"
+        />
+      </svg>
+    );
+  }
   return name === "home" ? (
     <svg viewBox="0 0 24 24" aria-hidden="true">
       <path

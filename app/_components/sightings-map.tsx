@@ -4,22 +4,33 @@ import type * as Leaflet from "leaflet";
 import { useEffect, useImperativeHandle, useRef, useState, type Ref } from "react";
 import { MAP_CENTER } from "@/lib/geo";
 import { type Sighting } from "@/lib/sightings";
+import type { MyPosition } from "@/lib/use-my-position";
 import {
   DRAFT_PIN_MARKUP,
+  MY_LOCATION_MARKUP,
   clusterMarkup,
   clusterSightings,
   clusterTitle,
   pinMarkup,
   pinTitle,
   sameSpot,
+  savedPlaceElement,
   searchedPlaceElement,
+  type SavedPlaceKind,
 } from "./map-pins";
 
 // CARTO's free basemap key (https://carto.com/basemaps/apikey). Without it,
 // every tile reads "API KEY REQUIRED".
 const CARTO_KEY = (process.env.NEXT_PUBLIC_CARTO_KEY ?? "").trim();
 
+// CARTO serves map images up to zoom 18 and refuses deeper ones, which
+// would leave the map blank.
+const MAX_ZOOM = 18;
+
 export type Point = { lat: number; lng: number };
+// A place saved on this device, as drawn on the map. "pending" is one being
+// named, not saved yet.
+export type MapPlace = Point & { key: string; kind: SavedPlaceKind; label: string; pending?: boolean };
 export type Bounds = { south: number; west: number; north: number; east: number };
 export type Padding = {
   paddingTopLeft: [number, number];
@@ -29,7 +40,13 @@ export type Padding = {
 export type MapApi = {
   showPoint(point: Point, padding: Padding): void;
   showPoints(points: Point[], padding: Padding): void;
+  // Center the free part of the map (inside the padding) on a point, zoomed
+  // in to at least minZoom.
+  centerOn(point: Point, padding: Padding, minZoom?: number): void;
   center(): Point | null;
+  // Whether the map has moved since it loaded, other than by centerOn: the
+  // person dragged or zoomed it, or the app showed them something.
+  moved(): boolean;
   zoomIn(): void;
   zoomOut(): void;
 };
@@ -44,6 +61,8 @@ type Props = {
   draft: Point | null;
   onPlace: (point: Point) => void;
   searchResult: (Point & { label: string }) | null;
+  myPosition: MyPosition | null;
+  savedPlaces: MapPlace[];
   onViewChange: (bounds: Bounds) => void;
 };
 
@@ -57,6 +76,8 @@ export function SightingsMap({
   draft,
   onPlace,
   searchResult,
+  myPosition,
+  savedPlaces,
   onViewChange,
 }: Props) {
   const node = useRef<HTMLDivElement>(null);
@@ -65,6 +86,12 @@ export function SightingsMap({
   const pins = useRef<Leaflet.LayerGroup | null>(null);
   const draftMarker = useRef<Leaflet.Marker | null>(null);
   const searchMarker = useRef<Leaflet.Marker | null>(null);
+  const meMarker = useRef<Leaflet.Marker | null>(null);
+  const meAccuracy = useRef<Leaflet.Circle | null>(null);
+  const placeMarkers = useRef<Leaflet.LayerGroup | null>(null);
+  const moved = useRef(false);
+  // Set while centerOn moves the map, so that move doesn't count as moved.
+  const centering = useRef(false);
   const [ready, setReady] = useState(false);
   const [zoom, setZoom] = useState(13);
 
@@ -88,9 +115,26 @@ export function SightingsMap({
           { ...padding, maxZoom: 16 },
         );
       },
+      centerOn(point, padding, minZoom = 0) {
+        const L = leaflet.current;
+        const instance = map.current;
+        if (!L || !instance) return;
+        const zoom = Math.max(instance.getZoom(), minZoom);
+        const [left, top] = padding.paddingTopLeft;
+        const [right, bottom] = padding.paddingBottomRight;
+        // Shift the center so the point lands in the middle of the free area.
+        const shift = L.point((left - right) / 2, (top - bottom) / 2);
+        const middle = instance.project([point.lat, point.lng], zoom).subtract(shift);
+        centering.current = true;
+        instance.setView(instance.unproject(middle, zoom), zoom, { animate: true });
+        centering.current = false;
+      },
       center() {
         const center = map.current?.getCenter();
         return center ? { lat: center.lat, lng: center.lng } : null;
+      },
+      moved() {
+        return moved.current;
       },
       zoomIn() {
         map.current?.zoomIn();
@@ -104,6 +148,8 @@ export function SightingsMap({
 
   useEffect(() => {
     let cancelled = false;
+    const darkScheme = window.matchMedia("(prefers-color-scheme: dark)");
+    let stopFollowingScheme = () => {};
 
     import("./leaflet").then(({ L }) => {
       if (cancelled || !node.current) return;
@@ -112,13 +158,47 @@ export function SightingsMap({
         center: MAP_CENTER,
         zoom: 13,
         minZoom: 9,
-        maxZoom: 19,
+        maxZoom: MAX_ZOOM,
         zoomControl: false,
       });
 
-      // CARTO's Positron style, with its attribution visible. Tiles load
-      // only after the policy is accepted.
-      L.tileLayer.provider("CartoDB.Positron", { apikey: CARTO_KEY }).addTo(instance);
+      // CARTO's Positron style, or its Dark Matter style when the device is
+      // set to dark, with their attribution visible. Both come from the same
+      // tile servers with the same key. Tiles load only after the policy is
+      // accepted. A pinch can briefly go past the deepest zoom before it
+      // springs back: enlarge the deepest tiles then, instead of asking for
+      // ones CARTO refuses.
+      // Switching live keeps the style on screen under the new one until the
+      // new one has loaded, so the map doesn't flash empty. A switch that
+      // hasn't finished loading is dropped by the next one.
+      let shown: Leaflet.TileLayer | null = null;
+      let shownStyle = "";
+      let pending: Leaflet.TileLayer | null = null;
+      const showTiles = () => {
+        const style = darkScheme.matches ? "CartoDB.DarkMatter" : "CartoDB.Positron";
+        pending?.remove();
+        pending = null;
+        if (style === shownStyle) return;
+        const next = L.tileLayer
+          .provider(style, { apikey: CARTO_KEY, maxNativeZoom: MAX_ZOOM })
+          .addTo(instance);
+        if (!shown) {
+          shown = next;
+          shownStyle = style;
+          return;
+        }
+        pending = next;
+        next.once("load", () => {
+          if (pending !== next) return;
+          shown?.remove();
+          shown = next;
+          shownStyle = style;
+          pending = null;
+        });
+      };
+      showTiles();
+      darkScheme.addEventListener("change", showTiles);
+      stopFollowingScheme = () => darkScheme.removeEventListener("change", showTiles);
 
       const reportView = () => {
         const bounds = instance.getBounds();
@@ -131,6 +211,9 @@ export function SightingsMap({
       };
 
       instance.on("zoomend", () => setZoom(instance.getZoom()));
+      instance.on("movestart zoomstart", () => {
+        if (!centering.current) moved.current = true;
+      });
       // Also fires after zooms and resizes.
       instance.on("moveend", reportView);
       instance.on("click", (event) => {
@@ -145,19 +228,93 @@ export function SightingsMap({
       // Searched places get their own layer: above the map, below every pin
       // and cluster (Leaflet's marker pane is 600), so sightings stay on top.
       instance.createPane("search").style.zIndex = "550";
+      // The blue dot goes above the pins (600), or a pin could hide it. Taps
+      // go through it to the pin. Its accuracy circle stays below them.
+      instance.createPane("me").style.zIndex = "610";
+      instance.createPane("me-accuracy").style.zIndex = "545";
+      // Saved places: on the map, under everything else drawn on it.
+      instance.createPane("saved").style.zIndex = "540";
+      placeMarkers.current = L.layerGroup().addTo(instance);
       reportView();
       setReady(true);
     });
 
     return () => {
       cancelled = true;
+      stopFollowingScheme();
       map.current?.remove();
       map.current = null;
       pins.current = null;
       draftMarker.current = null;
       searchMarker.current = null;
+      meMarker.current = null;
+      meAccuracy.current = null;
+      placeMarkers.current = null;
     };
   }, []);
+
+  // Saved places. Nothing happens when they're tapped, so taps go through to
+  // the map and a report can still be placed there.
+  useEffect(() => {
+    const L = leaflet.current;
+    const layer = placeMarkers.current;
+    if (!ready || !L || !layer) return;
+    layer.clearLayers();
+    for (const place of savedPlaces) {
+      L.marker([place.lat, place.lng], {
+        pane: "saved",
+        interactive: false,
+        keyboard: false,
+        icon: L.divIcon({
+          className: "saved-place-icon",
+          html: savedPlaceElement(place.kind, place.label, place.pending),
+          iconSize: [0, 0],
+        }),
+      }).addTo(layer);
+    }
+  }, [ready, savedPlaces]);
+
+  // The blue dot follows the position. Nothing happens when it's tapped, so
+  // taps go through to the map.
+  useEffect(() => {
+    const L = leaflet.current;
+    const instance = map.current;
+    if (!ready || !L || !instance) return;
+
+    if (!myPosition) {
+      meMarker.current?.remove();
+      meAccuracy.current?.remove();
+      meMarker.current = null;
+      meAccuracy.current = null;
+      return;
+    }
+
+    const at: [number, number] = [myPosition.lat, myPosition.lng];
+    // A faint circle shows how sure the position is, unless it's so rough
+    // (worked out from the network, say) that it would tint the whole map.
+    const rough = myPosition.accuracy > 1500;
+    const circleStyle = { opacity: rough ? 0 : 0.35, fillOpacity: rough ? 0 : 0.1 };
+    if (!meMarker.current) {
+      meAccuracy.current = L.circle(at, {
+        pane: "me-accuracy",
+        radius: myPosition.accuracy,
+        interactive: false,
+        color: "#1a73e8",
+        weight: 1,
+        fillColor: "#1a73e8",
+        ...circleStyle,
+      }).addTo(instance);
+      meMarker.current = L.marker(at, {
+        pane: "me",
+        interactive: false,
+        keyboard: false,
+        icon: L.divIcon({ className: "my-location-icon", html: MY_LOCATION_MARKUP, iconSize: [0, 0] }),
+      }).addTo(instance);
+    } else {
+      meMarker.current.setLatLng(at);
+      meAccuracy.current?.setLatLng(at).setRadius(myPosition.accuracy).setStyle(circleStyle);
+    }
+  }, [ready, myPosition]);
 
   // Redraw pins and clusters when the pins, the selection or the zoom change.
   useEffect(() => {
@@ -193,12 +350,12 @@ export function SightingsMap({
           // While placing a new pin, a tap on a cluster places it there too.
           if (latest.current.placing) {
             latest.current.onPlace({ lat: cluster.lat, lng: cluster.lng });
-          } else if (sameSpot(members) || instance.getZoom() >= instance.getMaxZoom() - 1) {
+          } else if (sameSpot(members) || instance.getZoom() >= MAX_ZOOM) {
             latest.current.onSelectGroup(members.map((s) => s.id));
           } else {
             instance.fitBounds(
               L.latLngBounds(members.map((s) => [s.lat, s.lng] as [number, number])),
-              { padding: [80, 80], maxZoom: 18 },
+              { padding: [80, 80], maxZoom: MAX_ZOOM },
             );
           }
         })

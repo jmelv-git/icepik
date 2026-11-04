@@ -1,7 +1,7 @@
 "use client";
 
 import type { User } from "@supabase/supabase-js";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   PASSWORD_RULES,
   USERNAME_RULES,
@@ -12,9 +12,13 @@ import {
   usernameOf,
 } from "@/lib/accounts";
 import {
+  CUSTOM_PLACES_MAX,
   clearDeviceStorage,
+  removeCustomPlace,
   savePlace,
+  type CustomPlace,
   type PlaceName,
+  type SavedPlace,
   type SavedPlaces,
 } from "@/lib/device-storage";
 import { ONE_MILE_M, distanceMeters } from "@/lib/geo";
@@ -35,8 +39,9 @@ type Props = {
   reloadActivity: () => void;
   sightings: Sighting[];
   places: SavedPlaces;
-  onPickPlace: (name: PlaceName) => void;
-  onShowPlace: (name: PlaceName) => void;
+  customPlaces: CustomPlace[];
+  onPickPlace: (name: PlaceName | "custom") => void;
+  onShowPlace: (place: SavedPlace) => void;
   onNotice: (message: string) => void;
   onClose: () => void;
 };
@@ -52,11 +57,26 @@ export function SettingsDialog(props: Props) {
     reloadActivity();
   }, [reloadActivity]);
 
-  const back = () => setView("main");
+  // Each view starts at the top, and Back returns focus to the button that
+  // opened it, so keyboard users keep their place.
+  const opener = useRef<View>("main");
+  const open = (next: View) => {
+    opener.current = next;
+    setView(next);
+  };
+  const back = () => {
+    setView("main");
+    window.requestAnimationFrame(() =>
+      document.querySelector<HTMLElement>(`[data-opens="${opener.current}"]`)?.focus(),
+    );
+  };
+  useEffect(() => {
+    document.querySelector(".modal")?.scrollTo(0, 0);
+  }, [view]);
 
   return (
     <div className="settings">
-      {view === "main" ? <MainView {...props} onOpen={setView} /> : null}
+      {view === "main" ? <MainView {...props} onOpen={open} /> : null}
       {view === "save" ? <SaveAccount {...props} onBack={back} /> : null}
       {view === "login" ? <LogIn {...props} onBack={back} /> : null}
       {view === "delete" ? <DeleteAccount {...props} onBack={back} /> : null}
@@ -64,7 +84,8 @@ export function SettingsDialog(props: Props) {
       {view === "policy" ? (
         <>
           <PolicyText />
-          <div className="form-actions">
+          {/* Stays in view while the terms scroll, so you can go back from anywhere. */}
+          <div className="form-actions sticky-actions">
             <button type="button" className="secondary-button" onClick={back}>
               Back
             </button>
@@ -84,11 +105,19 @@ function MainView({
   activePosts,
   sightings,
   places,
+  customPlaces,
   onPickPlace,
   onShowPlace,
   onOpen,
 }: Props & { onOpen: (view: View) => void }) {
   const username = usernameOf(user);
+  const [placeStatus, setPlaceStatus] = useState("");
+  const nearby = (place: SavedPlace) => {
+    const near = sightings.filter(
+      (s) => distanceMeters(place.lat, place.lng, s.lat, s.lng) <= ONE_MILE_M,
+    ).length;
+    return `${near} ${near === 1 ? "sighting" : "sightings"} within 1 mile`;
+  };
 
   return (
     <>
@@ -107,11 +136,11 @@ function MainView({
         )}
         <div className="button-row">
           {username ? null : (
-            <button type="button" className="primary-button" onClick={() => onOpen("save")} disabled={!user}>
+            <button type="button" className="primary-button" data-opens="save" onClick={() => onOpen("save")} disabled={!user}>
               Save account
             </button>
           )}
-          <button type="button" className="secondary-button" onClick={() => onOpen("login")}>
+          <button type="button" className="secondary-button" data-opens="login" onClick={() => onOpen("login")}>
             {username ? "Log in to another account" : "Log in"}
           </button>
         </div>
@@ -140,11 +169,6 @@ function MainView({
         <ul className="place-list">
           {(["home", "work"] as const).map((name) => {
             const place = places[name];
-            const near = place
-              ? sightings.filter(
-                  (s) => distanceMeters(place.lat, place.lng, s.lat, s.lng) <= ONE_MILE_M,
-                ).length
-              : 0;
             return (
               <li key={name} className="place-row">
                 <span className="place-icon">
@@ -152,19 +176,21 @@ function MainView({
                 </span>
                 <span className="row-text">
                   <span className="row-address">{PLACE_LABEL[name]}</span>
-                  <span className="row-meta">
-                    {place
-                      ? `${near} ${near === 1 ? "sighting" : "sightings"} within 1 mile`
-                      : "Not set"}
-                  </span>
+                  <span className="row-meta">{place ? nearby(place) : "Not set"}</span>
                 </span>
                 <span className="place-actions">
                   {place ? (
                     <>
-                      <button type="button" className="text-button" onClick={() => onShowPlace(name)}>
+                      <button type="button" className="text-button" onClick={() => onShowPlace(place)}>
                         Show
                       </button>
-                      <button type="button" className="text-button" onClick={() => savePlace(name, null)}>
+                      <button type="button" className="text-button" onClick={() =>
+                          setPlaceStatus(
+                            savePlace(name, null)
+                              ? `${PLACE_LABEL[name]} removed from this device.`
+                              : `Couldn't remove ${PLACE_LABEL[name]}. Your browser's storage is blocked.`,
+                          )
+                        }>
                         Remove
                       </button>
                     </>
@@ -177,21 +203,76 @@ function MainView({
               </li>
             );
           })}
+          {customPlaces.map((place) => (
+            <li key={place.id} className="place-row">
+              <span className="place-icon">
+                <PlaceIcon name="custom" />
+              </span>
+              <span className="row-text">
+                <span className="row-address">{place.name}</span>
+                <span className="row-meta">{nearby(place)}</span>
+              </span>
+              <span className="place-actions">
+                <button
+                  type="button"
+                  className="text-button"
+                  aria-label={`Show ${place.name}`}
+                  onClick={() => onShowPlace(place)}
+                >
+                  Show
+                </button>
+                <button
+                  type="button"
+                  className="text-button"
+                  aria-label={`Delete ${place.name}`}
+                  onClick={() => {
+                    setPlaceStatus(
+                      removeCustomPlace(place.id)
+                        ? `${place.name} deleted from this device.`
+                        : `Couldn't delete ${place.name}. Your browser's storage is blocked.`,
+                    );
+                  }}
+                >
+                  Delete
+                </button>
+              </span>
+            </li>
+          ))}
         </ul>
+        {customPlaces.length < CUSTOM_PLACES_MAX ? (
+          <div className="button-row">
+            <button type="button" className="secondary-button" onClick={() => onPickPlace("custom")}>
+              Add a place
+            </button>
+          </div>
+        ) : (
+          <p className="detail-hint">
+            You&apos;ve saved {CUSTOM_PLACES_MAX} places, as many as ICEPik keeps. Delete one to add
+            another.
+          </p>
+        )}
+        <p className="detail-hint">
+          You can also save a place you searched for: tap the star in the search box.
+        </p>
+        {/* Says what Remove and Delete did, also to screen readers. */}
+        <p className="detail-hint" role="status">
+          {placeStatus}
+        </p>
       </section>
 
       <section className="settings-section" aria-labelledby="privacy-title">
         <h3 id="privacy-title">Privacy</h3>
         <div className="button-column">
-          <button type="button" className="secondary-button" onClick={() => onOpen("policy")}>
+          <button type="button" className="secondary-button" data-opens="policy" onClick={() => onOpen("policy")}>
             Terms and privacy
           </button>
-          <button type="button" className="secondary-button" onClick={() => onOpen("clear")}>
+          <button type="button" className="secondary-button" data-opens="clear" onClick={() => onOpen("clear")}>
             Clear this device
           </button>
           <button
             type="button"
             className="danger-button"
+            data-opens="delete"
             onClick={() => onOpen("delete")}
             disabled={!user}
           >

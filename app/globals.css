@@ -8,7 +8,9 @@
   --field: #242a31;
   --field-line: #3e4448;
   --text: #ffffff;
-  --muted: #8d9099;
+  /* Secondary text. At least 4.5:1 on every surface it's used on: 6.8:1 on
+     --surface, 5.1:1 on --card, 4.6:1 on a hovered card (#3a3b40). */
+  --muted: #a3a6ae;
   --subtle: #a9aebb;
   --link: #5ba7ee;
   --red: #ff1d25;
@@ -199,6 +201,14 @@ button {
   outline: none;
 }
 
+/* Every placeholder in the app: Tailwind's default (half the text colour) is
+   below 4.5:1 on the dark fields. */
+input::placeholder,
+textarea::placeholder {
+  color: var(--muted);
+  opacity: 1;
+}
+
 .search input::placeholder {
   color: var(--subtle);
 }
@@ -217,8 +227,14 @@ button {
   height: 1.125rem;
 }
 
-.search-submit {
+.search-submit,
+.search-save {
   color: #c4cad6;
+}
+
+.search-save svg {
+  width: 1.25rem;
+  height: 1.25rem;
 }
 
 .search-status {
@@ -631,6 +647,73 @@ button {
   height: 1.375rem;
 }
 
+/* Rows fill cards and lists that clip what spills over their edges, so
+   their focus ring is drawn just inside them. */
+.report-row:focus-visible,
+.place-link:focus-visible {
+  outline-offset: -0.1875rem;
+}
+
+/* Inside the group, an outline would be cut off by its rounded corners:
+   draw the focus ring inside the button instead. */
+.map-control-group .map-control:focus-visible {
+  outline-offset: -0.1875rem;
+}
+
+/* Places saved on this device: home, work and named places. */
+.saved-place-icon {
+  background: none;
+  border: 0;
+}
+
+.saved-place {
+  position: absolute;
+  top: -0.875rem;
+  left: -0.875rem;
+  display: grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border: 0.1875rem solid #fff;
+  border-radius: 0.375rem;
+  background: var(--surface);
+  color: #fff;
+  box-shadow: 0 0.1875rem 0.5rem rgb(0 0 0 / 0.3);
+  /* A diamond, unlike the square map buttons. */
+  transform: rotate(45deg);
+}
+
+.saved-place svg {
+  width: 1rem;
+  height: 1rem;
+  transform: rotate(-45deg);
+}
+
+/* The place being named, before it's saved. */
+.saved-place-new {
+  border-style: dashed;
+}
+
+/* Where the person is. */
+.my-location-icon {
+  background: none;
+  border: 0;
+}
+
+.my-location {
+  position: absolute;
+  top: -0.6875rem;
+  left: -0.6875rem;
+  width: 1.375rem;
+  height: 1.375rem;
+  border: 0.25rem solid #fff;
+  border-radius: 50%;
+  background: #1a73e8;
+  box-shadow:
+    0 0 0 0.3125rem rgb(26 115 232 / 0.25),
+    0 0.125rem 0.375rem rgb(0 0 0 / 0.4);
+}
+
 .pin-icon {
   background: none;
   border: 0;
@@ -747,7 +830,8 @@ button {
   height: 3.75rem;
   padding: 0 1.5rem 0 1.25rem;
   border-radius: 62.4375rem;
-  background: #f0313d;
+  /* White text needs 4.5:1: #f0313d gave 4.0:1, --red-strong gives 4.8:1. */
+  background: var(--red-strong);
   color: #fff;
   font-size: 1.3125rem;
   font-weight: 600;
@@ -763,7 +847,7 @@ button {
 }
 
 .report-button:hover {
-  background: #e0222f;
+  background: #c90e18;
   transform: translateY(-0.0625rem);
 }
 
@@ -996,6 +1080,18 @@ button {
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 0.5rem;
+}
+
+/* Pinned to the bottom of a scrolling dialog. It reaches the dialog's edges
+   and covers its bottom padding, so text scrolls out of sight behind it. */
+.sticky-actions {
+  position: sticky;
+  bottom: -1.75rem;
+  z-index: 1;
+  margin: 0 -1.75rem -1.75rem;
+  padding: 0.875rem 1.75rem 1.75rem;
+  border-top: 0.0625rem solid var(--line);
+  background: var(--surface);
 }
 
 .warning-list {
@@ -1348,16 +1444,13 @@ button {
   text-overflow: ellipsis;
 }
 
-/* High contrast mode drops background colours, which would hide the pointer
-   that marks the spot. */
+/* High contrast mode recolours the label but never the map under it, which
+   is made of images and stays light. Its colours would then hide the pointer
+   that marks the spot in one theme or another, so it keeps its own: dark,
+   with a white edge, which reads on the map in every theme. */
 @media (forced-colors: active) {
   .searched-label {
-    border: 0.125rem solid CanvasText;
-  }
-
-  .searched-label::before {
     forced-color-adjust: none;
-    background: CanvasText;
   }
 }
 
@@ -1384,6 +1477,33 @@ button {
 .pick-banner p {
   font-weight: 600;
   line-height: 1.4;
+}
+
+/* Naming a place before it's saved, in the same spot as the pick banner. */
+.place-form-field {
+  display: grid;
+  gap: 0.5rem;
+  font-weight: 600;
+}
+
+.place-form-field input {
+  width: 100%;
+  padding: 0.75rem 0.875rem;
+  border-radius: 0.875rem;
+  background: var(--card);
+  color: var(--text);
+  font-weight: 400;
+  outline: none;
+}
+
+.place-form-field input:focus {
+  box-shadow: 0 0 0 0.125rem var(--blue);
+}
+
+.pick-banner .place-form-tip {
+  color: var(--muted);
+  font-size: 0.8125rem;
+  font-weight: 400;
 }
 
 .notice {
@@ -1419,6 +1539,10 @@ button {
 
 .pick-banner ~ .notice {
   bottom: 10rem;
+}
+
+.place-form ~ .notice {
+  bottom: 16rem;
 }
 
 /* Creating the anonymous account. */
@@ -1488,9 +1612,35 @@ button {
   background: var(--surface);
 }
 
+/* Marks the end of the terms: "I agree" works once it has been seen. */
+.consent-text-end {
+  display: block;
+  height: 1px;
+}
+
+.consent-actions {
+  display: grid;
+  gap: 0.625rem;
+}
+
 .consent-agree {
   padding: 0.875rem;
   font-size: 1.0625rem;
+}
+
+/* Not "disabled", so it stays a Tab stop and screen readers can read why. */
+.primary-button[aria-disabled="true"],
+.primary-button[aria-disabled="true"]:hover {
+  background: var(--blue-strong);
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.consent-why {
+  color: #c6c8ce;
+  font-size: 0.875rem;
+  line-height: 1.4;
+  text-align: center;
 }
 
 .policy h3 {
@@ -1786,5 +1936,128 @@ button {
 @media (max-width: 899px) and (max-height: 479px), (pointer: coarse) and (max-height: 479px) {
   .report-list {
     flex: none;
+  }
+}
+
+/* Dark map: CARTO's Dark Matter style when the device is set to dark (the
+   map switches with the setting). The rest of ICEPik is dark already; this
+   keeps what's drawn on the map and its controls readable on it. */
+@media (prefers-color-scheme: dark) {
+  .leaflet-container {
+    background: #1a1a1a;
+  }
+
+  /* The searched place turns light, or its dark pill and pointer would
+     vanish into the map. It keeps these colours in high contrast mode too. */
+  .searched-label,
+  .searched-label::before {
+    background: #f2f3f5;
+  }
+
+  .searched-label {
+    color: #1d1f26;
+    box-shadow:
+      0 0 0 0.125rem #1d1f26,
+      0 0.1875rem 0.5rem rgb(0 0 0 / 0.5);
+  }
+
+  /* The selected pin's rings swap, so the outer one shows on the dark map. */
+  .pin-ring-outer {
+    stroke: #fff;
+  }
+
+  .pin-ring-gap {
+    stroke: #1d1f26;
+  }
+
+  /* Before Leaflet has loaded too. */
+  .map-shell {
+    background: #1a1a1a;
+  }
+
+  /* A faint edge, so the dark buttons don't melt into the dark map. */
+  .map-control-group,
+  .map-controls > .map-control {
+    box-shadow:
+      0 0 0 0.0625rem rgb(255 255 255 / 0.25),
+      0 0.25rem 0.75rem rgb(0 0 0 / 0.5);
+  }
+
+  .leaflet-container .leaflet-control-attribution {
+    background: rgb(29 31 38 / 0.85);
+    color: #c6c8ce;
+  }
+
+  .leaflet-container .leaflet-control-attribution a {
+    color: #8ec3ee;
+  }
+}
+
+/* A sighting card covers the map buttons (phones): hide them, so keyboard
+   focus can't land on a button nobody can see. They come back with the
+   card closed. */
+.map-controls[data-covered] {
+  visibility: hidden;
+}
+
+/* "N more saved places in Settings" under "Your places". */
+.places-more {
+  margin: 0.25rem 1.25rem 0.875rem;
+  font-size: 0.9375rem;
+}
+
+/* Settings: saved place names wrap instead of being cut to a few letters. */
+.place-row .row-address {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 899px) {
+  /* Notices stay clear of the map buttons on the right. */
+  .notice {
+    left: 0.75rem;
+    right: 4.5rem;
+    width: auto;
+    max-width: none;
+    transform: none;
+  }
+
+  /* And above the place-naming form, which is taller than the pick banner. */
+  .place-form ~ .notice {
+    bottom: calc(15rem + var(--map-credits));
+  }
+}
+
+/* Phones on their side: too short for the buttons to stack between the
+   search box and the report button, so they make a row at the bottom left. */
+@media (max-width: 899px) and (max-height: 479px) {
+  .map-controls {
+    right: auto;
+    left: 0.75rem;
+    bottom: calc(0.75rem + var(--map-credits));
+    grid-auto-flow: column;
+  }
+
+  .map-control-group {
+    grid-auto-flow: column;
+  }
+
+  .map-control-group .map-control + .map-control {
+    border-top: 0;
+    border-left: 0.0625rem solid var(--line);
+  }
+
+  /* The notice sits above the row; nothing on the right to keep clear of. */
+  .notice {
+    right: 0.75rem;
+  }
+}
+
+/* High contrast mode would turn every cluster the same colour, so verified
+   and unverified ones looked alike. Like the pins, they keep their colours
+   (each with a white edge that shows on the map). */
+@media (forced-colors: active) {
+  .cluster {
+    forced-color-adjust: none;
   }
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import logo from "../../public/brand/icepik-logo.png";
 import { acceptPolicy } from "@/lib/device-storage";
 import { POLICY_VERSION, PolicyText } from "./policy";
@@ -11,6 +11,35 @@ import { POLICY_VERSION, PolicyText } from "./policy";
 // about it is sent to the server.
 export function ConsentScreen({ updated }: { updated: boolean }) {
   const [blocked, setBlocked] = useState(false);
+  // "I agree" works once the end of the terms has been on screen. When the
+  // whole text fits in its box, that's right away.
+  const [readToEnd, setReadToEnd] = useState(false);
+  const textBox = useRef<HTMLDivElement>(null);
+  const textEnd = useRef<HTMLSpanElement>(null);
+
+  useEffect(() => {
+    const box = textBox.current;
+    const end = textEnd.current;
+    if (!box || !end) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          setReadToEnd(true);
+          observer.disconnect();
+        }
+      },
+      { root: box },
+    );
+    observer.observe(end);
+    return () => observer.disconnect();
+  }, []);
+
+  function agree() {
+    // Still focusable and announced while it can't be used, so keyboard and
+    // screen reader users can find it and hear why.
+    if (!readToEnd) return;
+    setBlocked(!acceptPolicy(POLICY_VERSION));
+  }
 
   return (
     <main className="consent">
@@ -21,8 +50,9 @@ export function ConsentScreen({ updated }: { updated: boolean }) {
           ICEPik is a community map of possible ICE activity in Philadelphia. Please read how it
           works and what it keeps. The map loads only after you agree.
         </p>
-        <div className="consent-text" tabIndex={0} aria-label="Terms and privacy">
+        <div ref={textBox} className="consent-text" tabIndex={0} aria-label="Terms and privacy">
           <PolicyText />
+          <span ref={textEnd} className="consent-text-end" aria-hidden="true" />
         </div>
         {blocked ? (
           <p className="form-error" role="alert">
@@ -30,13 +60,22 @@ export function ConsentScreen({ updated }: { updated: boolean }) {
             or keep your account. Allow site data for this site, then reload the page.
           </p>
         ) : null}
-        <button
-          type="button"
-          className="primary-button consent-agree"
-          onClick={() => setBlocked(!acceptPolicy(POLICY_VERSION))}
-        >
-          I agree
-        </button>
+        <div className="consent-actions">
+          <button
+            type="button"
+            className="primary-button consent-agree"
+            aria-disabled={!readToEnd}
+            aria-describedby={readToEnd ? undefined : "consent-why"}
+            onClick={agree}
+          >
+            I agree
+          </button>
+          {readToEnd ? null : (
+            <p id="consent-why" className="consent-why">
+              Scroll to the end of the terms to agree.
+            </p>
+          )}
+        </div>
       </section>
     </main>
   );
