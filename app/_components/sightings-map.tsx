@@ -20,6 +20,7 @@ import {
 const CARTO_KEY = (process.env.NEXT_PUBLIC_CARTO_KEY ?? "").trim();
 
 export type Point = { lat: number; lng: number };
+export type Bounds = { south: number; west: number; north: number; east: number };
 export type Padding = {
   paddingTopLeft: [number, number];
   paddingBottomRight: [number, number];
@@ -29,6 +30,8 @@ export type MapApi = {
   showPoint(point: Point, padding: Padding): void;
   showPoints(points: Point[], padding: Padding): void;
   center(): Point | null;
+  zoomIn(): void;
+  zoomOut(): void;
 };
 
 type Props = {
@@ -41,6 +44,7 @@ type Props = {
   draft: Point | null;
   onPlace: (point: Point) => void;
   searchResult: (Point & { label: string }) | null;
+  onViewChange: (bounds: Bounds) => void;
 };
 
 export function SightingsMap({
@@ -53,6 +57,7 @@ export function SightingsMap({
   draft,
   onPlace,
   searchResult,
+  onViewChange,
 }: Props) {
   const node = useRef<HTMLDivElement>(null);
   const leaflet = useRef<typeof Leaflet | null>(null);
@@ -64,9 +69,9 @@ export function SightingsMap({
   const [zoom, setZoom] = useState(13);
 
   // Leaflet handlers are attached once; they call the latest props.
-  const latest = useRef({ onSelect, onSelectGroup, onPlace, placing });
+  const latest = useRef({ onSelect, onSelectGroup, onPlace, placing, onViewChange });
   useEffect(() => {
-    latest.current = { onSelect, onSelectGroup, onPlace, placing };
+    latest.current = { onSelect, onSelectGroup, onPlace, placing, onViewChange };
   });
 
   useImperativeHandle(
@@ -87,6 +92,12 @@ export function SightingsMap({
         const center = map.current?.getCenter();
         return center ? { lat: center.lat, lng: center.lng } : null;
       },
+      zoomIn() {
+        map.current?.zoomIn();
+      },
+      zoomOut() {
+        map.current?.zoomOut();
+      },
     }),
     [],
   );
@@ -105,13 +116,23 @@ export function SightingsMap({
         zoomControl: false,
       });
 
-      L.control.zoom({ position: "bottomright" }).addTo(instance);
-
       // CARTO's Positron style, with its attribution visible. Tiles load
       // only after the policy is accepted.
       L.tileLayer.provider("CartoDB.Positron", { apikey: CARTO_KEY }).addTo(instance);
 
+      const reportView = () => {
+        const bounds = instance.getBounds();
+        latest.current.onViewChange({
+          south: bounds.getSouth(),
+          west: bounds.getWest(),
+          north: bounds.getNorth(),
+          east: bounds.getEast(),
+        });
+      };
+
       instance.on("zoomend", () => setZoom(instance.getZoom()));
+      // Also fires after zooms and resizes.
+      instance.on("moveend", reportView);
       instance.on("click", (event) => {
         if (latest.current.placing) {
           latest.current.onPlace({ lat: event.latlng.lat, lng: event.latlng.lng });
@@ -124,6 +145,7 @@ export function SightingsMap({
       // Searched places get their own layer: above the map, below every pin
       // and cluster (Leaflet's marker pane is 600), so sightings stay on top.
       instance.createPane("search").style.zIndex = "550";
+      reportView();
       setReady(true);
     });
 
