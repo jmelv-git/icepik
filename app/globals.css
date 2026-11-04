@@ -5,7 +5,9 @@
   --card: #333438;
   --line: #2b2d34;
   --text: #ffffff;
-  --muted: #8d9099;
+  /* Secondary text. At least 4.5:1 on every surface it's used on: 6.8:1 on
+     --surface, 5.1:1 on --card, 4.6:1 on a hovered card (#3a3b40). */
+  --muted: #a3a6ae;
   --red: #ff1d25;
   /* Behind small white text, where --red is too light (4.8:1 instead of 3.9:1). */
   --red-strong: #e3101b;
@@ -191,6 +193,14 @@ button {
   color: var(--text);
   font-size: 1rem;
   outline: none;
+}
+
+/* Every placeholder in the app: Tailwind's default (half the text colour) is
+   below 4.5:1 on the dark fields. */
+input::placeholder,
+textarea::placeholder {
+  color: var(--muted);
+  opacity: 1;
 }
 
 .search input::placeholder {
