@@ -38,8 +38,8 @@ export function pinMarkup(sighting: Sighting, selected = false) {
   // Widths follow the pin's outermost stroke so every status looks the same.
   const outer = status === "unverified" ? 11 : 6;
   const ring = selected
-    ? `<path d="${PIN_SHAPE}" fill="none" stroke="#1d1f26" stroke-width="${outer + 13}" stroke-linejoin="round"/>
-    <path d="${PIN_SHAPE}" fill="none" stroke="#fff" stroke-width="${outer + 5}" stroke-linejoin="round"/>`
+    ? `<path class="pin-ring-outer" d="${PIN_SHAPE}" fill="none" stroke="#1d1f26" stroke-width="${outer + 13}" stroke-linejoin="round"/>
+    <path class="pin-ring-gap" d="${PIN_SHAPE}" fill="none" stroke="#fff" stroke-width="${outer + 5}" stroke-linejoin="round"/>`
     : "";
 
   return `<svg class="pin pin-${status}" viewBox="0 0 64 100" overflow="visible" aria-hidden="true">
@@ -71,9 +71,9 @@ const SAVED_PLACE_GLYPH: Record<SavedPlaceKind, string> = {
   custom: `<path d="m12 4 2.4 4.9 5.4.8-3.9 3.8.9 5.4-4.8-2.6-4.8 2.6.9-5.4-3.9-3.8 5.4-.8Z" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>`,
 };
 
-// A place saved on this device: a dark rounded square with a white edge and
-// glyph. Not a teardrop, a circle or a pill, so it can't pass for a
-// sighting, a cluster, the blue dot or a searched place. Names are typed by
+// A place saved on this device: a dark diamond with a white edge and glyph.
+// Not a teardrop, a circle, a pill or a square, so it can't pass for a
+// sighting, a cluster, the blue dot, a searched place or a map button. Names are typed by
 // the person, so they only ever go in as text.
 export function savedPlaceElement(kind: SavedPlaceKind, label: string, pending = false) {
   const element = document.createElement("span");

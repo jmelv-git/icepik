@@ -1,7 +1,7 @@
 "use client";
 
 import type { User } from "@supabase/supabase-js";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   PASSWORD_RULES,
   USERNAME_RULES,
@@ -57,11 +57,26 @@ export function SettingsDialog(props: Props) {
     reloadActivity();
   }, [reloadActivity]);
 
-  const back = () => setView("main");
+  // Each view starts at the top, and Back returns focus to the button that
+  // opened it, so keyboard users keep their place.
+  const opener = useRef<View>("main");
+  const open = (next: View) => {
+    opener.current = next;
+    setView(next);
+  };
+  const back = () => {
+    setView("main");
+    window.requestAnimationFrame(() =>
+      document.querySelector<HTMLElement>(`[data-opens="${opener.current}"]`)?.focus(),
+    );
+  };
+  useEffect(() => {
+    document.querySelector(".modal")?.scrollTo(0, 0);
+  }, [view]);
 
   return (
     <div className="settings">
-      {view === "main" ? <MainView {...props} onOpen={setView} /> : null}
+      {view === "main" ? <MainView {...props} onOpen={open} /> : null}
       {view === "save" ? <SaveAccount {...props} onBack={back} /> : null}
       {view === "login" ? <LogIn {...props} onBack={back} /> : null}
       {view === "delete" ? <DeleteAccount {...props} onBack={back} /> : null}
@@ -93,10 +108,10 @@ function MainView({
   customPlaces,
   onPickPlace,
   onShowPlace,
-  onNotice,
   onOpen,
 }: Props & { onOpen: (view: View) => void }) {
   const username = usernameOf(user);
+  const [placeStatus, setPlaceStatus] = useState("");
   const nearby = (place: SavedPlace) => {
     const near = sightings.filter(
       (s) => distanceMeters(place.lat, place.lng, s.lat, s.lng) <= ONE_MILE_M,
@@ -121,11 +136,11 @@ function MainView({
         )}
         <div className="button-row">
           {username ? null : (
-            <button type="button" className="primary-button" onClick={() => onOpen("save")} disabled={!user}>
+            <button type="button" className="primary-button" data-opens="save" onClick={() => onOpen("save")} disabled={!user}>
               Save account
             </button>
           )}
-          <button type="button" className="secondary-button" onClick={() => onOpen("login")}>
+          <button type="button" className="secondary-button" data-opens="login" onClick={() => onOpen("login")}>
             {username ? "Log in to another account" : "Log in"}
           </button>
         </div>
@@ -169,7 +184,13 @@ function MainView({
                       <button type="button" className="text-button" onClick={() => onShowPlace(place)}>
                         Show
                       </button>
-                      <button type="button" className="text-button" onClick={() => savePlace(name, null)}>
+                      <button type="button" className="text-button" onClick={() =>
+                          setPlaceStatus(
+                            savePlace(name, null)
+                              ? `${PLACE_LABEL[name]} removed from this device.`
+                              : `Couldn't remove ${PLACE_LABEL[name]}. Your browser's storage is blocked.`,
+                          )
+                        }>
                         Remove
                       </button>
                     </>
@@ -205,8 +226,11 @@ function MainView({
                   className="text-button"
                   aria-label={`Delete ${place.name}`}
                   onClick={() => {
-                    removeCustomPlace(place.id);
-                    onNotice(`${place.name} deleted from this device.`);
+                    setPlaceStatus(
+                      removeCustomPlace(place.id)
+                        ? `${place.name} deleted from this device.`
+                        : `Couldn't delete ${place.name}. Your browser's storage is blocked.`,
+                    );
                   }}
                 >
                   Delete
@@ -230,20 +254,25 @@ function MainView({
         <p className="detail-hint">
           You can also save a place you searched for: tap the star in the search box.
         </p>
+        {/* Says what Remove and Delete did, also to screen readers. */}
+        <p className="detail-hint" role="status">
+          {placeStatus}
+        </p>
       </section>
 
       <section className="settings-section" aria-labelledby="privacy-title">
         <h3 id="privacy-title">Privacy</h3>
         <div className="button-column">
-          <button type="button" className="secondary-button" onClick={() => onOpen("policy")}>
+          <button type="button" className="secondary-button" data-opens="policy" onClick={() => onOpen("policy")}>
             Terms and privacy
           </button>
-          <button type="button" className="secondary-button" onClick={() => onOpen("clear")}>
+          <button type="button" className="secondary-button" data-opens="clear" onClick={() => onOpen("clear")}>
             Clear this device
           </button>
           <button
             type="button"
             className="danger-button"
+            data-opens="delete"
             onClick={() => onOpen("delete")}
             disabled={!user}
           >

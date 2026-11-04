@@ -16,8 +16,8 @@ difference under "Notes from session 2" at the end.
 - [x] 5. Map icons for saved locations (home, work, custom)
 - [x] 6. Custom saved locations (add, name, delete, localStorage only)
 - [x] 9. Dark map with CartoDB.DarkMatter, switching live
-- [ ] Regression pass: every pin and cluster type, map credit at phone width, `npx tsc --noEmit`, `npx eslint`, `npx next build`
-- [ ] Final report (prose, as the prompt asks)
+- [x] Regression pass: every pin and cluster type, map credit at phone width, `npx tsc --noEmit`, `npx eslint`, `npx next build`
+- [x] Final report (prose, as the prompt asks)
 
 ## Order and why
 
@@ -361,3 +361,30 @@ Set `MOCK_COUNT=10` to add a second Market Street sighting at almost the same sp
 - Resolved with the user: keep change 1 (ask when the map opens). nthanvii's "used only when you ask
   for it" bullet and this branch's paragraph are replaced by one bullet that matches the app, and
   `POLICY_VERSION` is now "2026-11-04b-draft", so everyone is asked to agree again.
+
+## Fixes after the four reviewers (results in `<scratchpad>/ux9/review/results.json`)
+
+Fixed on the merged branch and verified on a fresh build (`<scratchpad>/ux9/check-fixes.js`, plus the
+earlier suites re-run):
+- Map buttons: on phones held sideways they make a row at the bottom left (they sat under the search
+  box); while an open card covers them they're hidden and inert, so focus can't land on them (WCAG 2.2
+  focus not obscured). A picked pin also avoids them sideways.
+- Auto-centering: any move of the map before the first position (zoom, search, a shown place, a card)
+  now stops the first fix from re-centering it; only an untouched map is centered.
+- Location reset to "Ask" in the browser while the page is open: the button asks again.
+- Notices on phones keep clear of the map buttons and sit above the place-naming form.
+- Naming a place: map and pin taps move the place (no card opens under the form), the star hides while
+  naming and says when 25 places are saved, a name already used gets a number, names are cut without
+  splitting an emoji, focus returns to the star. Settings names wrap; Remove and Delete say what
+  happened, including when storage is blocked. The side panel lists 3 named places and links to the rest.
+- Saved-place badges are diamonds, so they don't look like the map's square buttons.
+- Dark map: fast light/dark switches leave one tile layer; the map area is dark before Leaflet loads;
+  the selected pin's rings swap so the outer one shows.
+- Settings: each view starts at the top; Back returns focus to the button that opened the view.
+- High contrast: clusters keep their status colours (verified and unverified looked alike).
+- Terms: the location bullet also says that centering loads that area's map images, which CARTO sees.
+
+Known and left as is: the blue dot can cover part of a pin's glyph when they overlap; Leaflet's credit
+links have their focus ring cut by the map edge; at 280 px wide with the panel open the credit's first
+line can't be tapped (older); a screen reader reading the terms in browse mode must still move into the
+box and press End to enable "I agree" (the button says why).

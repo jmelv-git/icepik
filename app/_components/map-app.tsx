@@ -5,8 +5,10 @@ import Image from "next/image";
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import logo from "../../public/brand/icepik-logo.png";
 import {
+  CUSTOM_PLACES_MAX,
   PLACE_NAME_MAX,
   addCustomPlace,
+  shorten,
   savePlace,
   useCustomPlaces,
   useSavedPlaces,
@@ -65,6 +67,9 @@ type SearchResult = { display_name: string; lat: string; lon: string };
 // work, or a new place to name).
 type Picking = "report" | PlaceName | "custom" | null;
 
+const PLACES_FULL = `You've saved ${CUSTOM_PLACES_MAX} places, as many as ICEPik keeps. Delete one in Settings first.`;
+// Named places listed in the side panel; the rest are in Settings.
+const PANEL_PLACES = 3;
 const PLACE_NOT_SAVED =
   "Couldn't save this place on this device. Your browser's storage is full or blocked.";
 
@@ -98,11 +103,13 @@ function phonePadding(shell: DOMRect, card: DOMRect | undefined): Padding {
   const zoom = box(".map-controls");
   const aboveCredits = (credits ? shell.bottom - credits.top : 0) + 8;
 
-  // On its side, the card leaves the left of the map free.
+  // On its side, the card leaves the left of the map free, above the map
+  // buttons, which sit at the bottom left there.
   if (card.left - shell.left > 120) {
+    const aboveButtons = zoom && zoom.left < card.left ? shell.bottom - zoom.top + 8 : 0;
     return {
       paddingTopLeft: [32, 96 + 88],
-      paddingBottomRight: [shell.right - card.left + 32, aboveCredits],
+      paddingBottomRight: [shell.right - card.left + 32, Math.max(aboveCredits, aboveButtons)],
     };
   }
 
@@ -146,6 +153,9 @@ export function MapApp() {
   const customPlaces = useCustomPlaces();
   // A new place being named before it's saved.
   const [naming, setNaming] = useState<(Point & { name: string }) | null>(null);
+  const namingOpener = useRef<HTMLElement | null>(null);
+  // On phones a sighting card can cover the map buttons.
+  const [controlsCovered, setControlsCovered] = useState(false);
   const me = useMyPosition();
   const mapApi = useRef<MapApi>(null);
   // Center on the person's first position once, unless they're already
@@ -207,7 +217,7 @@ export function MapApp() {
     function onKeyDown(event: KeyboardEvent) {
       if (event.key !== "Escape") return;
       if (modal) setModal(null);
-      else if (naming) setNaming(null);
+      else if (naming) closeNaming();
       else if (picking === "report" && !reportFormOpen) cancelReport();
       else if (picking) setPicking(null);
     }
@@ -266,6 +276,31 @@ export function MapApp() {
 
   // The re-center button was used before the position was known, and it
   // can't be: say why.
+  // Whether the open card covers the map buttons (phones). Measured after the
+  // card has rendered, and again when the window changes size.
+  useEffect(() => {
+    const measure = () => {
+      const card = document.querySelector(".detail-card")?.getBoundingClientRect();
+      const controls = document.querySelector(".map-controls")?.getBoundingClientRect();
+      setControlsCovered(
+        Boolean(
+          card &&
+            controls &&
+            card.left < controls.right &&
+            card.right > controls.left &&
+            card.top < controls.bottom &&
+            card.bottom > controls.top,
+        ),
+      );
+    };
+    const frame = window.requestAnimationFrame(measure);
+    window.addEventListener("resize", measure);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("resize", measure);
+    };
+  }, [selectedId, groupIds]);
+
   const onLocationStatus = useEffectEvent(() => {
     if (!centerOnMeNext.current) return;
     if (me.status === "denied") showNotice(LOCATION_DENIED);
@@ -367,10 +402,14 @@ export function MapApp() {
   }
 
   function place(point: Point) {
-    if (picking === "report") {
+    if (naming) {
+      // Naming a place: a tap moves it.
+      setNaming({ ...naming, lat: point.lat, lng: point.lng });
+    } else if (picking === "report") {
       // Pins are rounded to about 100 m: show where it will really go.
       setDraft({ lat: roundCoord(point.lat), lng: roundCoord(point.lng) });
     } else if (picking === "custom") {
+      namingOpener.current = null;
       setNaming({ ...point, name: "" });
       setPicking(null);
     } else if (picking) {
@@ -387,21 +426,37 @@ export function MapApp() {
   function saveNamedPlace(event: React.FormEvent) {
     event.preventDefault();
     if (!naming) return;
-    const name = naming.name.trim() || "Saved place";
-    const result = addCustomPlace(name, naming);
-    if (result === "saved") showNotice(`${name} saved on this device.`);
-    else if (result === "limit") showNotice("You've saved as many places as ICEPik can keep. Delete one in Settings first.");
+    const { status, name } = addCustomPlace(naming.name, naming);
+    if (status === "saved") showNotice(`${name} saved on this device.`);
+    else if (status === "limit") showNotice(PLACES_FULL);
     else showNotice(PLACE_NOT_SAVED);
-    setNaming(null);
+    closeNaming();
   }
 
-  function nameSearchedPlace() {
+  // Back to where the form was opened from, so keyboard users keep their place.
+  function closeNaming() {
+    setNaming(null);
+    const opener = namingOpener.current;
+    namingOpener.current = null;
+    if (!opener) return;
+    // The star hides while the form is open: focus the one shown again.
+    window.requestAnimationFrame(() =>
+      (opener.isConnected
+        ? opener
+        : (document.querySelector<HTMLElement>(".search-save") ?? searchInput.current)
+      )?.focus(),
+    );
+  }
+
+  function nameSearchedPlace(event: React.MouseEvent<HTMLButtonElement>) {
     if (!searchResult) return;
+    if (customPlaces.length >= CUSTOM_PLACES_MAX) return showNotice(PLACES_FULL);
     setPicking(null);
+    namingOpener.current = event.currentTarget;
     setNaming({
       lat: searchResult.lat,
       lng: searchResult.lng,
-      name: shortPlaceName(searchResult.label).slice(0, PLACE_NAME_MAX),
+      name: shorten(shortPlaceName(searchResult.label), PLACE_NAME_MAX),
     });
   }
 
@@ -530,9 +585,12 @@ export function MapApp() {
     const spot = places[name];
     if (spot) placeRows.push({ key: name, kind: name, label: PLACE_LABEL[name], spot });
   }
-  for (const spot of customPlaces) {
+  // A few named places here; the rest are in Settings, so the sightings
+  // list keeps its room.
+  for (const spot of customPlaces.slice(0, PANEL_PLACES)) {
     placeRows.push({ key: spot.id, kind: "custom", label: spot.name, spot });
   }
+  const morePlaces = customPlaces.length - PANEL_PLACES;
 
   let listMessage: { title: string; text?: string } | null = null;
   if (!supabase) {
@@ -595,7 +653,7 @@ export function MapApp() {
             setSelectedId(null);
             setGroupIds(ids);
           }}
-          placing={picking !== null}
+          placing={picking !== null || naming !== null}
           draft={draft}
           onPlace={place}
           searchResult={searchResult}
@@ -639,7 +697,7 @@ export function MapApp() {
                 aria-label="Search an address or place"
               />
               {searching ? <span className="search-status">Searching…</span> : null}
-              {searchResult && query === searchResult.label ? (
+              {searchResult && query === searchResult.label && !naming ? (
                 <button
                   type="button"
                   className="icon-button search-save"
@@ -744,6 +802,12 @@ export function MapApp() {
                     </button>
                   );
                 })}
+                {morePlaces > 0 ? (
+                  <button type="button" className="link-button places-more" onClick={() => setModal("settings")}>
+                    {morePlaces} more saved {morePlaces === 1 ? "place" : "places"} in Settings
+                    <ArrowIcon />
+                  </button>
+                ) : null}
               </section>
             ) : null}
 
@@ -835,7 +899,7 @@ export function MapApp() {
             </label>
             <p className="place-form-tip">Saved on this device only, never sent anywhere.</p>
             <div className="form-actions">
-              <button type="button" className="secondary-button" onClick={() => setNaming(null)}>
+              <button type="button" className="secondary-button" onClick={closeNaming}>
                 Cancel
               </button>
               <button type="submit" className="primary-button">
@@ -879,7 +943,8 @@ export function MapApp() {
           </button>
         )}
 
-        <div className="map-controls">
+        {/* Hidden, and out of the Tab order, while a card covers them. */}
+        <div className="map-controls" data-covered={controlsCovered || undefined} inert={controlsCovered}>
           <button
             type="button"
             className="map-control"

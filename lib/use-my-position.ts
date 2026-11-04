@@ -111,6 +111,8 @@ export function useMyPosition() {
         allowed.current = permission.state === "granted";
         if (permission.state === "granted") locate();
         else if (permission.state === "denied") refused();
+        // Reset to "ask": the re-center button may ask again.
+        else setStatus((current) => (current === "denied" ? "idle" : current));
       };
     }
     return permission;

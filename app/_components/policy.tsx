@@ -46,8 +46,9 @@ export function PolicyText() {
         <li>
           <strong>Your location stays on this device</strong>, except when you confirm or dispute a
           sighting. When you first open the map, ICEPik asks your browser for your location, to
-          show where you are with a blue dot and center the map there. You can say no and the map
-          still works. ICEPik remembers only your answer, so it doesn’t ask each time you open the
+          show where you are with a blue dot and center the map there. Centering loads the map
+          images for that area, which CARTO sees (see below). You can say no and the map still
+          works. ICEPik remembers only your answer, so it doesn’t ask each time you open the
           map. Confirming or disputing a sighting sends your location to check you’re within 1 km,
           and it isn’t stored. Home, work and places you save and name stay on this device too.
         </li>

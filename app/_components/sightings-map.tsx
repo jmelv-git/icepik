@@ -44,7 +44,8 @@ export type MapApi = {
   // in to at least minZoom.
   centerOn(point: Point, padding: Padding, minZoom?: number): void;
   center(): Point | null;
-  // Whether the person has dragged the map since it loaded.
+  // Whether the map has moved since it loaded, other than by centerOn: the
+  // person dragged or zoomed it, or the app showed them something.
   moved(): boolean;
   zoomIn(): void;
   zoomOut(): void;
@@ -88,7 +89,9 @@ export function SightingsMap({
   const meMarker = useRef<Leaflet.Marker | null>(null);
   const meAccuracy = useRef<Leaflet.Circle | null>(null);
   const placeMarkers = useRef<Leaflet.LayerGroup | null>(null);
-  const dragged = useRef(false);
+  const moved = useRef(false);
+  // Set while centerOn moves the map, so that move doesn't count as moved.
+  const centering = useRef(false);
   const [ready, setReady] = useState(false);
   const [zoom, setZoom] = useState(13);
 
@@ -122,14 +125,16 @@ export function SightingsMap({
         // Shift the center so the point lands in the middle of the free area.
         const shift = L.point((left - right) / 2, (top - bottom) / 2);
         const middle = instance.project([point.lat, point.lng], zoom).subtract(shift);
+        centering.current = true;
         instance.setView(instance.unproject(middle, zoom), zoom, { animate: true });
+        centering.current = false;
       },
       center() {
         const center = map.current?.getCenter();
         return center ? { lat: center.lat, lng: center.lng } : null;
       },
       moved() {
-        return dragged.current;
+        return moved.current;
       },
       zoomIn() {
         map.current?.zoomIn();
@@ -163,17 +168,33 @@ export function SightingsMap({
       // accepted. A pinch can briefly go past the deepest zoom before it
       // springs back: enlarge the deepest tiles then, instead of asking for
       // ones CARTO refuses.
-      let tiles: Leaflet.TileLayer | null = null;
+      // Switching live keeps the style on screen under the new one until the
+      // new one has loaded, so the map doesn't flash empty. A switch that
+      // hasn't finished loading is dropped by the next one.
+      let shown: Leaflet.TileLayer | null = null;
+      let shownStyle = "";
+      let pending: Leaflet.TileLayer | null = null;
       const showTiles = () => {
         const style = darkScheme.matches ? "CartoDB.DarkMatter" : "CartoDB.Positron";
+        pending?.remove();
+        pending = null;
+        if (style === shownStyle) return;
         const next = L.tileLayer
           .provider(style, { apikey: CARTO_KEY, maxNativeZoom: MAX_ZOOM })
           .addTo(instance);
-        // Switching live: keep the old style under the new one until it has
-        // loaded, so the map doesn't flash empty.
-        const previous = tiles;
-        tiles = next;
-        if (previous) next.once("load", () => previous.remove());
+        if (!shown) {
+          shown = next;
+          shownStyle = style;
+          return;
+        }
+        pending = next;
+        next.once("load", () => {
+          if (pending !== next) return;
+          shown?.remove();
+          shown = next;
+          shownStyle = style;
+          pending = null;
+        });
       };
       showTiles();
       darkScheme.addEventListener("change", showTiles);
@@ -190,8 +211,8 @@ export function SightingsMap({
       };
 
       instance.on("zoomend", () => setZoom(instance.getZoom()));
-      instance.on("dragstart", () => {
-        dragged.current = true;
+      instance.on("movestart zoomstart", () => {
+        if (!centering.current) moved.current = true;
       });
       // Also fires after zooms and resizes.
       instance.on("moveend", reportView);

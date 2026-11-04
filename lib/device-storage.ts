@@ -103,27 +103,42 @@ export function useCustomPlaces(): CustomPlace[] {
   return useMemo(() => parseCustomPlaces(raw), [raw]);
 }
 
-export type AddPlaceResult = "saved" | "limit" | "failed";
+export type AddPlaceResult = { status: "saved" | "limit" | "failed"; name: string };
 
+// The name it was saved under comes back: a name already in use gets a
+// number ("Clinic 2"), so places can be told apart.
 export function addCustomPlace(name: string, place: SavedPlace): AddPlaceResult {
   const places = parseCustomPlaces(read(CUSTOM_PLACES_KEY));
-  if (places.length >= CUSTOM_PLACES_MAX) return "limit";
+  let unique = cleanName(name);
+  if (places.length >= CUSTOM_PLACES_MAX) return { status: "limit", name: unique };
+  const taken = new Set(places.map((p) => p.name.toLowerCase()));
+  for (let n = 2; taken.has(unique.toLowerCase()); n++) {
+    const suffix = ` ${n}`;
+    unique = shorten(cleanName(name), PLACE_NAME_MAX - suffix.length) + suffix;
+  }
   const added: CustomPlace = {
     id: newId(),
-    name: cleanName(name),
+    name: unique,
     lat: Math.round(place.lat * 1e4) / 1e4,
     lng: Math.round(place.lng * 1e4) / 1e4,
   };
-  return write(CUSTOM_PLACES_KEY, JSON.stringify([...places, added])) ? "saved" : "failed";
+  const saved = write(CUSTOM_PLACES_KEY, JSON.stringify([...places, added]));
+  return { status: saved ? "saved" : "failed", name: unique };
 }
 
+// False when it couldn't be removed: storage is blocked.
 export function removeCustomPlace(id: string) {
   const places = parseCustomPlaces(read(CUSTOM_PLACES_KEY)).filter((place) => place.id !== id);
-  write(CUSTOM_PLACES_KEY, places.length ? JSON.stringify(places) : null);
+  return write(CUSTOM_PLACES_KEY, places.length ? JSON.stringify(places) : null);
+}
+
+// Cut by characters, not UTF-16 units, so an emoji is never split in half.
+export function shorten(text: string, max: number) {
+  return Array.from(text).slice(0, max).join("");
 }
 
 export function cleanName(name: string) {
-  return name.replace(/\s+/g, " ").trim().slice(0, PLACE_NAME_MAX) || "Saved place";
+  return shorten(name.replace(/\s+/g, " ").trim(), PLACE_NAME_MAX).trim() || "Saved place";
 }
 
 function newId() {
