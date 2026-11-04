@@ -358,7 +358,6 @@ Set `MOCK_COUNT=10` to add a second Market Street sighting at almost the same sp
   inside the row; their zoom group clipped its focus ring, now inset. After the fixes: 0 contrast
   failures in 1066 text and icon instances. Location (granted, denied, unavailable), saved places, the
   dark map and P1 re-verified on the merged build.
-- OPEN, needs the user: the terms now hold nthanvii's "Your location is used only when you ask for
-  it" and this branch's paragraph saying the map asks when it opens (change 1). They contradict each
-  other. Rewording nthanvii's bullet or bumping `POLICY_VERSION` again is beyond the one paragraph
-  change 2 allows, so it waits for the user's decision.
+- Resolved with the user: keep change 1 (ask when the map opens). nthanvii's "used only when you ask
+  for it" bullet and this branch's paragraph are replaced by one bullet that matches the app, and
+  `POLICY_VERSION` is now "2026-11-04b-draft", so everyone is asked to agree again.

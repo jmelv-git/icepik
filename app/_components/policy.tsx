@@ -1,6 +1,6 @@
 // Change the version whenever the text below changes: everyone is asked to
 // agree again. The accepted version is kept in localStorage only.
-export const POLICY_VERSION = "2026-11-04-draft";
+export const POLICY_VERSION = "2026-11-04b-draft";
 
 // Plain-language terms and privacy notice, shown before anything else loads.
 // DRAFT: the team must review this text before launch.
@@ -44,17 +44,12 @@ export function PolicyText() {
           without the link, to measure how accurate reports are.
         </li>
         <li>
-          <strong>Your location is used only when you ask for it.</strong> Showing where you are
-          on the map happens on this device and sends your location nowhere. Confirming or
-          disputing a sighting uses it to check you’re within 1 km. It isn’t stored. Home and
-          work places stay on this device.
-        </li>
-        <li>
-          <strong>Your location on the map.</strong> When you open the map, ICEPik asks your
-          browser for your location, to show where you are with a blue dot and to center the map
-          there. You can say no and the map still works. Your position stays on this device: it
-          isn’t sent to ICEPik or anyone else, and it isn’t stored. Places you save and name stay
-          on this device too.
+          <strong>Your location stays on this device</strong>, except when you confirm or dispute a
+          sighting. When you first open the map, ICEPik asks your browser for your location, to
+          show where you are with a blue dot and center the map there. You can say no and the map
+          still works. ICEPik remembers only your answer, so it doesn’t ask each time you open the
+          map. Confirming or disputing a sighting sends your location to check you’re within 1 km,
+          and it isn’t stored. Home, work and places you save and name stay on this device too.
         </li>
         <li>
           <strong>What our providers see.</strong> Supabase (our database) and Vercel (our
