@@ -2061,3 +2061,9 @@ textarea::placeholder {
     forced-color-adjust: none;
   }
 }
+
+/* Dark map: the street and place names, drawn from their own tiles, are
+   lightened so they read on the dark map. Their dark outlines stay dark. */
+.map-labels {
+  filter: brightness(2.6);
+}
