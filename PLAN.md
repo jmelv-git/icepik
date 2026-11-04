@@ -11,10 +11,10 @@ difference under "Notes from session 2" at the end.
 - [x] 8. Agree button disabled until the terms are read to the end
 - [x] 7. Sticky Back button on the Terms and Privacy card in Settings
 - [x] 1. Location access at the start, with the answer remembered on the device
-- [ ] 3. Blue dot at the user's position (works; re-check once with the dot above the pins)
+- [x] 3. Blue dot at the user's position
 - [x] 4. Re-center button
-- [ ] 5. Map icons for saved locations (home, work, custom)
-- [ ] 6. Custom saved locations (add, name, delete, localStorage only)
+- [x] 5. Map icons for saved locations (home, work, custom)
+- [x] 6. Custom saved locations (add, name, delete, localStorage only)
 - [ ] 9. Dark map with CartoDB.DarkMatter, switching live
 - [ ] Regression pass: every pin and cluster type, map credit at phone width, `npx tsc --noEmit`, `npx eslint`, `npx next build`
 - [ ] Final report (prose, as the prompt asks)
@@ -316,3 +316,16 @@ Set `MOCK_COUNT=10` to add a second Market Street sighting at almost the same sp
 - Change 4: the button is a Leaflet control holding a real `<button>`, stacked above the zoom buttons,
   with an inset focus ring (an outline would be clipped like the zoom buttons'). It centers the dot in
   the middle of the map area left uncovered by the panel or card (`MapApi.centerOn` with `mapPadding()`).
+- Change 3 re-checked at 375x667 and 1280x800 with the position on the South 9th Street pin: the dot
+  draws above the pin, and the topmost element under the dot's centre is still the pin, so taps reach it.
+- Change 5: badges are dark rounded squares with a white edge and a white glyph (house, briefcase, star),
+  centred on the spot, in their own pane (540) under the searched label, the dot and the pins. A place
+  being named shows a dashed badge.
+- Change 6: `write()` in device-storage now reports whether the value was stored (it reads it back),
+  so home and work also say when they couldn't be saved. Custom places are capped at 25, names at 40
+  characters, coordinates rounded to 4 decimals like home and work. Adding: Settings → Saved places →
+  "Add a place", then tap the map; or the star button that appears in the search box after choosing a
+  result. Both open a naming form where the pick banner sits. Verified at 375x667 and 1280x800 (add by
+  tap and by search, Escape cancels, survives reload, Settings lists and deletes, "Clear this device"
+  removes every `icepik.*` key), storage full at 375x667 (message shown, page still works), and no
+  request carried a name or coordinates.

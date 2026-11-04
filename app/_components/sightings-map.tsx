@@ -15,7 +15,9 @@ import {
   pinMarkup,
   pinTitle,
   sameSpot,
+  savedPlaceElement,
   searchedPlaceElement,
+  type SavedPlaceKind,
 } from "./map-pins";
 
 // CARTO's free basemap key (https://carto.com/basemaps/apikey). Without it,
@@ -27,6 +29,9 @@ const CARTO_KEY = (process.env.NEXT_PUBLIC_CARTO_KEY ?? "").trim();
 const MAX_ZOOM = 18;
 
 export type Point = { lat: number; lng: number };
+// A place saved on this device, as drawn on the map. "pending" is one being
+// named, not saved yet.
+export type MapPlace = Point & { key: string; kind: SavedPlaceKind; label: string; pending?: boolean };
 export type Padding = {
   paddingTopLeft: [number, number];
   paddingBottomRight: [number, number];
@@ -55,6 +60,7 @@ type Props = {
   searchResult: (Point & { label: string }) | null;
   myPosition: MyPosition | null;
   onLocate: () => void;
+  savedPlaces: MapPlace[];
 };
 
 export function SightingsMap({
@@ -69,6 +75,7 @@ export function SightingsMap({
   searchResult,
   myPosition,
   onLocate,
+  savedPlaces,
 }: Props) {
   const node = useRef<HTMLDivElement>(null);
   const leaflet = useRef<typeof Leaflet | null>(null);
@@ -78,6 +85,7 @@ export function SightingsMap({
   const searchMarker = useRef<Leaflet.Marker | null>(null);
   const meMarker = useRef<Leaflet.Marker | null>(null);
   const meAccuracy = useRef<Leaflet.Circle | null>(null);
+  const placeMarkers = useRef<Leaflet.LayerGroup | null>(null);
   const dragged = useRef(false);
   const [ready, setReady] = useState(false);
   const [zoom, setZoom] = useState(13);
@@ -187,6 +195,9 @@ export function SightingsMap({
       // go through it to the pin. Its accuracy circle stays below them.
       instance.createPane("me").style.zIndex = "610";
       instance.createPane("me-accuracy").style.zIndex = "545";
+      // Saved places: on the map, under everything else drawn on it.
+      instance.createPane("saved").style.zIndex = "540";
+      placeMarkers.current = L.layerGroup().addTo(instance);
       setReady(true);
     });
 
@@ -199,8 +210,30 @@ export function SightingsMap({
       searchMarker.current = null;
       meMarker.current = null;
       meAccuracy.current = null;
+      placeMarkers.current = null;
     };
   }, []);
+
+  // Saved places. Nothing happens when they're tapped, so taps go through to
+  // the map and a report can still be placed there.
+  useEffect(() => {
+    const L = leaflet.current;
+    const layer = placeMarkers.current;
+    if (!ready || !L || !layer) return;
+    layer.clearLayers();
+    for (const place of savedPlaces) {
+      L.marker([place.lat, place.lng], {
+        pane: "saved",
+        interactive: false,
+        keyboard: false,
+        icon: L.divIcon({
+          className: "saved-place-icon",
+          html: savedPlaceElement(place.kind, place.label, place.pending),
+          iconSize: [0, 0],
+        }),
+      }).addTo(layer);
+    }
+  }, [ready, savedPlaces]);
 
   // The blue dot follows the position. Nothing happens when it's tapped, so
   // taps go through to the map.

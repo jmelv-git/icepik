@@ -12,9 +12,13 @@ import {
   usernameOf,
 } from "@/lib/accounts";
 import {
+  CUSTOM_PLACES_MAX,
   clearDeviceStorage,
+  removeCustomPlace,
   savePlace,
+  type CustomPlace,
   type PlaceName,
+  type SavedPlace,
   type SavedPlaces,
 } from "@/lib/device-storage";
 import { ONE_MILE_M, distanceMeters } from "@/lib/geo";
@@ -35,8 +39,9 @@ type Props = {
   reloadActivity: () => void;
   sightings: Sighting[];
   places: SavedPlaces;
-  onPickPlace: (name: PlaceName) => void;
-  onShowPlace: (name: PlaceName) => void;
+  customPlaces: CustomPlace[];
+  onPickPlace: (name: PlaceName | "custom") => void;
+  onShowPlace: (place: SavedPlace) => void;
   onNotice: (message: string) => void;
   onClose: () => void;
 };
@@ -85,11 +90,19 @@ function MainView({
   activePosts,
   sightings,
   places,
+  customPlaces,
   onPickPlace,
   onShowPlace,
+  onNotice,
   onOpen,
 }: Props & { onOpen: (view: View) => void }) {
   const username = usernameOf(user);
+  const nearby = (place: SavedPlace) => {
+    const near = sightings.filter(
+      (s) => distanceMeters(place.lat, place.lng, s.lat, s.lng) <= ONE_MILE_M,
+    ).length;
+    return `${near} ${near === 1 ? "sighting" : "sightings"} within 1 mile`;
+  };
 
   return (
     <>
@@ -141,11 +154,6 @@ function MainView({
         <ul className="place-list">
           {(["home", "work"] as const).map((name) => {
             const place = places[name];
-            const near = place
-              ? sightings.filter(
-                  (s) => distanceMeters(place.lat, place.lng, s.lat, s.lng) <= ONE_MILE_M,
-                ).length
-              : 0;
             return (
               <li key={name} className="place-row">
                 <span className="place-icon">
@@ -153,16 +161,12 @@ function MainView({
                 </span>
                 <span className="row-text">
                   <span className="row-address">{PLACE_LABEL[name]}</span>
-                  <span className="row-meta">
-                    {place
-                      ? `${near} ${near === 1 ? "sighting" : "sightings"} within 1 mile`
-                      : "Not set"}
-                  </span>
+                  <span className="row-meta">{place ? nearby(place) : "Not set"}</span>
                 </span>
                 <span className="place-actions">
                   {place ? (
                     <>
-                      <button type="button" className="text-button" onClick={() => onShowPlace(name)}>
+                      <button type="button" className="text-button" onClick={() => onShowPlace(place)}>
                         Show
                       </button>
                       <button type="button" className="text-button" onClick={() => savePlace(name, null)}>
@@ -178,7 +182,54 @@ function MainView({
               </li>
             );
           })}
+          {customPlaces.map((place) => (
+            <li key={place.id} className="place-row">
+              <span className="place-icon">
+                <PlaceIcon name="custom" />
+              </span>
+              <span className="row-text">
+                <span className="row-address">{place.name}</span>
+                <span className="row-meta">{nearby(place)}</span>
+              </span>
+              <span className="place-actions">
+                <button
+                  type="button"
+                  className="text-button"
+                  aria-label={`Show ${place.name}`}
+                  onClick={() => onShowPlace(place)}
+                >
+                  Show
+                </button>
+                <button
+                  type="button"
+                  className="text-button"
+                  aria-label={`Delete ${place.name}`}
+                  onClick={() => {
+                    removeCustomPlace(place.id);
+                    onNotice(`${place.name} deleted from this device.`);
+                  }}
+                >
+                  Delete
+                </button>
+              </span>
+            </li>
+          ))}
         </ul>
+        {customPlaces.length < CUSTOM_PLACES_MAX ? (
+          <div className="button-row">
+            <button type="button" className="secondary-button" onClick={() => onPickPlace("custom")}>
+              Add a place
+            </button>
+          </div>
+        ) : (
+          <p className="detail-hint">
+            You&apos;ve saved {CUSTOM_PLACES_MAX} places, as many as ICEPik keeps. Delete one to add
+            another.
+          </p>
+        )}
+        <p className="detail-hint">
+          You can also save a place you searched for: tap the star in the search box.
+        </p>
       </section>
 
       <section className="settings-section" aria-labelledby="privacy-title">

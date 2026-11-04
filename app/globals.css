@@ -217,8 +217,14 @@ button {
   height: 1.125rem;
 }
 
-.search-submit {
+.search-submit,
+.search-save {
   color: #d3d5da;
+}
+
+.search-save svg {
+  width: 1.25rem;
+  height: 1.25rem;
 }
 
 .search-status {
@@ -552,6 +558,37 @@ button {
 .locate-button:focus-visible {
   outline: none;
   box-shadow: inset 0 0 0 0.1875rem var(--blue);
+}
+
+/* Places saved on this device: home, work and named places. */
+.saved-place-icon {
+  background: none;
+  border: 0;
+}
+
+.saved-place {
+  position: absolute;
+  top: -1rem;
+  left: -1rem;
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border: 0.1875rem solid #fff;
+  border-radius: 0.625rem;
+  background: var(--surface);
+  color: #fff;
+  box-shadow: 0 0.1875rem 0.5rem rgb(0 0 0 / 0.3);
+}
+
+.saved-place svg {
+  width: 1.125rem;
+  height: 1.125rem;
+}
+
+/* The place being named, before it's saved. */
+.saved-place-new {
+  border-style: dashed;
 }
 
 /* Where the person is. */
@@ -1341,6 +1378,33 @@ button {
   line-height: 1.4;
 }
 
+/* Naming a place before it's saved, in the same spot as the pick banner. */
+.place-form-field {
+  display: grid;
+  gap: 0.5rem;
+  font-weight: 600;
+}
+
+.place-form-field input {
+  width: 100%;
+  padding: 0.75rem 0.875rem;
+  border-radius: 0.875rem;
+  background: var(--card);
+  color: var(--text);
+  font-weight: 400;
+  outline: none;
+}
+
+.place-form-field input:focus {
+  box-shadow: 0 0 0 0.125rem var(--blue);
+}
+
+.pick-banner .place-form-tip {
+  color: var(--muted);
+  font-size: 0.8125rem;
+  font-weight: 400;
+}
+
 .notice {
   position: absolute;
   bottom: 2rem;
@@ -1374,6 +1438,10 @@ button {
 
 .pick-banner ~ .notice {
   bottom: 10rem;
+}
+
+.place-form ~ .notice {
+  bottom: 16rem;
 }
 
 /* Creating the anonymous account. */

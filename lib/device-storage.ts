@@ -6,10 +6,17 @@ const POLICY_KEY = "icepik.policy-version";
 const PLACES_KEY = "icepik.places";
 // Only the answer to "may ICEPik use your location?", never a position.
 const LOCATION_KEY = "icepik.location";
+// Places people add and name themselves. Names can say a lot ("Mom's
+// house"), so like home and work they never leave this browser.
+const CUSTOM_PLACES_KEY = "icepik.custom-places";
+
+export const PLACE_NAME_MAX = 40;
+export const CUSTOM_PLACES_MAX = 25;
 
 export type PlaceName = "home" | "work";
 export type SavedPlace = { lat: number; lng: number };
 export type SavedPlaces = Partial<Record<PlaceName, SavedPlace>>;
+export type CustomPlace = SavedPlace & { id: string; name: string };
 
 const listeners = new Set<() => void>();
 
@@ -31,14 +38,18 @@ function read(key: string) {
   }
 }
 
+// False when the value couldn't be stored: storage is blocked or full.
 function write(key: string, value: string | null) {
+  let stored = false;
   try {
     if (value === null) window.localStorage.removeItem(key);
     else window.localStorage.setItem(key, value);
+    stored = window.localStorage.getItem(key) === value;
   } catch {
-    // Nothing to do: the value just won't be remembered.
+    // The value just won't be remembered.
   }
   listeners.forEach((listener) => listener());
+  return stored;
 }
 
 // undefined while rendering on the server, where there's no localStorage.
@@ -66,11 +77,12 @@ export function useSavedPlaces(): SavedPlaces {
   return useMemo(() => parsePlaces(raw), [raw]);
 }
 
+// False when it couldn't be saved: storage is blocked or full.
 export function savePlace(name: PlaceName, place: SavedPlace | null) {
   const places = parsePlaces(read(PLACES_KEY));
   if (place) places[name] = place;
   else delete places[name];
-  write(PLACES_KEY, Object.keys(places).length ? JSON.stringify(places) : null);
+  return write(PLACES_KEY, Object.keys(places).length ? JSON.stringify(places) : null);
 }
 
 export type LocationAnswer = "granted" | "denied" | "unavailable";
@@ -86,11 +98,65 @@ export function rememberLocationAnswer(answer: LocationAnswer) {
   if (read(LOCATION_KEY) !== answer) write(LOCATION_KEY, answer);
 }
 
+export function useCustomPlaces(): CustomPlace[] {
+  const raw = useStored(CUSTOM_PLACES_KEY);
+  return useMemo(() => parseCustomPlaces(raw), [raw]);
+}
+
+export type AddPlaceResult = "saved" | "limit" | "failed";
+
+export function addCustomPlace(name: string, place: SavedPlace): AddPlaceResult {
+  const places = parseCustomPlaces(read(CUSTOM_PLACES_KEY));
+  if (places.length >= CUSTOM_PLACES_MAX) return "limit";
+  const added: CustomPlace = {
+    id: newId(),
+    name: cleanName(name),
+    lat: Math.round(place.lat * 1e4) / 1e4,
+    lng: Math.round(place.lng * 1e4) / 1e4,
+  };
+  return write(CUSTOM_PLACES_KEY, JSON.stringify([...places, added])) ? "saved" : "failed";
+}
+
+export function removeCustomPlace(id: string) {
+  const places = parseCustomPlaces(read(CUSTOM_PLACES_KEY)).filter((place) => place.id !== id);
+  write(CUSTOM_PLACES_KEY, places.length ? JSON.stringify(places) : null);
+}
+
+export function cleanName(name: string) {
+  return name.replace(/\s+/g, " ").trim().slice(0, PLACE_NAME_MAX) || "Saved place";
+}
+
+function newId() {
+  return typeof crypto.randomUUID === "function"
+    ? crypto.randomUUID()
+    : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+}
+
 // "Clear this device": forget everything ICEPik stored in this browser.
 export function clearDeviceStorage() {
   write(PLACES_KEY, null);
+  write(CUSTOM_PLACES_KEY, null);
   write(LOCATION_KEY, null);
   write(POLICY_KEY, null);
+}
+
+function parseCustomPlaces(raw: string | null | undefined): CustomPlace[] {
+  if (!raw) return [];
+  try {
+    const value = JSON.parse(raw) as unknown;
+    if (!Array.isArray(value)) return [];
+    return value
+      .filter(
+        (place): place is CustomPlace =>
+          typeof place?.id === "string" &&
+          typeof place?.name === "string" &&
+          typeof place?.lat === "number" &&
+          typeof place?.lng === "number",
+      )
+      .map(({ id, name, lat, lng }) => ({ id, name: cleanName(name), lat, lng }));
+  } catch {
+    return [];
+  }
 }
 
 function parsePlaces(raw: string | null | undefined): SavedPlaces {

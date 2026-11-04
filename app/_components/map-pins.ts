@@ -61,6 +61,29 @@ export const DRAFT_PIN_MARKUP = `<svg class="pin pin-draft" viewBox="0 0 64 100"
 // new-report pin.
 export const MY_LOCATION_MARKUP = `<span class="my-location" role="img" aria-label="Your location"></span>`;
 
+export type SavedPlaceKind = "home" | "work" | "custom";
+
+// The same glyphs as the saved-place icons in the side panel and Settings.
+const SAVED_PLACE_GLYPH: Record<SavedPlaceKind, string> = {
+  home: `<path d="M4 11 12 4l8 7v8.5a1 1 0 0 1-1 1h-4.5v-6h-5v6H5a1 1 0 0 1-1-1Z" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linejoin="round"/>`,
+  work: `<rect x="3.5" y="7.5" width="17" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="2.25"/>
+    <path d="M9 7.5V5.5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" fill="none" stroke="currentColor" stroke-width="2.25"/>`,
+  custom: `<path d="m12 4 2.4 4.9 5.4.8-3.9 3.8.9 5.4-4.8-2.6-4.8 2.6.9-5.4-3.9-3.8 5.4-.8Z" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>`,
+};
+
+// A place saved on this device: a dark rounded square with a white edge and
+// glyph. Not a teardrop, a circle or a pill, so it can't pass for a
+// sighting, a cluster, the blue dot or a searched place. Names are typed by
+// the person, so they only ever go in as text.
+export function savedPlaceElement(kind: SavedPlaceKind, label: string, pending = false) {
+  const element = document.createElement("span");
+  element.className = `saved-place saved-place-${kind}${pending ? " saved-place-new" : ""}`;
+  element.setAttribute("role", "img");
+  element.setAttribute("aria-label", `${label}, saved on this device`);
+  element.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${SAVED_PLACE_GLYPH[kind]}</svg>`;
+  return element;
+}
+
 // The re-center button's icon: a target.
 export const LOCATE_ICON = `<svg viewBox="0 0 24 24" aria-hidden="true">
   <circle cx="12" cy="12" r="6.5" fill="none" stroke="currentColor" stroke-width="2"/>

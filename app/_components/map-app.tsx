@@ -2,10 +2,17 @@
 
 import type { User } from "@supabase/supabase-js";
 import Image from "next/image";
-import { useCallback, useEffect, useEffectEvent, useRef, useState } from "react";
+import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import logo from "../../public/brand/icepik-logo.png";
 import rightsPhoto from "../../public/brand/know-your-rights.jpg";
-import { savePlace, useSavedPlaces, type PlaceName } from "@/lib/device-storage";
+import {
+  PLACE_NAME_MAX,
+  addCustomPlace,
+  savePlace,
+  useCustomPlaces,
+  useSavedPlaces,
+  type PlaceName,
+} from "@/lib/device-storage";
 import { ONE_MILE_M, distanceMeters, roundCoord } from "@/lib/geo";
 import {
   STATUS_LABEL,
@@ -37,12 +44,16 @@ import { shortPlaceName } from "./map-pins";
 import { ReportForm } from "./report-form";
 import { PLACE_LABEL, SettingsDialog } from "./settings-dialog";
 import { SightingCard } from "./sighting-card";
-import { SightingsMap, type MapApi, type Padding, type Point } from "./sightings-map";
+import { SightingsMap, type MapApi, type MapPlace, type Padding, type Point } from "./sightings-map";
 
 type SearchResult = { display_name: string; lat: string; lon: string };
 
-// Choosing a spot on the map: for a new report, or for a saved place.
-type Picking = "report" | PlaceName | null;
+// Choosing a spot on the map: for a new report, or for a saved place (home,
+// work, or a new place to name).
+type Picking = "report" | PlaceName | "custom" | null;
+
+const PLACE_NOT_SAVED =
+  "Couldn't save this place on this device. Your browser's storage is full or blocked.";
 
 // Matches the stacked phone layout in globals.css.
 const PHONE_QUERY = "(max-width: 899px)";
@@ -104,6 +115,9 @@ export function MapApp() {
   const { sightings, loadState, now, upsert, remove } = useLiveSightings(supabase);
   const activity = useMyActivity(supabase, user?.id ?? null);
   const places = useSavedPlaces();
+  const customPlaces = useCustomPlaces();
+  // A new place being named before it's saved.
+  const [naming, setNaming] = useState<(Point & { name: string }) | null>(null);
   const me = useMyPosition();
   const mapApi = useRef<MapApi>(null);
   // Center on the person's first position once, unless they're already
@@ -164,13 +178,14 @@ export function MapApp() {
     function onKeyDown(event: KeyboardEvent) {
       if (event.key !== "Escape") return;
       if (modal) setModal(null);
+      else if (naming) setNaming(null);
       else if (picking === "report" && !reportFormOpen) cancelReport();
       else if (picking) setPicking(null);
     }
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [modal, picking, reportFormOpen, cancelReport]);
+  }, [modal, naming, picking, reportFormOpen, cancelReport]);
 
   const closeResults = useCallback(() => {
     setResults([]);
@@ -285,18 +300,14 @@ export function MapApp() {
     mapApi.current?.showPoints(points, mapPadding());
   }
 
-  function nearPlace(name: PlaceName) {
-    const place = places[name];
-    return place
-      ? sightings.filter((s) => distanceMeters(place.lat, place.lng, s.lat, s.lng) <= ONE_MILE_M)
-      : [];
+  function nearPlace(place: Point) {
+    return sightings.filter((s) => distanceMeters(place.lat, place.lng, s.lat, s.lng) <= ONE_MILE_M);
   }
 
-  function showPlace(name: PlaceName) {
-    const place = places[name];
-    if (!place) return;
+  // A saved place and the sightings within a mile of it.
+  function showPlace(place: Point) {
     setModal(null);
-    showPoints([place, ...nearPlace(name)]);
+    showPoints([place, ...nearPlace(place)]);
   }
 
   function startReport() {
@@ -319,8 +330,9 @@ export function MapApp() {
     else setPicking(null);
   }
 
-  function pickPlace(name: PlaceName) {
+  function pickPlace(name: PlaceName | "custom") {
     setModal(null);
+    setNaming(null);
     setPicking(name);
     if (isPhone()) setPanelOpen(false);
   }
@@ -329,15 +341,56 @@ export function MapApp() {
     if (picking === "report") {
       // Pins are rounded to about 100 m: show where it will really go.
       setDraft({ lat: roundCoord(point.lat), lng: roundCoord(point.lng) });
+    } else if (picking === "custom") {
+      setNaming({ ...point, name: "" });
+      setPicking(null);
     } else if (picking) {
-      savePlace(picking, {
+      const saved = savePlace(picking, {
         lat: Math.round(point.lat * 1e4) / 1e4,
         lng: Math.round(point.lng * 1e4) / 1e4,
       });
-      showNotice(`${PLACE_LABEL[picking]} saved on this device.`);
+      showNotice(saved ? `${PLACE_LABEL[picking]} saved on this device.` : PLACE_NOT_SAVED);
       setPicking(null);
     }
   }
+
+  // Name and save a place chosen on the map or from the search results.
+  function saveNamedPlace(event: React.FormEvent) {
+    event.preventDefault();
+    if (!naming) return;
+    const name = naming.name.trim() || "Saved place";
+    const result = addCustomPlace(name, naming);
+    if (result === "saved") showNotice(`${name} saved on this device.`);
+    else if (result === "limit") showNotice("You've saved as many places as ICEPik can keep. Delete one in Settings first.");
+    else showNotice(PLACE_NOT_SAVED);
+    setNaming(null);
+  }
+
+  function nameSearchedPlace() {
+    if (!searchResult) return;
+    setPicking(null);
+    setNaming({
+      lat: searchResult.lat,
+      lng: searchResult.lng,
+      name: shortPlaceName(searchResult.label).slice(0, PLACE_NAME_MAX),
+    });
+  }
+
+  // Home, work and named places as the map draws them, plus one being named.
+  const mapPlaces = useMemo<MapPlace[]>(() => {
+    const list: MapPlace[] = [];
+    for (const name of ["home", "work"] as const) {
+      const spot = places[name];
+      if (spot) list.push({ ...spot, key: name, kind: name, label: PLACE_LABEL[name] });
+    }
+    for (const spot of customPlaces) {
+      list.push({ lat: spot.lat, lng: spot.lng, key: spot.id, kind: "custom", label: spot.name });
+    }
+    if (naming) {
+      list.push({ lat: naming.lat, lng: naming.lng, key: "new", kind: "custom", label: "New place", pending: true });
+    }
+    return list;
+  }, [places, customPlaces, naming]);
 
   function posted(sighting: Sighting) {
     upsert(sighting);
@@ -441,7 +494,15 @@ export function MapApp() {
 
   const counts: Record<Status, number> = { verified: 0, unverified: 0, disputed: 0 };
   sightings.forEach((s) => counts[statusOf(s)]++);
-  const placeNames = (["home", "work"] as const).filter((name) => places[name]);
+  // The side panel's "Your places": home, work, then named places.
+  const placeRows: { key: string; kind: "home" | "work" | "custom"; label: string; spot: Point }[] = [];
+  for (const name of ["home", "work"] as const) {
+    const spot = places[name];
+    if (spot) placeRows.push({ key: name, kind: name, label: PLACE_LABEL[name], spot });
+  }
+  for (const spot of customPlaces) {
+    placeRows.push({ key: spot.id, kind: "custom", label: spot.name, spot });
+  }
 
   let listMessage: string | null = null;
   if (!supabase) listMessage = "ICEPik isn't connected to its database yet.";
@@ -502,6 +563,7 @@ export function MapApp() {
           searchResult={searchResult}
           myPosition={me.position}
           onLocate={centerOnMe}
+          savedPlaces={mapPlaces}
         />
 
         <div className="panel">
@@ -529,6 +591,17 @@ export function MapApp() {
               aria-label="Search an address or place"
             />
             {searching ? <span className="search-status">Searching…</span> : null}
+            {searchResult && query === searchResult.label ? (
+              <button
+                type="button"
+                className="icon-button search-save"
+                aria-label="Save this place"
+                title="Save this place"
+                onClick={nameSearchedPlace}
+              >
+                <PlaceIcon name="custom" />
+              </button>
+            ) : null}
             {query ? (
               <button
                 type="button"
@@ -586,21 +659,21 @@ export function MapApp() {
               ))}
             </section>
 
-            {placeNames.length ? (
+            {placeRows.length ? (
               <section className="card area-card" aria-labelledby="places-card-title">
                 <header>
                   <h2 id="places-card-title">Your places</h2>
                   <span>within 1 mile</span>
                 </header>
-                {placeNames.map((name) => {
-                  const near = nearPlace(name).length;
+                {placeRows.map((row) => {
+                  const near = nearPlace(row.spot).length;
                   return (
-                    <button key={name} type="button" className="area-row" onClick={() => showPlace(name)}>
+                    <button key={row.key} type="button" className="area-row" onClick={() => showPlace(row.spot)}>
                       <span className="row-icon place-icon">
-                        <PlaceIcon name={name} />
+                        <PlaceIcon name={row.kind} />
                       </span>
                       <span className="row-text">
-                        <span className="row-address">{PLACE_LABEL[name]}</span>
+                        <span className="row-address">{row.label}</span>
                         <span className="row-meta">
                           {near
                             ? `${near} ${near === 1 ? "sighting" : "sightings"} nearby`
@@ -715,14 +788,39 @@ export function MapApp() {
           </section>
         ) : null}
 
-        {picking ? (
+        {naming ? (
+          <form className="pick-banner place-form" onSubmit={saveNamedPlace}>
+            <label className="place-form-field">
+              Name this place
+              <input
+                value={naming.name}
+                maxLength={PLACE_NAME_MAX}
+                placeholder="For example: Mom's house"
+                autoComplete="off"
+                autoFocus
+                onChange={(event) => setNaming({ ...naming, name: event.target.value })}
+              />
+            </label>
+            <p className="place-form-tip">Saved on this device only, never sent anywhere.</p>
+            <div className="form-actions">
+              <button type="button" className="secondary-button" onClick={() => setNaming(null)}>
+                Cancel
+              </button>
+              <button type="submit" className="primary-button">
+                Save place
+              </button>
+            </div>
+          </form>
+        ) : picking ? (
           <div className="pick-banner">
             <p>
               {picking === "report"
                 ? draft
                   ? "Drag the pin, or tap somewhere else to move it."
                   : "Tap the map where you saw ICE."
-                : `Tap your ${picking === "home" ? "home" : "workplace"} on the map. It's saved on this device only.`}
+                : picking === "custom"
+                  ? "Tap the place you want to save. It's saved on this device only."
+                  : `Tap your ${picking === "home" ? "home" : "workplace"} on the map. It's saved on this device only.`}
             </p>
             <div className="form-actions">
               <button type="button" className="secondary-button" onClick={leavePicking}>
@@ -848,6 +946,7 @@ export function MapApp() {
                 reloadActivity={activity.reload}
                 sightings={sightings}
                 places={places}
+                customPlaces={customPlaces}
                 onPickPlace={pickPlace}
                 onShowPlace={showPlace}
                 onNotice={showNotice}
