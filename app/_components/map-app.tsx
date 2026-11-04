@@ -4,7 +4,6 @@ import type { User } from "@supabase/supabase-js";
 import Image from "next/image";
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import logo from "../../public/brand/icepik-logo.png";
-import rightsPhoto from "../../public/brand/know-your-rights.jpg";
 import {
   PLACE_NAME_MAX,
   addCustomPlace,
@@ -31,20 +30,34 @@ import { useMyActivity } from "@/lib/use-my-activity";
 import { useMyPosition } from "@/lib/use-my-position";
 import { AccountStarter } from "./account-starter";
 import {
+  ArrowIcon,
   ChevronIcon,
   CloseIcon,
+  DocumentIcon,
   GearIcon,
-  ListIcon,
+  LocateIcon,
+  MinusIcon,
   PinIcon,
+  PinOutlineIcon,
   PlaceIcon,
+  PlusIcon,
+  ReportsIcon,
   SearchIcon,
+  ShieldIcon,
   StatusIcon,
 } from "./icons";
 import { shortPlaceName } from "./map-pins";
 import { ReportForm } from "./report-form";
 import { PLACE_LABEL, SettingsDialog } from "./settings-dialog";
 import { SightingCard } from "./sighting-card";
-import { SightingsMap, type MapApi, type MapPlace, type Padding, type Point } from "./sightings-map";
+import {
+  SightingsMap,
+  type Bounds,
+  type MapApi,
+  type MapPlace,
+  type Padding,
+  type Point,
+} from "./sightings-map";
 
 type SearchResult = { display_name: string; lat: string; lon: string };
 
@@ -54,6 +67,8 @@ type Picking = "report" | PlaceName | "custom" | null;
 
 const PLACE_NOT_SAVED =
   "Couldn't save this place on this device. Your browser's storage is full or blocked.";
+
+const STATUSES: Status[] = ["verified", "unverified", "disputed"];
 
 // Matches the stacked phone layout in globals.css.
 const PHONE_QUERY = "(max-width: 899px)";
@@ -71,7 +86,7 @@ function isPhone() {
 
 // On phones the detail card spans the top of the map. A point is shown in
 // the clear space below the card, or beside it on a phone on its side, away
-// from the REPORT and zoom buttons and above the map credits. Pins are drawn
+// from the report button, the map buttons and above the map credits. Pins are drawn
 // above their point, so this leaves room for one: 88px above the point and
 // 32px on either side.
 function phonePadding(shell: DOMRect, card: DOMRect | undefined): Padding {
@@ -80,7 +95,7 @@ function phonePadding(shell: DOMRect, card: DOMRect | undefined): Padding {
   const box = (selector: string) => document.querySelector(selector)?.getBoundingClientRect();
   const credits = box(".leaflet-control-attribution");
   const report = box(".report-button");
-  const zoom = box(".leaflet-control-zoom");
+  const zoom = box(".map-controls");
   const aboveCredits = (credits ? shell.bottom - credits.top : 0) + 8;
 
   // On its side, the card leaves the left of the map free.
@@ -104,6 +119,19 @@ function phonePadding(shell: DOMRect, card: DOMRect | undefined): Padding {
     paddingTopLeft: [32, top],
     paddingBottomRight: [report ? shell.right - report.left + 32 : 32, aboveCredits],
   };
+}
+
+function reportCount(count: number) {
+  return `${count} ${count === 1 ? "report" : "reports"}`;
+}
+
+function inBounds(point: Point, bounds: Bounds) {
+  return (
+    point.lat >= bounds.south &&
+    point.lat <= bounds.north &&
+    point.lng >= bounds.west &&
+    point.lng <= bounds.east
+  );
 }
 
 export function MapApp() {
@@ -137,8 +165,9 @@ export function MapApp() {
   // null until the user toggles it: CSS then shows the panel on desktop and
   // hides it on phones, so neither layout flashes the wrong state on load.
   const [panelOpen, setPanelOpen] = useState<boolean | null>(null);
-  const [rightsCardHidden, setRightsCardHidden] = useState(false);
   const [starterHidden, setStarterHidden] = useState(false);
+  // The part of the map on screen, once the map has loaded.
+  const [bounds, setBounds] = useState<Bounds | null>(null);
   const [notice, setNotice] = useState("");
   const noticeTimer = useRef<number | undefined>(undefined);
 
@@ -492,8 +521,9 @@ export function MapApp() {
     if (event.detail === 0) searchInput.current?.focus();
   }
 
+  const nearby = bounds ? sightings.filter((s) => inBounds(s, bounds)) : [];
   const counts: Record<Status, number> = { verified: 0, unverified: 0, disputed: 0 };
-  sightings.forEach((s) => counts[statusOf(s)]++);
+  nearby.forEach((s) => counts[statusOf(s)]++);
   // The side panel's "Your places": home, work, then named places.
   const placeRows: { key: string; kind: "home" | "work" | "custom"; label: string; spot: Point }[] = [];
   for (const name of ["home", "work"] as const) {
@@ -504,11 +534,19 @@ export function MapApp() {
     placeRows.push({ key: spot.id, kind: "custom", label: spot.name, spot });
   }
 
-  let listMessage: string | null = null;
-  if (!supabase) listMessage = "ICEPik isn't connected to its database yet.";
-  else if (loadState === "loading") listMessage = "Loading sightings…";
-  else if (loadState === "error") listMessage = "Couldn't load sightings. Check your connection.";
-  else if (!sightings.length) listMessage = "No sightings on the map right now.";
+  let listMessage: { title: string; text?: string } | null = null;
+  if (!supabase) {
+    listMessage = { title: "Not connected", text: "ICEPik isn't connected to its database yet." };
+  } else if (loadState === "loading" || !bounds) {
+    listMessage = { title: "Loading reports…" };
+  } else if (loadState === "error") {
+    listMessage = { title: "Couldn't load reports", text: "Check your connection." };
+  } else if (!nearby.length) {
+    listMessage = {
+      title: "No reports in this area",
+      text: "Try moving the map or searching another location.",
+    };
+  }
 
   return (
     <div className="app" data-panel={panelState}>
@@ -523,14 +561,14 @@ export function MapApp() {
           onClick={togglePanel}
         >
           <span className="rail-icon">
-            <ListIcon />
+            <ReportsIcon />
           </span>
           Reports
         </button>
 
         <button type="button" className="rail-item" onClick={() => setModal("rights")}>
-          <span className="rail-thumb">
-            <Image src={rightsPhoto} alt="" fill sizes="48px" className="rights-photo" />
+          <span className="rail-icon">
+            <DocumentIcon />
           </span>
           Know Your Rights
         </button>
@@ -562,8 +600,8 @@ export function MapApp() {
           onPlace={place}
           searchResult={searchResult}
           myPosition={me.position}
-          onLocate={centerOnMe}
           savedPlaces={mapPlaces}
+          onViewChange={setBounds}
         />
 
         <div className="panel">
@@ -574,101 +612,123 @@ export function MapApp() {
             onSubmit={searchPlaces}
             onKeyDown={onSearchKeyDown}
           >
-            <input
-              ref={searchInput}
-              type="search"
-              value={query}
-              onChange={(event) => {
-                setQuery(event.target.value);
-                // An emptied box (deleted, or Escape) ends the search, like
-                // the clear button: the place leaves the map too.
-                if (!event.target.value) {
-                  closeResults();
-                  setSearchResult(null);
-                }
-              }}
-              placeholder="Search an address or place"
-              aria-label="Search an address or place"
-            />
-            {searching ? <span className="search-status">Searching…</span> : null}
-            {searchResult && query === searchResult.label ? (
+            <div className="search-field">
+              {/* Enter searches too, so keyboard users skip this button. */}
               <button
-                type="button"
-                className="icon-button search-save"
-                aria-label="Save this place"
-                title="Save this place"
-                onClick={nameSearchedPlace}
+                type="submit"
+                className="icon-button search-submit"
+                aria-label="Search"
+                tabIndex={-1}
               >
-                <PlaceIcon name="custom" />
+                <SearchIcon />
               </button>
-            ) : null}
-            {query ? (
-              <button
-                type="button"
-                className="icon-button search-clear"
-                aria-label="Clear search"
-                onClick={clearSearch}
-              >
-                <CloseIcon />
-              </button>
-            ) : null}
-            <button type="submit" className="icon-button search-submit" aria-label="Search">
-              <SearchIcon />
-            </button>
+              <input
+                ref={searchInput}
+                type="search"
+                value={query}
+                onChange={(event) => {
+                  setQuery(event.target.value);
+                  // An emptied box (deleted, or Escape) ends the search, like
+                  // the clear button: the place leaves the map too.
+                  if (!event.target.value) {
+                    closeResults();
+                    setSearchResult(null);
+                  }
+                }}
+                placeholder="Search an address or place"
+                aria-label="Search an address or place"
+              />
+              {searching ? <span className="search-status">Searching…</span> : null}
+              {searchResult && query === searchResult.label ? (
+                <button
+                  type="button"
+                  className="icon-button search-save"
+                  aria-label="Save this place"
+                  title="Save this place"
+                  onClick={nameSearchedPlace}
+                >
+                  <PlaceIcon name="custom" />
+                </button>
+              ) : null}
+              {query ? (
+                <button
+                  type="button"
+                  className="icon-button search-clear"
+                  aria-label="Clear search"
+                  onClick={clearSearch}
+                >
+                  <CloseIcon />
+                </button>
+              ) : null}
 
-            {resultsOpen ? (
-              <ul className="search-results">
-                {searchError ? (
-                  <li className="search-empty">Search is unavailable right now.</li>
-                ) : (
-                  results.map((item) => (
-                    <li key={`${item.lat},${item.lon}`}>
-                      <button type="button" onClick={(event) => chooseSearchResult(item, event)}>
-                        {item.display_name}
-                      </button>
-                    </li>
-                  ))
-                )}
-              </ul>
-            ) : null}
+              {resultsOpen ? (
+                <ul className="search-results">
+                  {searchError ? (
+                    <li className="search-empty">Search is unavailable right now.</li>
+                  ) : (
+                    results.map((item) => (
+                      <li key={`${item.lat},${item.lon}`}>
+                        <button type="button" onClick={(event) => chooseSearchResult(item, event)}>
+                          {item.display_name}
+                        </button>
+                      </li>
+                    ))
+                  )}
+                </ul>
+              ) : null}
+            </div>
           </form>
 
-          <button
-            type="button"
-            className="panel-toggle"
-            aria-expanded={panelState !== "closed"}
-            aria-controls="panel-cards"
-            aria-label={panelState === "closed" ? "Show side panel" : "Hide side panel"}
-            onClick={togglePanel}
-          >
-            <ChevronIcon direction="left" />
-          </button>
-
           <div id="panel-cards" className="panel-cards" inert={panelState === "closed"}>
-            <section className="card report-list" aria-label="Sightings on the map">
-              {listMessage ? <p className="list-message">{listMessage}</p> : null}
-              {sightings.map((sighting) => (
-                <SightingRow
-                  key={sighting.id}
-                  sighting={sighting}
-                  now={now}
-                  mine={activity.posts.has(sighting.id)}
-                  pressed={sighting.id === selectedId}
-                  onClick={() => showSighting(sighting.id)}
-                />
-              ))}
+            <section className="card nearby-card" aria-labelledby="nearby-title">
+              <header className="card-head">
+                <h2 id="nearby-title">Nearby reports</h2>
+                <span>{reportCount(nearby.length)}</span>
+              </header>
+              <div className="report-list">
+                {listMessage ? (
+                  <div className="list-empty">
+                    <span className="list-empty-icon">
+                      <PinOutlineIcon />
+                    </span>
+                    <p className="list-empty-title">{listMessage.title}</p>
+                    {listMessage.text ? <p>{listMessage.text}</p> : null}
+                    {bounds && !nearby.length && sightings.length ? (
+                      <button
+                        type="button"
+                        className="link-button"
+                        onClick={() => showPoints(sightings)}
+                      >
+                        Show all {reportCount(sightings.length)}
+                        <ArrowIcon />
+                      </button>
+                    ) : null}
+                  </div>
+                ) : (
+                  nearby.map((sighting) => (
+                    <SightingRow
+                      key={sighting.id}
+                      sighting={sighting}
+                      now={now}
+                      mine={activity.posts.has(sighting.id)}
+                      pressed={sighting.id === selectedId}
+                      onClick={() => showSighting(sighting.id)}
+                    />
+                  ))
+                )}
+              </div>
             </section>
 
             {placeRows.length ? (
-              <section className="card area-card" aria-labelledby="places-card-title">
-                <header>
+              <section className="card" aria-labelledby="places-card-title">
+                <header className="card-head">
                   <h2 id="places-card-title">Your places</h2>
                   <span>within 1 mile</span>
                 </header>
                 {placeRows.map((row) => {
                   const near = nearPlace(row.spot).length;
                   return (
-                    <button key={row.key} type="button" className="area-row" onClick={() => showPlace(row.spot)}>
+                    <button key={row.key} type="button" className="place-link" onClick={() => showPlace(row.spot)}>
                       <span className="row-icon place-icon">
                         <PlaceIcon name={row.kind} />
                       </span>
@@ -687,61 +747,33 @@ export function MapApp() {
               </section>
             ) : null}
 
-            {rightsCardHidden ? null : (
-              <section className="card rights-card" aria-labelledby="rights-card-title">
-                <button
-                  type="button"
-                  className="icon-button rights-card-close"
-                  aria-label="Dismiss"
-                  onClick={() => setRightsCardHidden(true)}
-                >
-                  <CloseIcon />
+            <section className="card rights-card" aria-labelledby="rights-card-title">
+              <span className="rights-card-icon">
+                <ShieldIcon />
+              </span>
+              <div>
+                <h2 id="rights-card-title">Know your rights</h2>
+                <p>Find trusted information and legal support.</p>
+                <button type="button" className="link-button" onClick={() => setModal("rights")}>
+                  View resources
+                  <ArrowIcon />
                 </button>
-                <div className="rights-card-body">
-                  <h2 id="rights-card-title">Know Your Rights</h2>
-                  <p>
-                    You have rights regardless of your immigration status. Keep trusted legal help
-                    close.
-                  </p>
-                </div>
-                <span className="rights-card-photo">
-                  <Image src={rightsPhoto} alt="" fill sizes="10rem" className="rights-photo" />
-                </span>
-                <button
-                  type="button"
-                  className="rights-card-button"
-                  onClick={() => setModal("rights")}
-                >
-                  See legal resources
-                </button>
-              </section>
-            )}
+              </div>
+            </section>
 
-            <section className="card area-card" aria-labelledby="area-title">
-              <header>
+            <section className="card" aria-labelledby="area-title">
+              <header className="card-head">
                 <h2 id="area-title">This area</h2>
-                <span>
-                  {sightings.length} {sightings.length === 1 ? "sighting" : "sightings"}
-                </span>
+                <span>{reportCount(nearby.length)}</span>
               </header>
-              <button
-                type="button"
-                className="area-row"
-                onClick={() => showPoints(sightings)}
-                disabled={!sightings.length}
-              >
-                <span className={`row-icon status-${counts.verified ? "verified" : "unverified"}`}>
-                  <StatusIcon status={counts.verified ? "verified" : "unverified"} />
-                </span>
-                <span className="row-text">
-                  <span className="row-address">Show all on the map</span>
-                  <span className="row-meta">
-                    {counts.verified} verified · {counts.unverified} unverified · {counts.disputed}{" "}
-                    disputed
-                  </span>
-                </span>
-                <ChevronIcon direction="right" />
-              </button>
+              <ul className="area-stats">
+                {STATUSES.map((status) => (
+                  <li key={status}>
+                    <span className={`stat-dot status-text-${status}`} />
+                    <strong>{counts[status]}</strong> {STATUS_LABEL[status]}
+                  </li>
+                ))}
+              </ul>
             </section>
           </div>
         </div>
@@ -842,9 +874,40 @@ export function MapApp() {
           </div>
         ) : (
           <button type="button" className="report-button" onClick={startReport}>
-            REPORT
+            <PlusIcon />
+            Submit a report
           </button>
         )}
+
+        <div className="map-controls">
+          <button
+            type="button"
+            className="map-control"
+            aria-label="Show where I am"
+            aria-busy={me.status === "asking" || me.status === "finding"}
+            onClick={centerOnMe}
+          >
+            <LocateIcon />
+          </button>
+          <div className="map-control-group">
+            <button
+              type="button"
+              className="map-control"
+              aria-label="Zoom in"
+              onClick={() => mapApi.current?.zoomIn()}
+            >
+              <PlusIcon />
+            </button>
+            <button
+              type="button"
+              className="map-control"
+              aria-label="Zoom out"
+              onClick={() => mapApi.current?.zoomOut()}
+            >
+              <MinusIcon />
+            </button>
+          </div>
+        </div>
 
         <p className="notice" role="status" aria-live="polite">
           {notice || (me.status === "asking" ? LOCATION_ASK : "")}

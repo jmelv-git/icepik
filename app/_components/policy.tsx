@@ -1,6 +1,6 @@
 // Change the version whenever the text below changes: everyone is asked to
 // agree again. The accepted version is kept in localStorage only.
-export const POLICY_VERSION = "2026-10-30-draft";
+export const POLICY_VERSION = "2026-11-04-draft";
 
 // Plain-language terms and privacy notice, shown before anything else loads.
 // DRAFT: the team must review this text before launch.
@@ -44,9 +44,10 @@ export function PolicyText() {
           without the link, to measure how accurate reports are.
         </li>
         <li>
-          <strong>Your location is used only when you confirm or dispute a sighting</strong>, to
-          check you’re within 1 km. It isn’t stored. Home and work places stay on this
-          device.
+          <strong>Your location is used only when you ask for it.</strong> Showing where you are
+          on the map happens on this device and sends your location nowhere. Confirming or
+          disputing a sighting uses it to check you’re within 1 km. It isn’t stored. Home and
+          work places stay on this device.
         </li>
         <li>
           <strong>Your location on the map.</strong> When you open the map, ICEPik asks your

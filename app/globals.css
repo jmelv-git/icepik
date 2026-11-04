@@ -1,13 +1,18 @@
 @import "tailwindcss";
 
 :root {
-  --surface: #1d1f26;
+  --surface: #1a1e22;
+  --rail: #1c2029;
   --card: #333438;
-  --line: #2b2d34;
+  --line: #30343c;
+  --field: #242a31;
+  --field-line: #3e4448;
   --text: #ffffff;
   /* Secondary text. At least 4.5:1 on every surface it's used on: 6.8:1 on
      --surface, 5.1:1 on --card, 4.6:1 on a hovered card (#3a3b40). */
   --muted: #a3a6ae;
+  --subtle: #a9aebb;
+  --link: #5ba7ee;
   --red: #ff1d25;
   /* Behind small white text, where --red is too light (4.8:1 instead of 3.9:1). */
   --red-strong: #e3101b;
@@ -18,8 +23,8 @@
   --blue: #4f93c8;
   /* Behind white text on buttons, where --blue is too light (5.4:1 instead of 3.3:1). */
   --blue-strong: #2f6f9f;
-  --rail-width: 6.5rem;
-  --panel-width: min(26rem, calc(100vw - var(--rail-width) - 26rem));
+  --rail-width: 7.375rem;
+  --panel-width: min(26.75rem, calc(100vw - var(--rail-width) - 26rem));
   --font-sans: var(--font-outfit), "Glacial Indifference", Arial, sans-serif;
   --font-serif: "Cooper BT", Georgia, "Times New Roman", serif;
 }
@@ -65,14 +70,14 @@ button {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 1.25rem;
-  padding: 1.25rem 0.5rem;
-  background: var(--surface);
+  gap: 2rem;
+  padding: 1.75rem 0.5rem 2rem;
+  background: var(--rail);
   border-right: 0.0625rem solid var(--line);
 }
 
 .brand-logo {
-  width: 5.25rem;
+  width: 4.75rem;
   height: auto;
   flex: none;
 }
@@ -83,30 +88,28 @@ button {
   align-items: center;
   gap: 0.375rem;
   width: 100%;
-  padding: 0.25rem 0;
-  color: #d3d5da;
-  font-size: 0.8125rem;
-  line-height: 1.2;
+  color: #d6dbe7;
+  font-size: 0.9375rem;
+  line-height: 1.25;
   text-align: center;
 }
 
 .rail-reports {
-  padding-top: 1rem;
-  border-top: 0.0625rem solid var(--line);
+  margin-top: 1.25rem;
 }
 
 .rail-icon {
   display: grid;
   place-items: center;
-  width: 3.5rem;
-  height: 2rem;
-  border-radius: 62.4375rem;
+  width: 4.875rem;
+  height: 3.75rem;
+  border-radius: 0.75rem;
   transition: background 0.15s;
 }
 
 .rail-icon svg {
-  width: 1.5rem;
-  height: 1.5rem;
+  width: 1.75rem;
+  height: 1.75rem;
 }
 
 .rail-item:hover .rail-icon {
@@ -115,40 +118,29 @@ button {
 
 .rail-item[aria-expanded="true"] {
   color: #fff;
+  font-weight: 600;
 }
 
 .rail-item[aria-expanded="true"] .rail-icon {
-  background: rgb(79 147 200 / 0.3);
+  background: #39587b;
+  color: #7caee6;
+}
+
+.rail-item[aria-expanded="true"] .rail-icon svg {
+  width: 2rem;
+  height: 2rem;
 }
 
 .rail-settings {
   margin-top: auto;
 }
 
-.rail-thumb {
-  position: relative;
-  width: 3rem;
-  height: 3rem;
-  overflow: hidden;
-  border-radius: 0.875rem;
-  box-shadow: 0 0 0 0.125rem #393b42;
-}
-
-.rail-item:hover .rail-thumb {
-  box-shadow: 0 0 0 0.125rem #fff;
-}
-
-.rights-photo {
-  object-fit: cover;
-  object-position: 55% 25%;
-}
-
 /* Floating panel over the map: the search box, then cards that hide and show. */
 .panel {
   position: absolute;
-  top: 1rem;
-  bottom: 1rem;
-  left: 1rem;
+  top: 1.75rem;
+  bottom: 1.25rem;
+  left: 1.25rem;
   z-index: 1001;
   display: flex;
   flex-direction: column;
@@ -164,20 +156,34 @@ button {
 .card,
 .search {
   background: var(--surface);
-  box-shadow: 0 0.25rem 1rem rgb(0 0 0 / 0.3);
+  box-shadow: 0 0.25rem 1rem rgb(0 0 0 / 0.25);
 }
 
+/* The top of the first card. It stays on screen when the cards are hidden. */
 .search {
   position: relative;
   z-index: 2;
-  display: flex;
   flex: none;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0 0.5rem 0 1.5rem;
-  border-radius: 1.5rem 1.5rem 0 0;
-  border-bottom: 0.0625rem solid var(--line);
+  padding: 1.125rem 1.375rem;
+  border-radius: 1rem 1rem 0 0;
   transition: border-radius 0.2s;
+}
+
+.search-field {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  height: 3rem;
+  padding: 0 0.375rem;
+  border: 0.0625rem solid var(--field-line);
+  border-radius: 0.75rem;
+  background: var(--field);
+}
+
+.search-field:focus-within {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 0.0625rem var(--blue);
 }
 
 .search-icon {
@@ -188,7 +194,7 @@ button {
 .search input {
   flex: 1;
   min-width: 0;
-  height: 3.5rem;
+  height: 100%;
   background: transparent;
   color: var(--text);
   font-size: 1rem;
@@ -204,18 +210,12 @@ textarea::placeholder {
 }
 
 .search input::placeholder {
-  color: var(--muted);
+  color: var(--subtle);
 }
 
 /* Only some browsers draw a clear button in search inputs; we draw our own. */
 .search input::-webkit-search-cancel-button {
   -webkit-appearance: none;
-}
-
-.search:focus-within {
-  box-shadow:
-    0 0 0 0.125rem var(--blue),
-    0 0.25rem 1rem rgb(0 0 0 / 0.3);
 }
 
 .search-clear {
@@ -229,7 +229,7 @@ textarea::placeholder {
 
 .search-submit,
 .search-save {
-  color: #d3d5da;
+  color: #c4cad6;
 }
 
 .search-save svg {
@@ -248,8 +248,8 @@ textarea::placeholder {
   inset-inline: 0;
   z-index: 10;
   padding: 0.375rem;
-  border-radius: 1.125rem;
-  background: #26282f;
+  border-radius: 0.875rem;
+  background: var(--field);
   box-shadow: 0 1rem 2.5rem rgb(0 0 0 / 0.45);
 }
 
@@ -258,7 +258,7 @@ textarea::placeholder {
   display: block;
   width: 100%;
   padding: 0.625rem 0.75rem;
-  border-radius: 0.75rem;
+  border-radius: 0.625rem;
   text-align: left;
   font-size: 0.875rem;
   line-height: 1.35;
@@ -270,26 +270,6 @@ textarea::placeholder {
 
 .search-empty {
   color: var(--muted);
-}
-
-.panel-toggle {
-  position: absolute;
-  top: 4.5rem;
-  left: 100%;
-  display: grid;
-  place-items: center;
-  width: 1.5rem;
-  height: 3rem;
-  border-radius: 0 0.75rem 0.75rem 0;
-  background: var(--surface);
-  box-shadow: 0.25rem 0.25rem 0.75rem rgb(0 0 0 / 0.25);
-  color: #d3d5da;
-}
-
-.panel-toggle svg {
-  width: 1.125rem;
-  height: 1.125rem;
-  transition: transform 0.2s;
 }
 
 .panel-cards {
@@ -316,7 +296,46 @@ textarea::placeholder {
 
 .card {
   flex: none;
-  border-radius: 1.5rem;
+  overflow: hidden;
+  border-radius: 1rem;
+}
+
+.card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.25rem 1.375rem 0.5rem;
+}
+
+.card-head h2 {
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.card-head span {
+  color: var(--subtle);
+  font-size: 0.9375rem;
+}
+
+/* Joined to the search box above it, with a line between them. Not
+   clipped, so it can't shrink below what its list needs (see below). */
+.nearby-card {
+  display: flex;
+  flex: 0 1 auto;
+  flex-direction: column;
+  overflow: visible;
+  border-radius: 0 0 1rem 1rem;
+}
+
+.nearby-card::before {
+  content: "";
+  margin: 0 1.375rem;
+  border-top: 0.0625rem solid var(--line);
+}
+
+.nearby-card .card-head {
+  padding-top: 0.875rem;
 }
 
 .report-list {
@@ -325,11 +344,72 @@ textarea::placeholder {
   position: relative;
   flex: 0 1 auto;
   min-height: 7rem;
-  padding: 0.5rem 0;
+  padding: 0.25rem 0 0.75rem;
   overflow-y: auto;
-  border-radius: 0 0 1.5rem 1.5rem;
+  border-radius: 0 0 1rem 1rem;
   scrollbar-width: thin;
   scrollbar-color: #5a5c63 transparent;
+}
+
+.list-empty {
+  display: grid;
+  justify-items: center;
+  gap: 0.375rem;
+  padding: 1.25rem 1.375rem 1.5rem;
+  color: var(--subtle);
+  font-size: 1rem;
+  line-height: 1.4;
+  text-align: center;
+  text-wrap: balance;
+}
+
+.list-empty-icon {
+  display: grid;
+  place-items: center;
+  width: 4.5rem;
+  height: 4.5rem;
+  margin-bottom: 0.625rem;
+  border: 0.0625rem dashed #4a515c;
+  border-radius: 50%;
+  color: #c4d1e5;
+}
+
+.list-empty-icon svg {
+  width: 2rem;
+  height: 2rem;
+}
+
+.list-empty-title {
+  color: var(--text);
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.list-empty p:not(.list-empty-title) {
+  max-width: 16rem;
+}
+
+.list-empty .link-button {
+  margin-top: 0.5rem;
+}
+
+.link-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--link);
+  font-size: 1.0625rem;
+  font-weight: 600;
+}
+
+.link-button .arrow {
+  width: 1.25rem;
+  height: 1.25rem;
+  transition: transform 0.15s;
+}
+
+.link-button:hover .arrow {
+  transform: translateX(0.1875rem);
 }
 
 /* With three or more sightings, keep two rows and the top of a third in
@@ -338,20 +418,25 @@ textarea::placeholder {
   min-height: 14rem;
 }
 
+/* The empty message is short: show all of it and let the panel scroll. */
+.report-list:has(> .list-empty) {
+  flex: none;
+}
+
 .report-row,
-.area-row {
+.place-link {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 1rem;
   width: 100%;
-  padding: 0.875rem 1.25rem 0.875rem 1.5rem;
+  padding: 0.875rem 1.375rem;
   text-align: left;
   transition: background 0.15s;
 }
 
 .report-row:hover,
-.area-row:hover {
+.place-link:hover {
   background: rgb(255 255 255 / 0.05);
 }
 
@@ -401,89 +486,86 @@ textarea::placeholder {
   font-size: 0.8125rem;
 }
 
-.rights-card {
-  position: relative;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 8rem;
-  gap: 1rem;
-  padding: 1.25rem 1.5rem 1.5rem;
+.place-link:last-child {
+  padding-bottom: 1.125rem;
 }
 
-.rights-card-close {
-  position: absolute;
-  top: 0.625rem;
-  right: 0.625rem;
-  z-index: 1;
-  color: #d3d5da;
-}
-
-.rights-card-close svg {
-  width: 1.125rem;
-  height: 1.125rem;
-}
-
-.rights-card h2 {
-  font-family: var(--font-serif);
-  font-size: 1.375rem;
-  line-height: 1.2;
-}
-
-.rights-card p {
-  margin-top: 0.5rem;
-  color: #b5b8bf;
-  font-size: 0.875rem;
-  line-height: 1.45;
-}
-
-.rights-card-photo {
-  position: relative;
-  align-self: start;
-  height: 6rem;
-  margin-top: 1.75rem;
-  overflow: hidden;
-  border-radius: 1rem;
-}
-
-.rights-card-button {
-  grid-column: 1 / -1;
-  justify-self: start;
-  padding: 0.75rem 1.5rem;
-  border-radius: 62.4375rem;
-  background: var(--blue-strong);
-  font-size: 0.9375rem;
-  font-weight: 600;
-}
-
-.rights-card-button:hover {
-  background: #255a82;
-}
-
-.area-card header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 1rem 1.5rem 0.25rem;
-}
-
-.area-card h2 {
-  font-size: 1.125rem;
-  font-weight: 700;
-}
-
-.area-card header span {
-  color: var(--muted);
-  font-size: 0.875rem;
-}
-
-.area-row {
-  padding-bottom: 1rem;
-  border-radius: 0 0 1.5rem 1.5rem;
-}
-
-.area-row .chevron {
+.place-link .chevron {
   width: 1.25rem;
   height: 1.25rem;
   color: var(--muted);
+}
+
+.rights-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 1.375rem;
+  padding: 1.5rem 1.375rem;
+}
+
+.rights-card-icon {
+  display: grid;
+  place-items: center;
+  width: 5.875rem;
+  height: 5.875rem;
+  border-radius: 0.75rem;
+  background: #243548;
+  color: #7fb6ee;
+}
+
+.rights-card-icon svg {
+  width: 2.5rem;
+  height: 2.5rem;
+}
+
+.rights-card h2 {
+  font-size: 1.3125rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.rights-card p {
+  max-width: 13rem;
+  margin: 0.25rem 0 0.5rem;
+  color: #b4bac7;
+  font-size: 1.0625rem;
+  line-height: 1.4;
+}
+
+/* Verified, unverified and disputed counts, side by side. */
+.area-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  padding: 0.75rem 0 1.375rem;
+}
+
+.area-stats li {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.125rem;
+  color: #d3d7e6;
+  font-size: 1.0625rem;
+}
+
+.area-stats li + li {
+  border-left: 0.0625rem solid #4a4f57;
+}
+
+.area-stats strong {
+  color: var(--text);
+  font-size: 1.625rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.stat-dot {
+  width: 0.6875rem;
+  height: 0.6875rem;
+  margin-bottom: 0.375rem;
+  border-radius: 50%;
+  background: currentColor;
 }
 
 /* Panel hidden: the user closed it, or (on phones) hasn't opened it yet. */
@@ -494,17 +576,7 @@ textarea::placeholder {
 }
 
 .app[data-panel="closed"] .search {
-  border-radius: 1.5rem;
-  border-bottom-color: transparent;
-}
-
-.app[data-panel="closed"] .panel-toggle {
-  top: 4.25rem;
-  left: -1rem;
-}
-
-.app[data-panel="closed"] .panel-toggle svg {
-  transform: rotate(180deg);
+  border-radius: 1rem;
 }
 
 .map-shell {
@@ -523,51 +595,62 @@ textarea::placeholder {
   background: #fafaf8;
 }
 
-.leaflet-bar {
-  border: 0 !important;
-  border-radius: 0.875rem !important;
+/* Find me and zoom, above the report button. */
+.map-controls {
+  position: absolute;
+  right: 1.5rem;
+  bottom: 7.625rem;
+  /* Under the detail card where the two meet on short screens. */
+  z-index: 999;
+  display: grid;
+  gap: 0.375rem;
+}
+
+.map-control-group {
+  display: grid;
   overflow: hidden;
-  box-shadow: 0 0.375rem 1.125rem rgb(0 0 0 / 0.2) !important;
+  border-radius: 0.625rem;
+  box-shadow: 0 0.25rem 0.75rem rgb(0 0 0 / 0.25);
 }
 
-.leaflet-bar a {
-  width: 2.25rem !important;
-  height: 2.25rem !important;
-  line-height: 2.25rem !important;
-  border-color: #3a3c43 !important;
-  background: var(--surface) !important;
-  color: #fff !important;
-}
-
-/* Zoom buttons sit above the REPORT button. */
-.leaflet-bottom.leaflet-right .leaflet-control-zoom {
-  margin: 0 2.75rem 8.5rem 0;
-}
-
-/* The re-center button, just above the zoom buttons and drawn like them. */
-.leaflet-bottom.leaflet-right .locate-control {
-  margin: 0 2.75rem 0.5rem 0;
-}
-
-.locate-button {
+.map-control {
   display: grid;
   place-items: center;
-  width: 2.25rem;
-  height: 2.25rem;
+  width: 2.875rem;
+  height: 2.75rem;
   background: var(--surface);
   color: #fff;
-  cursor: pointer;
+  transition: background 0.15s;
 }
 
-.locate-button svg {
-  width: 1.25rem;
-  height: 1.25rem;
+.map-controls > .map-control {
+  height: 2.875rem;
+  border-radius: 0.625rem;
+  box-shadow: 0 0.25rem 0.75rem rgb(0 0 0 / 0.25);
 }
 
-/* Inside the bar: an outline would be cut off by its rounded corners. */
-.locate-button:focus-visible {
-  outline: none;
-  box-shadow: inset 0 0 0 0.1875rem var(--blue);
+.map-control + .map-control {
+  border-top: 0.0625rem solid var(--line);
+}
+
+.map-control:hover {
+  background: #262b31;
+}
+
+.map-control:disabled {
+  cursor: progress;
+  opacity: 0.7;
+}
+
+.map-control svg {
+  width: 1.375rem;
+  height: 1.375rem;
+}
+
+/* Inside the group, an outline would be cut off by its rounded corners:
+   draw the focus ring inside the button instead. */
+.map-control-group .map-control:focus-visible {
+  outline-offset: -0.1875rem;
 }
 
 /* Places saved on this device: home, work and named places. */
@@ -728,24 +811,32 @@ textarea::placeholder {
 
 .report-button {
   position: absolute;
-  right: 2.75rem;
-  bottom: 1.75rem;
+  right: 1.5rem;
+  bottom: 2.25rem;
   z-index: 1000;
-  min-width: 11.75rem;
-  height: 5.25rem;
-  padding: 0 1.75rem;
-  border: 0.4375rem solid #fff;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  height: 3.75rem;
+  padding: 0 1.5rem 0 1.25rem;
   border-radius: 62.4375rem;
-  background: var(--red);
+  background: #f0313d;
   color: #fff;
-  font-size: 2.125rem;
-  font-weight: 700;
-  letter-spacing: 0.01em;
-  box-shadow: 0 0.625rem 1.5rem rgb(0 0 0 / 0.25);
-  transition: transform 0.1s;
+  font-size: 1.3125rem;
+  font-weight: 600;
+  box-shadow: 0 0.5rem 1.25rem rgb(0 0 0 / 0.25);
+  transition:
+    transform 0.1s,
+    background 0.15s;
+}
+
+.report-button svg {
+  width: 1.625rem;
+  height: 1.625rem;
 }
 
 .report-button:hover {
+  background: #e0222f;
   transform: translateY(-0.0625rem);
 }
 
@@ -839,17 +930,6 @@ textarea::placeholder {
 
 .status-text-disputed {
   color: #b5b8bf;
-}
-
-.list-message {
-  padding: 0.75rem 1.5rem;
-  color: var(--muted);
-  font-size: 0.875rem;
-}
-
-.area-row:disabled {
-  cursor: default;
-  opacity: 0.6;
 }
 
 .row-icon.place-icon {
@@ -1673,7 +1753,7 @@ textarea::placeholder {
     font-size: 16px;
     /* The map credits get their own row at the bottom, and everything else
        at the bottom sits above it. One line fits from 320px wide; on
-       narrower phones the second line still ends below the REPORT button. */
+       narrower phones the second line still ends below the report button. */
     --map-credits: 1.125rem;
   }
 
@@ -1685,35 +1765,52 @@ textarea::placeholder {
 
   .rail {
     flex-direction: row;
-    gap: 0.5rem;
+    gap: 0.25rem;
     padding: 0.5rem 0.75rem;
     border-right: 0;
     border-bottom: 0.0625rem solid var(--line);
   }
 
   .brand-logo {
-    width: 4rem;
+    width: 3.5rem;
     margin-right: auto;
   }
 
   .rail-item {
+    gap: 0.25rem;
     width: 5.5rem;
     font-size: 0.75rem;
   }
 
-  .rail-reports {
-    padding-top: 0.25rem;
-    border-top: 0;
-  }
-
+  .rail-reports,
   .rail-settings {
     margin-top: 0;
   }
 
-  .rail-thumb {
-    width: 2rem;
+  .rail-icon {
+    width: 3.25rem;
     height: 2rem;
-    border-radius: 0.5rem;
+    border-radius: 0.625rem;
+  }
+
+  .rail-icon svg,
+  .rail-item[aria-expanded="true"] .rail-icon svg {
+    width: 1.375rem;
+    height: 1.375rem;
+  }
+
+  /* On phones the cards start hidden, so Reports starts unselected. */
+  .app[data-panel="auto"] .rail-reports {
+    color: #d6dbe7;
+    font-weight: 400;
+  }
+
+  .app[data-panel="auto"] .rail-reports .rail-icon {
+    color: inherit;
+  }
+
+  .app[data-panel="auto"] .rail-reports:not(:hover) .rail-icon {
+    background: transparent;
   }
 
   .map-shell {
@@ -1729,8 +1826,8 @@ textarea::placeholder {
     width: auto;
   }
 
-  .panel-toggle {
-    display: none;
+  .search {
+    padding: 0.5rem;
   }
 
   .app[data-panel="auto"] .panel-cards {
@@ -1740,8 +1837,11 @@ textarea::placeholder {
   }
 
   .app[data-panel="auto"] .search {
-    border-radius: 1.5rem;
-    border-bottom-color: transparent;
+    border-radius: 1rem;
+  }
+
+  .nearby-card::before {
+    margin: 0 0.5rem;
   }
 
   /* Know Your Rights has its own button in the top bar, so on phones its
@@ -1751,7 +1851,7 @@ textarea::placeholder {
   }
 
   .detail-card {
-    top: 5rem;
+    top: 5.25rem;
     right: 0.75rem;
     left: auto;
     width: min(26rem, calc(100% - 1.5rem));
@@ -1762,19 +1862,25 @@ textarea::placeholder {
   .report-button {
     right: 1rem;
     bottom: calc(1rem + var(--map-credits));
-    min-width: 0;
-    height: 4rem;
-    padding: 0 1.625rem;
-    border-width: 0.3125rem;
-    font-size: 1.5rem;
+    gap: 0.5rem;
+    height: 3.5rem;
+    padding: 0 1.25rem 0 1rem;
+    font-size: 1.125rem;
   }
 
-  .leaflet-bottom.leaflet-right .leaflet-control-zoom {
-    margin: 0 1rem calc(7rem + var(--map-credits)) 0;
+  .report-button svg {
+    width: 1.375rem;
+    height: 1.375rem;
   }
 
-  .leaflet-bottom.leaflet-right .locate-control {
-    margin: 0 1rem 0.5rem 0;
+  .map-controls {
+    right: 1rem;
+    bottom: calc(5.5rem + var(--map-credits));
+  }
+
+  /* The banner spans the screen; pinch to zoom instead. */
+  .pick-banner ~ .map-controls {
+    display: none;
   }
 
   .leaflet-bottom.leaflet-right {
@@ -1845,10 +1951,11 @@ textarea::placeholder {
   }
 
   /* A faint edge, so the dark buttons don't melt into the dark map. */
-  .leaflet-container .leaflet-bar {
+  .map-control-group,
+  .map-controls > .map-control {
     box-shadow:
       0 0 0 0.0625rem rgb(255 255 255 / 0.25),
-      0 0.375rem 1.125rem rgb(0 0 0 / 0.5) !important;
+      0 0.25rem 0.75rem rgb(0 0 0 / 0.5);
   }
 
   .leaflet-container .leaflet-control-attribution {

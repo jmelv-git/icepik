@@ -7,7 +7,6 @@ import { type Sighting } from "@/lib/sightings";
 import type { MyPosition } from "@/lib/use-my-position";
 import {
   DRAFT_PIN_MARKUP,
-  LOCATE_ICON,
   MY_LOCATION_MARKUP,
   clusterMarkup,
   clusterSightings,
@@ -32,6 +31,7 @@ export type Point = { lat: number; lng: number };
 // A place saved on this device, as drawn on the map. "pending" is one being
 // named, not saved yet.
 export type MapPlace = Point & { key: string; kind: SavedPlaceKind; label: string; pending?: boolean };
+export type Bounds = { south: number; west: number; north: number; east: number };
 export type Padding = {
   paddingTopLeft: [number, number];
   paddingBottomRight: [number, number];
@@ -46,6 +46,8 @@ export type MapApi = {
   center(): Point | null;
   // Whether the person has dragged the map since it loaded.
   moved(): boolean;
+  zoomIn(): void;
+  zoomOut(): void;
 };
 
 type Props = {
@@ -59,8 +61,8 @@ type Props = {
   onPlace: (point: Point) => void;
   searchResult: (Point & { label: string }) | null;
   myPosition: MyPosition | null;
-  onLocate: () => void;
   savedPlaces: MapPlace[];
+  onViewChange: (bounds: Bounds) => void;
 };
 
 export function SightingsMap({
@@ -74,8 +76,8 @@ export function SightingsMap({
   onPlace,
   searchResult,
   myPosition,
-  onLocate,
   savedPlaces,
+  onViewChange,
 }: Props) {
   const node = useRef<HTMLDivElement>(null);
   const leaflet = useRef<typeof Leaflet | null>(null);
@@ -91,9 +93,9 @@ export function SightingsMap({
   const [zoom, setZoom] = useState(13);
 
   // Leaflet handlers are attached once; they call the latest props.
-  const latest = useRef({ onSelect, onSelectGroup, onPlace, placing, onLocate });
+  const latest = useRef({ onSelect, onSelectGroup, onPlace, placing, onViewChange });
   useEffect(() => {
-    latest.current = { onSelect, onSelectGroup, onPlace, placing, onLocate };
+    latest.current = { onSelect, onSelectGroup, onPlace, placing, onViewChange };
   });
 
   useImperativeHandle(
@@ -129,6 +131,12 @@ export function SightingsMap({
       moved() {
         return dragged.current;
       },
+      zoomIn() {
+        map.current?.zoomIn();
+      },
+      zoomOut() {
+        map.current?.zoomOut();
+      },
     }),
     [],
   );
@@ -148,26 +156,6 @@ export function SightingsMap({
         maxZoom: MAX_ZOOM,
         zoomControl: false,
       });
-
-      L.control.zoom({ position: "bottomright" }).addTo(instance);
-
-      // The re-center button, stacked above the zoom buttons. A real button,
-      // so it's a Tab stop and screen readers name it.
-      const Locate = L.Control.extend({
-        onAdd() {
-          const bar = L.DomUtil.create("div", "leaflet-bar locate-control");
-          const button = L.DomUtil.create("button", "locate-button", bar);
-          button.type = "button";
-          button.title = "Center the map on my location";
-          button.setAttribute("aria-label", "Center the map on my location");
-          button.innerHTML = LOCATE_ICON;
-          // Not a tap on the map: don't place a pin under it.
-          L.DomEvent.disableClickPropagation(bar);
-          L.DomEvent.on(button, "click", () => latest.current.onLocate());
-          return bar;
-        },
-      });
-      new Locate({ position: "bottomright" }).addTo(instance);
 
       // CARTO's Positron style, or its Dark Matter style when the device is
       // set to dark, with their attribution visible. Both come from the same
@@ -191,10 +179,22 @@ export function SightingsMap({
       darkScheme.addEventListener("change", showTiles);
       stopFollowingScheme = () => darkScheme.removeEventListener("change", showTiles);
 
+      const reportView = () => {
+        const bounds = instance.getBounds();
+        latest.current.onViewChange({
+          south: bounds.getSouth(),
+          west: bounds.getWest(),
+          north: bounds.getNorth(),
+          east: bounds.getEast(),
+        });
+      };
+
       instance.on("zoomend", () => setZoom(instance.getZoom()));
       instance.on("dragstart", () => {
         dragged.current = true;
       });
+      // Also fires after zooms and resizes.
+      instance.on("moveend", reportView);
       instance.on("click", (event) => {
         if (latest.current.placing) {
           latest.current.onPlace({ lat: event.latlng.lat, lng: event.latlng.lng });
@@ -214,6 +214,7 @@ export function SightingsMap({
       // Saved places: on the map, under everything else drawn on it.
       instance.createPane("saved").style.zIndex = "540";
       placeMarkers.current = L.layerGroup().addTo(instance);
+      reportView();
       setReady(true);
     });
 

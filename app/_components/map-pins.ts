@@ -84,13 +84,6 @@ export function savedPlaceElement(kind: SavedPlaceKind, label: string, pending =
   return element;
 }
 
-// The re-center button's icon: a target.
-export const LOCATE_ICON = `<svg viewBox="0 0 24 24" aria-hidden="true">
-  <circle cx="12" cy="12" r="6.5" fill="none" stroke="currentColor" stroke-width="2"/>
-  <circle cx="12" cy="12" r="2.5" fill="currentColor"/>
-  <path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-</svg>`;
-
 // The same magnifier as the search button, drawn a little bolder for its size.
 const MAGNIFIER = `<svg viewBox="0 0 24 24" aria-hidden="true">
   <circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="3"/>
