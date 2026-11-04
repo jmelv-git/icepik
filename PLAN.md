@@ -341,3 +341,24 @@ Set `MOCK_COUNT=10` to add a second Market Street sighting at almost the same sp
   build on port 3000 against the pre-change build (dd9c4d8) on port 3001, including every pin and
   cluster type in light and dark and the map credit at phone widths; their scripts and screenshots go
   to `<scratchpad>/ux9/review/`.
+
+## Merge with nthanvii's restyle (PR #8 on nthanvii/icepik)
+
+- nthanvii merged a restyle of the UI around the map (new rail, "Nearby reports" panel, Know Your
+  Rights card, search box, "Submit a report" button, their own find-me and zoom buttons). Merged into
+  this branch, taking their design and moving this branch's work into it: their find-me button
+  ("Show where I am") runs `centerOnMe` (blue dot, remembered answer, centering in the free part of
+  the map); their zoom buttons replace Leaflet's and my re-center control; custom places appear in
+  their "Your places" card; the save star sits in their search box; `phonePadding` avoids
+  `.map-controls`.
+- Colour and focus checks on the merged UI (`<scratchpad>/ux9/contrast-audit.js`, `focus-check.js`;
+  phone and desktop, light and dark; terms, panel, card, search, Settings, Know Your Rights, pick
+  banner, report form): one failure, "Submit a report" white on #f0313d at 4.0:1, fixed with
+  --red-strong (4.8:1); focus rings on report rows and "Your places" rows were clipped, now drawn
+  inside the row; their zoom group clipped its focus ring, now inset. After the fixes: 0 contrast
+  failures in 1066 text and icon instances. Location (granted, denied, unavailable), saved places, the
+  dark map and P1 re-verified on the merged build.
+- OPEN, needs the user: the terms now hold nthanvii's "Your location is used only when you ask for
+  it" and this branch's paragraph saying the map asks when it opens (change 1). They contradict each
+  other. Rewording nthanvii's bullet or bumping `POLICY_VERSION` again is beyond the one paragraph
+  change 2 allows, so it waits for the user's decision.
