@@ -7,9 +7,9 @@ difference under "Notes from session 2" at the end.
 
 ## Checklist
 
-- [ ] 2. Terms and Privacy paragraph about location (policy.tsx, one paragraph only)
-- [ ] 8. Agree button disabled until the terms are read to the end
-- [ ] 7. Sticky Back button on the Terms and Privacy card in Settings
+- [x] 2. Terms and Privacy paragraph about location (policy.tsx, one paragraph only)
+- [x] 8. Agree button disabled until the terms are read to the end
+- [x] 7. Sticky Back button on the Terms and Privacy card in Settings
 - [ ] 1. Location access at the start, with the answer remembered on the device
 - [ ] 3. Blue dot at the user's position
 - [ ] 4. Re-center button
@@ -293,4 +293,14 @@ Set `MOCK_COUNT=10` to add a second Market Street sighting at almost the same sp
 
 ## Notes from session 2
 
-(None yet.)
+- Session 2 scripts and screenshots: `<scratchpad>/ux9/` (`lib.js` has the shared Playwright helpers,
+  `check-*.js` one script per group of changes, `shots/` the screenshots).
+- Change 8: the IntersectionObserver's root is the terms box itself, not the page, so "fits without
+  scrolling" means the text fits in its box. Verified at 375x667, 320x568, 1280x800 (disabled first,
+  Tab reaches it in 2 presses, the accessibility tree reports disabled with the note as its
+  description, an early click does nothing, End in the box enables it) and at 1280x2600 (enabled from
+  the start).
+- Change 7: the bar sticks with `bottom: -1.75rem` (Chrome sticks to the scrollport edge, ignoring the
+  dialog's padding). Verified at 375x667 and 1280x800: the Back button is the topmost element at its
+  centre at top, middle and bottom scroll, the last line ends above the bar, and Back returns to
+  Settings.

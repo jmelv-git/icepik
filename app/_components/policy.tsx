@@ -49,6 +49,13 @@ export function PolicyText() {
           device.
         </li>
         <li>
+          <strong>Your location on the map.</strong> When you open the map, ICEPik asks your
+          browser for your location, to show where you are with a blue dot and to center the map
+          there. You can say no and the map still works. Your position stays on this device: it
+          isn’t sent to ICEPik or anyone else, and it isn’t stored. Places you save and name stay
+          on this device too.
+        </li>
+        <li>
           <strong>What our providers see.</strong> Supabase (our database) and Vercel (our
           website host) see your IP address when you connect. Supabase keeps request logs with
           your IP address and a rough location worked out from it for about a day, and backups

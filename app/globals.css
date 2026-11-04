@@ -898,6 +898,18 @@ button {
   gap: 0.5rem;
 }
 
+/* Pinned to the bottom of a scrolling dialog. It reaches the dialog's edges
+   and covers its bottom padding, so text scrolls out of sight behind it. */
+.sticky-actions {
+  position: sticky;
+  bottom: -1.75rem;
+  z-index: 1;
+  margin: 0 -1.75rem -1.75rem;
+  padding: 0.875rem 1.75rem 1.75rem;
+  border-top: 0.0625rem solid var(--line);
+  background: var(--surface);
+}
+
 .warning-list {
   display: grid;
   gap: 0.375rem;
@@ -1385,9 +1397,35 @@ button {
   background: var(--surface);
 }
 
+/* Marks the end of the terms: "I agree" works once it has been seen. */
+.consent-text-end {
+  display: block;
+  height: 1px;
+}
+
+.consent-actions {
+  display: grid;
+  gap: 0.625rem;
+}
+
 .consent-agree {
   padding: 0.875rem;
   font-size: 1.0625rem;
+}
+
+/* Not "disabled", so it stays a Tab stop and screen readers can read why. */
+.primary-button[aria-disabled="true"],
+.primary-button[aria-disabled="true"]:hover {
+  background: var(--blue-strong);
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.consent-why {
+  color: #c6c8ce;
+  font-size: 0.875rem;
+  line-height: 1.4;
+  text-align: center;
 }
 
 .policy h3 {

@@ -64,7 +64,8 @@ export function SettingsDialog(props: Props) {
       {view === "policy" ? (
         <>
           <PolicyText />
-          <div className="form-actions">
+          {/* Stays in view while the terms scroll, so you can go back from anywhere. */}
+          <div className="form-actions sticky-actions">
             <button type="button" className="secondary-button" onClick={back}>
               Back
             </button>
