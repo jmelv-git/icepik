@@ -336,3 +336,8 @@ Set `MOCK_COUNT=10` to add a second Market Street sighting at almost the same sp
   map credit visible and dark (text 9.7:1, links 8.7:1), searched label light (text 14.8:1, pointer
   13.6:1 on dark tiles); switching to light and back live leaves one tile layer showing the right style,
   with no reload and no page errors.
+- Regression pass, part 1 (commit eaa331e): `npx tsc --noEmit` exit 0, `npx eslint` exit 0,
+  `npx next build` exit 0. Part 2: four independent reviewers (one per group of changes) test the
+  build on port 3000 against the pre-change build (dd9c4d8) on port 3001, including every pin and
+  cluster type in light and dark and the map credit at phone widths; their scripts and screenshots go
+  to `<scratchpad>/ux9/review/`.
