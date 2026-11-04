@@ -168,32 +168,50 @@ export function SightingsMap({
       // accepted. A pinch can briefly go past the deepest zoom before it
       // springs back: enlarge the deepest tiles then, instead of asking for
       // ones CARTO refuses.
+      const tileOptions = { apikey: CARTO_KEY, maxNativeZoom: MAX_ZOOM };
+      // Dark Matter draws street and place names dim grey on near-black, too
+      // faint to read. So in dark the names come from their own tiles, in a
+      // pane above the map (below every pin), where CSS lightens them.
+      const labels = instance.createPane("labels");
+      labels.style.zIndex = "450";
+      labels.style.pointerEvents = "none";
+      const styleLayers = (dark: boolean) =>
+        dark
+          ? [
+              L.tileLayer.provider("CartoDB.DarkMatterNoLabels", tileOptions),
+              L.tileLayer.provider("CartoDB.DarkMatterOnlyLabels", {
+                ...tileOptions,
+                pane: "labels",
+                className: "map-labels",
+              }),
+            ]
+          : [L.tileLayer.provider("CartoDB.Positron", tileOptions)];
+
       // Switching live keeps the style on screen under the new one until the
       // new one has loaded, so the map doesn't flash empty. A switch that
       // hasn't finished loading is dropped by the next one.
-      let shown: Leaflet.TileLayer | null = null;
-      let shownStyle = "";
-      let pending: Leaflet.TileLayer | null = null;
+      let shown: Leaflet.TileLayer[] = [];
+      let shownDark: boolean | null = null;
+      let pending: Leaflet.TileLayer[] = [];
       const showTiles = () => {
-        const style = darkScheme.matches ? "CartoDB.DarkMatter" : "CartoDB.Positron";
-        pending?.remove();
-        pending = null;
-        if (style === shownStyle) return;
-        const next = L.tileLayer
-          .provider(style, { apikey: CARTO_KEY, maxNativeZoom: MAX_ZOOM })
-          .addTo(instance);
-        if (!shown) {
+        const dark = darkScheme.matches;
+        pending.forEach((layer) => layer.remove());
+        pending = [];
+        if (dark === shownDark) return;
+        const next = styleLayers(dark);
+        next.forEach((layer) => layer.addTo(instance));
+        if (shownDark === null) {
           shown = next;
-          shownStyle = style;
+          shownDark = dark;
           return;
         }
         pending = next;
-        next.once("load", () => {
+        next[0].once("load", () => {
           if (pending !== next) return;
-          shown?.remove();
+          shown.forEach((layer) => layer.remove());
           shown = next;
-          shownStyle = style;
-          pending = null;
+          shownDark = dark;
+          pending = [];
         });
       };
       showTiles();
