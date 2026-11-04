@@ -2,7 +2,7 @@
 
 import type { User } from "@supabase/supabase-js";
 import Image from "next/image";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useEffectEvent, useRef, useState } from "react";
 import logo from "../../public/brand/icepik-logo.png";
 import rightsPhoto from "../../public/brand/know-your-rights.jpg";
 import { savePlace, useSavedPlaces, type PlaceName } from "@/lib/device-storage";
@@ -50,6 +50,43 @@ function isPhone() {
   return window.matchMedia(PHONE_QUERY).matches;
 }
 
+// On phones the detail card spans the top of the map. A point is shown in
+// the clear space below the card, or beside it on a phone on its side, away
+// from the REPORT and zoom buttons and above the map credits. Pins are drawn
+// above their point, so this leaves room for one: 88px above the point and
+// 32px on either side.
+function phonePadding(shell: DOMRect, card: DOMRect | undefined): Padding {
+  if (!card) return { paddingTopLeft: [24, 96 + 88], paddingBottomRight: [24, 96] };
+
+  const box = (selector: string) => document.querySelector(selector)?.getBoundingClientRect();
+  const credits = box(".leaflet-control-attribution");
+  const report = box(".report-button");
+  const zoom = box(".leaflet-control-zoom");
+  const aboveCredits = (credits ? shell.bottom - credits.top : 0) + 8;
+
+  // On its side, the card leaves the left of the map free.
+  if (card.left - shell.left > 120) {
+    return {
+      paddingTopLeft: [24, 96 + 88],
+      paddingBottomRight: [shell.right - card.left + 32, aboveCredits],
+    };
+  }
+
+  const top = card.bottom - shell.top + 88;
+  // Across the map above the REPORT button when there's room for it...
+  if (report && report.top - shell.top - 8 >= top) {
+    return {
+      paddingTopLeft: [24, top],
+      paddingBottomRight: [zoom ? shell.right - zoom.left + 32 : 24, shell.bottom - report.top + 8],
+    };
+  }
+  // ...or else beside the button, down to the credits.
+  return {
+    paddingTopLeft: [24, top],
+    paddingBottomRight: [report ? shell.right - report.left + 32 : 24, aboveCredits],
+  };
+}
+
 export function MapApp() {
   const [supabase] = useState<Client | null>(() =>
     isSupabaseConfigured ? createClient() : null,
@@ -62,6 +99,9 @@ export function MapApp() {
   const mapApi = useRef<MapApi>(null);
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Counts the times a sighting was chosen, so even choosing the same one
+  // again brings its pin back into view.
+  const [revealCount, setRevealCount] = useState(0);
   const [groupIds, setGroupIds] = useState<string[] | null>(null);
   const [modal, setModal] = useState<"rights" | "settings" | null>(null);
   const [picking, setPicking] = useState<Picking>(null);
@@ -140,6 +180,16 @@ export function MapApp() {
   const group = groupIds ? sightings.filter((s) => groupIds.includes(s.id)) : [];
   const panelState = panelOpen === null ? "auto" : panelOpen ? "open" : "closed";
 
+  // Move a chosen sighting's pin out from under its card. This waits until
+  // the card has rendered, because the card's size decides where the pin
+  // can show.
+  const revealSelected = useEffectEvent(() => {
+    if (selected) mapApi.current?.showPoint(selected, mapPadding());
+  });
+  useEffect(() => {
+    if (revealCount) revealSelected();
+  }, [revealCount]);
+
   function togglePanel() {
     const opening = !(panelOpen ?? !isPhone());
     // Hidden cards keep their scroll position. Start from the top, so the
@@ -156,12 +206,7 @@ export function MapApp() {
     const detail = document.querySelector(".detail-card")?.getBoundingClientRect();
     if (!shell) return { paddingTopLeft: [48, 96], paddingBottomRight: [48, 48] };
 
-    // On phones the detail card spans the top of the map.
-    if (isPhone()) {
-      const top = detail ? detail.bottom - shell.top : 96;
-      // Leave room for the pin, which is drawn above its point.
-      return { paddingTopLeft: [24, top + 88], paddingBottomRight: [24, 96] };
-    }
+    if (isPhone()) return phonePadding(shell, detail);
 
     const left =
       panel && getComputedStyle(panel).visibility !== "hidden"
@@ -171,13 +216,17 @@ export function MapApp() {
     return { paddingTopLeft: [left + 48, 96], paddingBottomRight: [right + 48, 48] };
   }
 
-  function showSighting(id: string) {
-    const sighting = sightings.find((s) => s.id === id);
+  // Open a sighting's card and bring its pin into view.
+  function selectSighting(id: string) {
     setSelectedId(id);
     setGroupIds(null);
+    setRevealCount((count) => count + 1);
+  }
+
+  function showSighting(id: string) {
+    selectSighting(id);
     // On phones the panel covers the map, so get it out of the way.
     if (isPhone()) setPanelOpen(false);
-    if (sighting) mapApi.current?.showPoint(sighting, mapPadding());
   }
 
   function showPoints(points: Point[]) {
@@ -243,7 +292,7 @@ export function MapApp() {
     upsert(sighting);
     activity.addPost(sighting.id);
     cancelReport();
-    setSelectedId(sighting.id);
+    selectSighting(sighting.id);
     showNotice("Sighting posted. Everyone can see it now.");
   }
 
@@ -311,7 +360,10 @@ export function MapApp() {
 
   function onSearchKeyDown(event: React.KeyboardEvent) {
     if (event.key !== "Escape" || !resultsOpen) return;
-    // Don't also cancel whatever the window's Escape handler would.
+    // Only close the results. Browsers would also empty the search box,
+    // which ends the search and takes the searched place off the map, and
+    // the window's Escape handler would cancel something else.
+    event.preventDefault();
     event.stopPropagation();
     closeResults();
   }
@@ -388,10 +440,7 @@ export function MapApp() {
           ref={mapApi}
           sightings={sightings}
           selectedId={selectedId}
-          onSelect={(id) => {
-            setSelectedId(id);
-            setGroupIds(null);
-          }}
+          onSelect={selectSighting}
           onSelectGroup={(ids) => {
             setSelectedId(null);
             setGroupIds(ids);

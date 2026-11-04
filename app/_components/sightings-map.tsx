@@ -19,6 +19,10 @@ import {
 // every tile reads "API KEY REQUIRED".
 const CARTO_KEY = (process.env.NEXT_PUBLIC_CARTO_KEY ?? "").trim();
 
+// CARTO serves map images up to zoom 18 and refuses deeper ones, which
+// would leave the map blank.
+const MAX_ZOOM = 18;
+
 export type Point = { lat: number; lng: number };
 export type Padding = {
   paddingTopLeft: [number, number];
@@ -101,7 +105,7 @@ export function SightingsMap({
         center: MAP_CENTER,
         zoom: 13,
         minZoom: 9,
-        maxZoom: 19,
+        maxZoom: MAX_ZOOM,
         zoomControl: false,
       });
 
@@ -171,12 +175,12 @@ export function SightingsMap({
           // While placing a new pin, a tap on a cluster places it there too.
           if (latest.current.placing) {
             latest.current.onPlace({ lat: cluster.lat, lng: cluster.lng });
-          } else if (sameSpot(members) || instance.getZoom() >= instance.getMaxZoom() - 1) {
+          } else if (sameSpot(members) || instance.getZoom() >= MAX_ZOOM) {
             latest.current.onSelectGroup(members.map((s) => s.id));
           } else {
             instance.fitBounds(
               L.latLngBounds(members.map((s) => [s.lat, s.lng] as [number, number])),
-              { padding: [80, 80], maxZoom: 18 },
+              { padding: [80, 80], maxZoom: MAX_ZOOM },
             );
           }
         })

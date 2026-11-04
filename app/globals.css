@@ -1248,16 +1248,13 @@ button {
   text-overflow: ellipsis;
 }
 
-/* High contrast mode drops background colours, which would hide the pointer
-   that marks the spot. */
+/* High contrast mode recolours the label but never the map under it, which
+   is made of images and stays light. Its colours would then hide the pointer
+   that marks the spot in one theme or another, so it keeps its own: dark,
+   with a white edge, which reads on the map in every theme. */
 @media (forced-colors: active) {
   .searched-label {
-    border: 0.125rem solid CanvasText;
-  }
-
-  .searched-label::before {
     forced-color-adjust: none;
-    background: CanvasText;
   }
 }
 
