@@ -38,6 +38,7 @@ import {
   ShieldIcon,
   StatusIcon,
 } from "./icons";
+import { shortPlaceName } from "./map-pins";
 import { ReportForm } from "./report-form";
 import { PLACE_LABEL, SettingsDialog } from "./settings-dialog";
 import { SightingCard } from "./sighting-card";
@@ -169,7 +170,11 @@ export function MapApp() {
   const panelState = panelOpen === null ? "auto" : panelOpen ? "open" : "closed";
 
   function togglePanel() {
-    setPanelOpen((open) => !(open ?? !isPhone()));
+    const opening = !(panelOpen ?? !isPhone());
+    // Hidden cards keep their scroll position. Start from the top, so the
+    // list of sightings is what shows first.
+    if (opening) document.getElementById("panel-cards")?.scrollTo(0, 0);
+    setPanelOpen(opening);
   }
 
   // Keep the floating panel and the detail card from covering a point the map
@@ -362,15 +367,24 @@ export function MapApp() {
     closeResults();
   }
 
-  function chooseSearchResult(item: SearchResult) {
+  function chooseSearchResult(item: SearchResult, event: React.MouseEvent) {
     const lat = Number(item.lat);
     const lng = Number(item.lon);
     if (Number.isFinite(lat) && Number.isFinite(lng)) {
       setSearchResult({ lat, lng, label: item.display_name });
-      if (isPhone()) setPanelOpen(false);
+      // On phones the panel and the detail card would cover the place.
+      if (isPhone()) {
+        setPanelOpen(false);
+        setSelectedId(null);
+        setGroupIds(null);
+      }
     }
     setQuery(item.display_name);
     setResults([]);
+    // The list is going away. Chosen with the keyboard (no clicks counted),
+    // keep focus in the search box instead of losing it. Not on touch, where
+    // that would open the keyboard over the map.
+    if (event.detail === 0) searchInput.current?.focus();
   }
 
   const nearby = bounds ? sightings.filter((s) => inBounds(s, bounds)) : [];
@@ -473,7 +487,12 @@ export function MapApp() {
                 value={query}
                 onChange={(event) => {
                   setQuery(event.target.value);
-                  if (!event.target.value) closeResults();
+                  // An emptied box (deleted, or Escape) ends the search, like
+                  // the clear button: the place leaves the map too.
+                  if (!event.target.value) {
+                    closeResults();
+                    setSearchResult(null);
+                  }
                 }}
                 placeholder="Search an address or place"
                 aria-label="Search an address or place"
@@ -497,7 +516,7 @@ export function MapApp() {
                   ) : (
                     results.map((item) => (
                       <li key={`${item.lat},${item.lon}`}>
-                        <button type="button" onClick={() => chooseSearchResult(item)}>
+                        <button type="button" onClick={(event) => chooseSearchResult(item, event)}>
                           {item.display_name}
                         </button>
                       </li>
@@ -716,6 +735,13 @@ export function MapApp() {
 
         <p className="notice" role="status" aria-live="polite">
           {notice}
+        </p>
+
+        {/* Tells screen readers the searched place is on the map. */}
+        <p className="visually-hidden" role="status">
+          {searchResult
+            ? `Searched place marked on the map: ${shortPlaceName(searchResult.label)}. Clear the search to remove it.`
+            : ""}
         </p>
       </main>
 

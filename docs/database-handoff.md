@@ -468,14 +468,14 @@ The server enforces the data rules; these are the parts only the app can get rig
 
 ### Keep locations out of the web stack
 
-Supabase, Vercel and OpenStreetMap's tile servers all see every visitor's IP address and log each request URL next to it. These rules keep those logs from tying anyone to a place.
+Supabase, Vercel and CARTO's tile servers all see every visitor's IP address and log each request URL next to it. These rules keep those logs from tying anyone to a place.
 
 - **Writes go through the server actions only.** Never insert into `sightings` or call `vote_on_sighting` or `delete_my_sighting` from the browser client: the user's IP would reach Supabase with the request.
 - **No ids or coordinates in URLs.** Change settings with `rpc()`, and never call `rpc()` with `{ get: true }`. Never put coordinates in a page URL, query string or hash: they also land in browser history.
 - **Saved places stay in the browser.** Keep home and work in `localStorage` only, never in cookies, which travel to Vercel with every request.
-- **No third-party code.** No analytics, session replay, ads or tag managers, and leave Vercel Web Analytics and Speed Insights off. Bundle Leaflet from npm rather than a CDN, and self-host fonts with `next/font`. Set a Content-Security-Policy that allows only your own origin, your Supabase project, `tile.openstreetmap.org` and the CAPTCHA provider.
-- **Load the map only after the user agrees to the privacy policy.** Leaflet fetches tiles from `tile.openstreetmap.org`, whose servers record each visitor's IP and which tiles, and so which area, they load. Use exactly `https://tile.openstreetmap.org/{z}/{x}/{y}.png` and keep the OpenStreetMap attribution visible.
-- **Keep the browser's default referrer policy.** `strict-origin-when-cross-origin` sends other sites only your domain, never the page path. Don't use `no-referrer`: OpenStreetMap's tile servers expect a Referer and may block requests without one.
+- **No third-party code.** No analytics, session replay, ads or tag managers, and leave Vercel Web Analytics and Speed Insights off. Bundle Leaflet from npm rather than a CDN, and self-host fonts with `next/font`. Set a Content-Security-Policy that allows only your own origin, your Supabase project, CARTO's `*.basemaps.cartocdn.com` and the CAPTCHA provider.
+- **Load the map only after the user agrees to the privacy policy.** Leaflet fetches CARTO's Positron tiles from `*.basemaps.cartocdn.com` (through `leaflet-providers`, with the free key in `NEXT_PUBLIC_CARTO_KEY`), whose servers record each visitor's IP and which tiles, and so which area, they load. Keep the OpenStreetMap and CARTO attribution visible. CARTO's terms forbid proxying or caching tiles on a server.
+- **Keep the browser's default referrer policy.** `strict-origin-when-cross-origin` sends other sites only your domain, never the page path. Don't use `no-referrer`: a CARTO key restricted to your website is checked against the Referer.
 - **Geocode on the server.** Call the reverse geocoder (and Google Translate, later) from a route handler with only the rounded point, so the provider sees Vercel's IP. Never `console.log` request bodies or coordinates: Vercel keeps runtime logs.
 - **Protect shared devices.** Add "Clear this device" in Settings to delete saved places and sign out. Keep street names out of page titles, which show in tabs and history.
 - **Don't drop new pins on the reporter's GPS position.** Let them place the pin, and suggest posting after they've left the area: a fresh pin shows roughly where its reporter is standing.
@@ -521,7 +521,7 @@ Server actions are public endpoints: anyone can call one directly with any input
 
 Run these on two real phones (A and B) against the Supabase project before calling the frontend done.
 
-- [ ] A first visit shows the terms, and nothing loads from Supabase, OpenStreetMap or the CAPTCHA provider until the user agrees. Then the map opens with no sign-up screen and shows the test pins.
+- [ ] A first visit shows the terms, and nothing loads from Supabase, CARTO or the CAPTCHA provider until the user agrees. Then the map opens with no sign-up screen and shows the test pins.
 - [ ] A pin posted on phone A appears on phone B within a few seconds, without a refresh.
 - [ ] Phone B confirms A's pin from within 1 km, and both phones show the new count and status.
 - [ ] A vote from more than 1 km away shows the server's message.
@@ -543,7 +543,7 @@ These are outside the MVP schema. Ask before building screens that need them.
 - **Out of scope in the PRD:** comments and followers.
 - **No moderation:** there's no "report this pin" flow. For now, admins delete harmful posts in Supabase's Table Editor. A report button needs a new table, so ask first.
 - **Untested on a live Supabase project:** saving a username and the hourly cleanup job. Test both early.
-- **Supabase's own logs** record each request's IP address, a rough location worked out from it, and the full URL. They're kept about 1 day on the Free plan and 7 days on Pro, and Pro's daily backups keep deleted rows for 7 days. Vercel also sees every visitor's IP. A subpoena or warrant can demand all of it, so tell users plainly what is kept instead of promising complete anonymity. OpenStreetMap's tile servers also see each visitor's IP and the area they view; serving tiles from your own domain would stop that, but isn't decided yet.
+- **Supabase's own logs** record each request's IP address, a rough location worked out from it, and the full URL. They're kept about 1 day on the Free plan and 7 days on Pro, and Pro's daily backups keep deleted rows for 7 days. Vercel also sees every visitor's IP. A subpoena or warrant can demand all of it, so tell users plainly what is kept instead of promising complete anonymity. CARTO's tile servers and its delivery network (Fastly) also see each visitor's IP and the area they view. Fastly keeps full client IPs for up to two business days (seven when tied to transmission errors, at least a year when tied to activity it flags as suspicious). CARTO shortens IP addresses before logging them and keeps those logs for 30 days in the US. Its terms forbid proxying its tiles, so hiding visitors' IPs from the tile server would mean hosting your own tiles, which isn't decided yet.
 - **Answered:** which frontend framework is the team using? The setup code assumes Next.js on Vercel (answered in this thread).
 
 ## Sources
@@ -555,6 +555,8 @@ These are outside the MVP schema. Ask before building screens that need them.
 - [Supabase: Log field reference](https://supabase.com/docs/guides/monitoring-and-debugging/log-field-reference.md)
 - [Supabase: Auth audit logs](https://supabase.com/docs/guides/auth/audit-logs)
 - [Supabase: Pricing (log and backup retention)](https://supabase.com/pricing)
-- [OpenStreetMap: Tile usage policy](https://operations.osmfoundation.org/policies/tiles/)
-- [OpenStreetMap Foundation: Privacy policy](https://osmfoundation.org/wiki/Privacy_Policy)
+- [CARTO: Basemaps API key](https://www.carto.com/basemaps/apikey/)
+- [CARTO: Basemap terms (attribution, no proxying, IP truncation, log retention)](https://carto.com/legal/basemap-terms/)
+- [CARTO: Subprocessors](https://carto.com/legal/subp)
+- [Fastly: Data management (IP retention)](https://docs.fastly.com/products/data-management)
 - [Next.js with-supabase example: server client](https://github.com/vercel/next.js/blob/canary/examples/with-supabase/lib/supabase/server.ts)

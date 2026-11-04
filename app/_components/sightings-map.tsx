@@ -3,14 +3,21 @@
 import type * as Leaflet from "leaflet";
 import { useEffect, useImperativeHandle, useRef, useState, type Ref } from "react";
 import { MAP_CENTER } from "@/lib/geo";
-import { STATUS_LABEL, sightingTitle, statusOf, type Sighting } from "@/lib/sightings";
+import { type Sighting } from "@/lib/sightings";
 import {
   DRAFT_PIN_MARKUP,
   clusterMarkup,
   clusterSightings,
+  clusterTitle,
   pinMarkup,
+  pinTitle,
   sameSpot,
+  searchedPlaceElement,
 } from "./map-pins";
+
+// CARTO's free basemap key (https://carto.com/basemaps/apikey). Without it,
+// every tile reads "API KEY REQUIRED".
+const CARTO_KEY = (process.env.NEXT_PUBLIC_CARTO_KEY ?? "").trim();
 
 export type Point = { lat: number; lng: number };
 export type Bounds = { south: number; west: number; north: number; east: number };
@@ -57,7 +64,7 @@ export function SightingsMap({
   const map = useRef<Leaflet.Map | null>(null);
   const pins = useRef<Leaflet.LayerGroup | null>(null);
   const draftMarker = useRef<Leaflet.Marker | null>(null);
-  const searchMarker = useRef<Leaflet.CircleMarker | null>(null);
+  const searchMarker = useRef<Leaflet.Marker | null>(null);
   const [ready, setReady] = useState(false);
   const [zoom, setZoom] = useState(13);
 
@@ -98,7 +105,7 @@ export function SightingsMap({
   useEffect(() => {
     let cancelled = false;
 
-    import("leaflet").then((L) => {
+    import("./leaflet").then(({ L }) => {
       if (cancelled || !node.current) return;
 
       const instance = L.map(node.current, {
@@ -109,13 +116,9 @@ export function SightingsMap({
         zoomControl: false,
       });
 
-      // Exactly this URL, with the attribution visible (OpenStreetMap's
-      // tile usage policy). Tiles load only after the policy is accepted.
-      L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        maxZoom: 19,
-        attribution:
-          '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-      }).addTo(instance);
+      // CARTO's Positron style, with its attribution visible. Tiles load
+      // only after the policy is accepted.
+      L.tileLayer.provider("CartoDB.Positron", { apikey: CARTO_KEY }).addTo(instance);
 
       const reportView = () => {
         const bounds = instance.getBounds();
@@ -139,6 +142,9 @@ export function SightingsMap({
       leaflet.current = L;
       map.current = instance;
       pins.current = L.layerGroup().addTo(instance);
+      // Searched places get their own layer: above the map, below every pin
+      // and cluster (Leaflet's marker pane is 600), so sightings stay on top.
+      instance.createPane("search").style.zIndex = "550";
       reportView();
       setReady(true);
     });
@@ -176,7 +182,7 @@ export function SightingsMap({
       }
 
       L.marker([cluster.lat, cluster.lng], {
-        title: `${members.length} sightings here`,
+        title: clusterTitle(members),
         icon: L.divIcon({
           className: "cluster-icon",
           html: clusterMarkup(members),
@@ -202,17 +208,22 @@ export function SightingsMap({
     if (selected) layer.addLayer(pinMarker(L, selected, true));
 
     function pinMarker(L: typeof Leaflet, sighting: Sighting, active: boolean) {
-      return L.marker([sighting.lat, sighting.lng], {
-        title: sightingTitle(sighting),
-        alt: STATUS_LABEL[statusOf(sighting)],
+      const marker = L.marker([sighting.lat, sighting.lng], {
+        title: pinTitle(sighting),
         zIndexOffset: active ? 1000 : 0,
         icon: L.divIcon({
           className: active ? "pin-icon pin-active" : "pin-icon",
-          html: pinMarkup(sighting),
+          html: pinMarkup(sighting, active),
           // The pin is drawn and sized in CSS (.pin) so it scales with the UI.
           iconSize: [0, 0],
         }),
-      }).on("click", () => {
+      });
+      // Leaflet has no option for this. Like the report list, it tells screen
+      // readers which pin is selected.
+      marker.on("add", () => {
+        marker.getElement()?.setAttribute("aria-pressed", String(active));
+      });
+      return marker.on("click", () => {
         if (latest.current.placing) {
           latest.current.onPlace({ lat: sighting.lat, lng: sighting.lng });
         } else {
@@ -262,20 +273,18 @@ export function SightingsMap({
     searchMarker.current = null;
     if (!searchResult) return;
 
-    // Leaflet treats a string tooltip as HTML. Place names come from
-    // OpenStreetMap, which anyone can edit, so pass them as plain text.
-    const label = document.createElement("span");
-    label.textContent = searchResult.label;
-
-    searchMarker.current = L.circleMarker([searchResult.lat, searchResult.lng], {
-      radius: 9,
-      color: "#fff",
-      weight: 3,
-      fillColor: "#4f93c8",
-      fillOpacity: 1,
-    })
-      .bindTooltip(label)
-      .addTo(instance);
+    // Nothing happens when it's tapped, so it isn't a button or a Tab stop,
+    // and taps go through to the map (a report can still be placed here).
+    searchMarker.current = L.marker([searchResult.lat, searchResult.lng], {
+      pane: "search",
+      interactive: false,
+      keyboard: false,
+      icon: L.divIcon({
+        className: "searched-place",
+        html: searchedPlaceElement(searchResult.label),
+        iconSize: [0, 0],
+      }),
+    }).addTo(instance);
     instance.setView([searchResult.lat, searchResult.lng], 16, { animate: true });
   }, [ready, searchResult]);
 
