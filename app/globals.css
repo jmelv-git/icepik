@@ -77,9 +77,18 @@ button {
 }
 
 .brand-logo {
-  width: 4.75rem;
-  height: auto;
+  /* The SVG lockup is wider than the old PNG (bigger letters beside the
+     cube); this keeps the cube the same size. */
+  display: block;
+  width: 5.25rem;
   flex: none;
+}
+
+.brand-logo img,
+.consent-logo img {
+  display: block;
+  width: 100%;
+  height: auto;
 }
 
 .rail-item {
@@ -1589,9 +1598,9 @@ textarea::placeholder {
 }
 
 .consent-logo {
+  display: block;
   justify-self: center;
-  width: 9rem;
-  height: auto;
+  width: 10rem;
 }
 
 .consent-card h1 {
@@ -1783,7 +1792,7 @@ textarea::placeholder {
   }
 
   .brand-logo {
-    width: 3.5rem;
+    width: 3.875rem;
     margin-right: auto;
   }
 

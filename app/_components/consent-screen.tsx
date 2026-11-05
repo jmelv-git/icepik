@@ -1,9 +1,8 @@
 "use client";
 
-import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
-import logo from "../../public/brand/icepik-logo.png";
 import { acceptPolicy } from "@/lib/device-storage";
+import { BrandLogo } from "./brand-logo";
 import { POLICY_VERSION, PolicyText } from "./policy";
 
 // Shown before anything else loads: no sign-in, map tiles or CAPTCHA until
@@ -44,7 +43,7 @@ export function ConsentScreen({ updated }: { updated: boolean }) {
   return (
     <main className="consent">
       <section className="consent-card" aria-labelledby="consent-title">
-        <Image src={logo} alt="ICEPik" preload className="consent-logo" />
+        <BrandLogo className="consent-logo" />
         <h1 id="consent-title">{updated ? "Our terms have changed" : "Before you start"}</h1>
         <p className="consent-intro">
           ICEPik is a community map of possible ICE activity in Philadelphia. Please read how it
