@@ -79,9 +79,16 @@ button {
 .brand-logo {
   /* The SVG lockup is wider than the old PNG (bigger letters beside the
      cube); this keeps the cube the same size. */
+  display: block;
   width: 5.25rem;
-  height: auto;
   flex: none;
+}
+
+.brand-logo img,
+.consent-logo img {
+  display: block;
+  width: 100%;
+  height: auto;
 }
 
 .rail-item {
@@ -1591,9 +1598,9 @@ textarea::placeholder {
 }
 
 .consent-logo {
+  display: block;
   justify-self: center;
   width: 10rem;
-  height: auto;
 }
 
 .consent-card h1 {
@@ -2068,17 +2075,4 @@ textarea::placeholder {
    lightened so they read on the dark map. Their dark outlines stay dark. */
 .map-labels {
   filter: brightness(2.6);
-}
-
-/* High contrast mode turns the rail and the terms card light, and the
-   logo's light lettering would vanish into them. The logo keeps a dark
-   backing of its own, as in the normal design. */
-@media (forced-colors: active) {
-  .brand-logo,
-  .consent-logo {
-    forced-color-adjust: none;
-    padding: 0.25rem 0.375rem;
-    border-radius: 0.5rem;
-    background: var(--surface);
-  }
 }

@@ -1,9 +1,7 @@
 "use client";
 
 import type { User } from "@supabase/supabase-js";
-import Image from "next/image";
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
-import logo from "../../public/brand/icepik-logo.svg";
 import {
   CUSTOM_PLACES_MAX,
   PLACE_NAME_MAX,
@@ -31,6 +29,7 @@ import { useLiveSightings } from "@/lib/use-live-sightings";
 import { useMyActivity } from "@/lib/use-my-activity";
 import { useMyPosition } from "@/lib/use-my-position";
 import { AccountStarter } from "./account-starter";
+import { BrandLogo } from "./brand-logo";
 import {
   ArrowIcon,
   ChevronIcon,
@@ -609,7 +608,7 @@ export function MapApp() {
   return (
     <div className="app" data-panel={panelState}>
       <nav className="rail" aria-label="ICEPik">
-        <Image src={logo} alt="ICEPik" preload className="brand-logo" />
+        <BrandLogo className="brand-logo" />
 
         <button
           type="button"
