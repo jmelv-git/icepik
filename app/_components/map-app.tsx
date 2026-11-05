@@ -537,22 +537,49 @@ export function MapApp() {
     }
   }
 
-  function clearSearch() {
+  // Stop a search still waiting for its results, so they never show up late.
+  function stopSearch() {
     searchAbort.current?.abort();
+    searchAbort.current = null;
+    setSearching(false);
+  }
+
+  // End the search: the box empties and the searched place leaves the map.
+  function endSearch() {
+    stopSearch();
     setQuery("");
     setSearchResult(null);
     closeResults();
+  }
+
+  function clearSearch() {
+    endSearch();
     searchInput.current?.focus();
   }
 
+  // Escape undoes one thing at a time, the search box's first: a waiting
+  // search, then the results, then the search itself. Only an Escape in an
+  // empty box reaches the window's handler, which cancels placing a pin.
   function onSearchKeyDown(event: React.KeyboardEvent) {
-    if (event.key !== "Escape" || !resultsOpen) return;
-    // Only close the results. Browsers would also empty the search box,
-    // which ends the search and takes the searched place off the map, and
-    // the window's Escape handler would cancel something else.
+    if (event.key !== "Escape") return;
+    const inResults = (event.target as Element).closest(".search-results") !== null;
+
+    if (searching) {
+      // Keep the words, so the search can be sent again with Enter.
+      stopSearch();
+    } else if (resultsOpen) {
+      closeResults();
+      // The list is going away: don't drop focus with it.
+      if (inResults) searchInput.current?.focus();
+    } else if (query) {
+      // Browsers differ on whether Escape empties a search box. Always do,
+      // and keep focus in it when Escape came from its clear or save button.
+      clearSearch();
+    } else {
+      return;
+    }
     event.preventDefault();
     event.stopPropagation();
-    closeResults();
   }
 
   function chooseSearchResult(item: SearchResult, event: React.MouseEvent) {
@@ -685,12 +712,9 @@ export function MapApp() {
                 value={query}
                 onChange={(event) => {
                   setQuery(event.target.value);
-                  // An emptied box (deleted, or Escape) ends the search, like
+                  // An emptied box ends the search, like
                   // the clear button: the place leaves the map too.
-                  if (!event.target.value) {
-                    closeResults();
-                    setSearchResult(null);
-                  }
+                  if (!event.target.value) endSearch();
                 }}
                 placeholder="Search an address or place"
                 aria-label="Search an address or place"
