@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
-import logo from "../../public/brand/icepik-logo.png";
+import logo from "../../public/brand/icepik-logo.svg";
 import { acceptPolicy } from "@/lib/device-storage";
 import { POLICY_VERSION, PolicyText } from "./policy";
 

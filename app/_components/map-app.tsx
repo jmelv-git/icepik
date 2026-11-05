@@ -3,7 +3,7 @@
 import type { User } from "@supabase/supabase-js";
 import Image from "next/image";
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
-import logo from "../../public/brand/icepik-logo.png";
+import logo from "../../public/brand/icepik-logo.svg";
 import {
   CUSTOM_PLACES_MAX,
   PLACE_NAME_MAX,
