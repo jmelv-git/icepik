@@ -712,7 +712,7 @@ export function MapApp() {
                 value={query}
                 onChange={(event) => {
                   setQuery(event.target.value);
-                  // An emptied box (deleted, or Escape) ends the search, like
+                  // An emptied box ends the search, like
                   // the clear button: the place leaves the map too.
                   if (!event.target.value) endSearch();
                 }}
