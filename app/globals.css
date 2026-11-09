@@ -2411,6 +2411,8 @@ textarea::placeholder {
 
   .panel-cards {
     grid-column: 1 / -1;
+    /* No pull below the sheet: it ends at the tab bar or the screen's edge. */
+    margin-bottom: 0;
     padding-top: 0.25rem;
   }
 
