@@ -2040,6 +2040,107 @@ textarea::placeholder {
         0 0.25rem 0.75rem rgb(0 0 0 / 0.5);
     }
   }
+
+  /* Reports: every sighting in the list is a card of its own, with its status
+     on its border as well as its icon. The sections around the list lose
+     their own card, since the sheet or pane they're in is one already. */
+  .panel-cards {
+    gap: 1.25rem;
+  }
+
+  .panel-cards .card {
+    overflow: visible;
+    border-radius: 0;
+    background: none;
+    box-shadow: none;
+  }
+
+  .nearby-card::before {
+    content: none;
+  }
+
+  .panel-cards .card-head {
+    padding: 0.25rem 0.25rem 0.625rem;
+  }
+
+  .report-list,
+  .report-list:has(> :nth-child(3)) {
+    display: grid;
+    gap: 0.625rem;
+    min-height: 0;
+    padding: 0;
+    overflow: visible;
+    border-radius: 0;
+  }
+
+  .report-list .report-row {
+    gap: 0.75rem;
+    padding: 0.75rem 0.875rem;
+    border: 0.125rem solid #5a5f69;
+    border-radius: 1rem;
+    background: var(--card);
+  }
+
+  .report-list .report-row:has(.status-verified) {
+    border-color: var(--red-strong);
+  }
+
+  .report-list .report-row:has(.status-unverified) {
+    border-color: var(--yellow);
+  }
+
+  .report-list .report-row:has(.status-disputed) {
+    border-style: dashed;
+    border-color: #8d9099;
+  }
+
+  .report-list .report-row:hover {
+    background: #3a3b40;
+  }
+
+  .report-list .report-row[aria-pressed="true"] {
+    background: #44464c;
+    box-shadow: none;
+  }
+
+  .report-list .report-row:focus-visible {
+    outline-offset: 0.125rem;
+  }
+
+  /* A long address wraps onto a second line before it is cut short. */
+  .report-row .row-address {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .panel-cards .list-empty {
+    border-radius: 1rem;
+    background: var(--card);
+  }
+
+  .panel-cards .place-link {
+    margin-bottom: 0.5rem;
+    padding: 0.75rem 0.875rem;
+    border-radius: 1rem;
+    background: var(--card);
+  }
+
+  .panel-cards .place-link:hover {
+    background: #3a3b40;
+  }
+
+  .panel-cards .places-more {
+    margin: 0 0.25rem;
+  }
+
+  .panel-cards .area-stats {
+    padding: 0.875rem 0;
+    border-radius: 1rem;
+    background: var(--card);
+  }
 }
 
 /* Phones, upright or on their side. */
@@ -2192,6 +2293,124 @@ textarea::placeholder {
     width: calc(100% - 1.5rem);
     padding: 1rem;
   }
+
+  /* Reports: a sheet over the whole map, under the search box, with the list
+     (Nearby) or the places found (Search). */
+  .app[data-panel="open"] .panel {
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    grid-template-rows: auto auto minmax(0, 1fr);
+    padding: calc(var(--gutter) + var(--safe-top)) calc(var(--gutter) + var(--safe-right)) 0
+      calc(var(--gutter) + var(--safe-left));
+    background: var(--surface);
+    pointer-events: auto;
+  }
+
+  .app[data-panel="open"] .panel-tabs {
+    display: flex;
+    grid-column: 1 / -1;
+    gap: 0.5rem;
+    padding: 0.75rem 0 0.5rem;
+  }
+
+  .panel-tabs button {
+    min-height: 2.75rem;
+    padding: 0 1.125rem;
+    border-radius: 62.4375rem;
+    background: var(--card);
+    color: #fff;
+    font-size: 1rem;
+    font-weight: 700;
+  }
+
+  .panel-tabs button[aria-pressed="true"] {
+    background: var(--blue-strong);
+  }
+
+  .panel-cards {
+    grid-column: 1 / -1;
+    padding-top: 0.25rem;
+  }
+
+  .app[data-panel="open"][data-tab="search"] .panel-cards {
+    display: none;
+  }
+
+  /* Search, before anything is found: what the box above is for. */
+  .app[data-panel="open"][data-tab="search"] .search-pane {
+    display: grid;
+    grid-column: 1 / -1;
+    align-self: start;
+  }
+
+  .app[data-panel="open"][data-tab="search"] .panel:has(.search-results) .search-pane {
+    display: none;
+  }
+
+  /* The places found fill the sheet under the tabs, one card each. */
+  .app[data-panel="open"] .search-results {
+    top: calc(var(--gutter) + var(--safe-top) + 7rem);
+    right: calc(var(--gutter) + var(--safe-right));
+    bottom: 0;
+    left: calc(var(--gutter) + var(--safe-left));
+    max-height: none;
+    padding: 0.25rem 0 var(--gutter);
+    border-radius: 0;
+    background: var(--surface);
+    box-shadow: none;
+  }
+
+  .app[data-panel="open"] .search-results button,
+  .app[data-panel="open"] .search-empty {
+    margin-bottom: 0.5rem;
+    padding: 0.875rem 1rem;
+    border-radius: 1rem;
+    background: var(--card);
+  }
+
+  /* Text: nothing a person reads on a phone is smaller than 16px. The tab
+     labels and the map's credits are the only exceptions. */
+  .card-head span,
+  .row-title,
+  .row-meta,
+  .search-status,
+  .search-results button,
+  .search-empty,
+  .places-more,
+  .primary-button,
+  .secondary-button,
+  .danger-button,
+  .text-button,
+  .vote,
+  .badge,
+  .detail-description,
+  .detail-status,
+  .detail-meta,
+  .detail-note,
+  .detail-hint,
+  .confirm-row,
+  .form label,
+  .report-form label,
+  .form small,
+  .report-form small,
+  .form-error,
+  .form-tip,
+  .warning-list,
+  .spot-row,
+  .choice-group legend,
+  .choice-label,
+  .choice-hint,
+  .nearby h3,
+  .modal .nearby p,
+  .searched-label,
+  .pick-banner .place-form-tip,
+  .consent-why,
+  .policy ul,
+  .totals dt {
+    font-size: 1rem;
+  }
 }
 
 /* Phones on their side: too short for a tab bar under the map, so the tabs
@@ -2272,6 +2491,13 @@ textarea::placeholder {
     bottom: calc(var(--gutter) + var(--map-credits) + 3.75rem);
     max-width: min(28rem, 52%);
   }
+
+  /* Reports, on its side: a sheet down the left, the map still showing. */
+  .app[data-panel="open"] .panel {
+    right: auto;
+    width: min(24rem, 52%);
+    border-right: 0.0625rem solid var(--line);
+  }
 }
 
 /* Tablets. On their side, the rail stays down the left as on desktop. */
@@ -2345,6 +2571,33 @@ textarea::placeholder {
   .report-button svg {
     width: 1.375rem;
     height: 1.375rem;
+  }
+
+  /* Reports: the list in a pane down the left, and the map beside it (not
+     under it), so what the map shows is what can be seen. */
+  .app[data-panel="open"] .panel {
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: var(--pane);
+    padding: var(--gutter) var(--gutter) 0;
+    border-right: 0.0625rem solid var(--line);
+    background: var(--surface);
+    pointer-events: auto;
+  }
+
+  .app[data-panel="open"] .search {
+    box-shadow: none;
+  }
+
+  .app[data-panel="open"] .map {
+    left: var(--pane);
+  }
+
+  .panel-cards {
+    flex: 1 1 auto;
+    margin-bottom: 0;
+    padding-top: 0.875rem;
   }
 }
 
