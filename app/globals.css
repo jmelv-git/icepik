@@ -2171,6 +2171,56 @@ textarea::placeholder {
     min-height: 3.5rem;
     padding: 0.625rem 1.125rem;
   }
+
+  /* Know Your Rights: each resource is a card with an arrow, tall enough to
+     tap comfortably. */
+  .resource-list a {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    min-height: 4.5rem;
+    padding: 1rem 1.125rem;
+  }
+
+  .resource-list .arrow {
+    display: block;
+    flex: none;
+    width: 1.25rem;
+    height: 1.25rem;
+    color: var(--link);
+  }
+
+  /* Log in and Save account: the logo above the form, as on a sign-in page. */
+  .auth-logo {
+    display: block;
+    justify-self: center;
+    width: 9rem;
+    margin: 0.25rem 0 0.5rem;
+  }
+
+  .auth-logo img {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+
+  /* Settings: a saved place's buttons are big enough to tap and apart from
+     each other. When they don't fit beside the name, they go under it. */
+  .place-row {
+    display: flex;
+    flex-wrap: wrap;
+  }
+
+  .place-row .row-text {
+    flex: 1 1 7rem;
+    min-width: 0;
+  }
+
+  .place-actions {
+    gap: 0.5rem;
+    margin-left: auto;
+  }
 }
 
 /* Phones, upright or on their side. */
@@ -2581,6 +2631,51 @@ textarea::placeholder {
   .report-submit {
     min-height: 3.25rem;
   }
+
+  /* Know Your Rights is one of the three tabs: its page leaves the tab bar
+     (or, on its side, the tabs down the left) in reach. */
+  .modal-layer[data-kind="rights"] {
+    bottom: var(--tabbar);
+    left: var(--nav-left);
+  }
+
+  .modal-layer[data-kind="rights"] .modal {
+    padding-bottom: 1.5rem;
+  }
+
+  /* Settings: buttons run the width of the page, one under another. */
+  .button-row {
+    flex-direction: column;
+  }
+
+  .button-column {
+    justify-items: stretch;
+  }
+
+  .button-row > *,
+  .button-column > * {
+    min-height: 3rem;
+  }
+
+  .totals dt {
+    line-height: 1.25;
+  }
+
+  /* Consent: the card nearly fills the screen, clear of the notch and the
+     home indicator. */
+  .consent {
+    padding: calc(1rem + var(--safe-top)) calc(0.75rem + var(--safe-right))
+      calc(1rem + var(--safe-bottom)) calc(0.75rem + var(--safe-left));
+  }
+
+  .consent-card {
+    padding: 1.5rem 1.25rem;
+    border-radius: 1.5rem;
+  }
+
+  .consent-agree {
+    min-height: 3.25rem;
+  }
 }
 
 /* Phones on their side: too short for a tab bar under the map, so the tabs
@@ -2698,6 +2793,26 @@ textarea::placeholder {
   /* Two columns again: there's the width for them, and little height. */
   .choices {
     grid-template-columns: 1fr 1fr;
+  }
+
+  /* On its side there's little height: the terms get most of it. */
+  .consent-logo {
+    width: 6rem;
+  }
+
+  .consent-text {
+    max-height: 40dvh;
+  }
+
+  /* Log in and Save account, on its side: a centred column, not the full
+     width of the screen. */
+  .account-form {
+    justify-self: center;
+    width: min(30rem, 100%);
+  }
+
+  .auth-logo {
+    width: 6rem;
   }
 }
 
@@ -2869,6 +2984,26 @@ textarea::placeholder {
   /* Submit a report: the form is a centred column, its buttons full size. */
   .form-actions > * {
     min-height: 3rem;
+  }
+
+  /* Know Your Rights: a wider dialog, the resources two to a row. */
+  .modal-layer[data-kind="rights"] .modal {
+    width: min(44rem, 100%);
+  }
+
+  .resource-list {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  /* Settings: a wider dialog. Log in and Save account are a centred column
+     inside it. */
+  .modal-layer[data-kind="settings"] .modal {
+    width: min(40rem, 100%);
+  }
+
+  .account-form {
+    justify-self: center;
+    width: min(26rem, 100%);
   }
 }
 
