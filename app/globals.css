@@ -1973,6 +1973,8 @@ textarea::placeholder {
 
   .text-button {
     display: inline-flex;
+    /* Never squeezed narrower than its words by the text beside it. */
+    flex: none;
     align-items: center;
     justify-content: center;
     min-width: 2.75rem;
