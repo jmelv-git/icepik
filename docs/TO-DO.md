@@ -4,6 +4,14 @@ Features from the Figma mobile design (`docs/figma-mobile-design/`) that are lef
 
 ## Stretch goals
 
+### Account recovery with backup codes (in progress)
+Planned with the backend team. Accounts stay username and password with no email; backup codes give a way back in after a forgotten password.
+- When someone saves an account, show a set of one-time backup codes to write down or save, shown only once. A code lets them set a new password.
+- Agree with the backend team on: the code format and how many codes there are; storing only a hash of each code; each code working once; limiting and CAPTCHA-checking code attempts; making new codes from Settings, which cancels the old ones.
+- Never keep the codes in the browser's storage.
+- Change the text that says a forgotten password can't be recovered: the Save account screen in `app/_components/settings-dialog.tsx` (about line 321) and `docs/database-handoff.md` (about lines 406 and 516). Check whether the terms in `app/_components/policy.tsx` need a new `POLICY_VERSION`; changing the policy needs the owner's approval.
+- Design: Figma's Forgot Password and Code Verification screens (`docs/figma-mobile-design/`) are a style reference for "Use a backup code". Their five-box entry assumes a short code, so match it to the format the backend chooses.
+
 ### Photos on reports
 Figma shows a photo in each alert card and in the reports list, and an "Add an image (optional)" row on Submit a Report.
 - Needs a place to store photos (a Supabase Storage bucket and a column on `sightings`) and an upload limit.
@@ -37,5 +45,5 @@ Figma's search box shows the state and city of the map area ("PA | Philadelphia"
 
 These are in the Figma design but go against how ICEPik protects people. Leave them out unless the privacy model changes.
 
-- **Email sign-up, "Forgot password?" and code verification.** Accounts use a username and password with no email, so no inbox is linked to anyone, and a forgotten password can't be recovered by design (`lib/accounts.ts`, `docs/database-handoff.md`).
+- **Email sign-up and password reset by email.** Accounts use a username and password with no email, so no inbox is linked to anyone (`lib/accounts.ts`, `docs/database-handoff.md`). Recovery comes from backup codes instead (see above).
 - **"Critical" and "Warning" labels.** The app keeps its own status labels: Verified, Unverified and Disputed.
