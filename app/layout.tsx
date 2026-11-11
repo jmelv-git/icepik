@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Outfit } from "next/font/google";
 import { connection } from "next/server";
 import "leaflet/dist/leaflet.css";
@@ -13,6 +13,15 @@ const outfit = Outfit({
 export const metadata: Metadata = {
   title: "ICEPik",
   description: "Report and verify ICE sightings in real time.",
+};
+
+// "cover" lets the page reach under a phone's notch and home indicator, and
+// makes env(safe-area-inset-*) report their sizes: globals.css pads the tab
+// bar and the edges with them.
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 };
 
 export default async function RootLayout({

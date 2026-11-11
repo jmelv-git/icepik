@@ -13,6 +13,7 @@ import {
   type PlaceName,
 } from "@/lib/device-storage";
 import { ONE_MILE_M, distanceMeters, roundCoord } from "@/lib/geo";
+import { readLayout, useLayout } from "@/lib/layout";
 import {
   STATUS_LABEL,
   sightingSummary,
@@ -74,9 +75,6 @@ const PLACE_NOT_SAVED =
 
 const STATUSES: Status[] = ["verified", "unverified", "disputed"];
 
-// Matches the stacked phone layout in globals.css.
-const PHONE_QUERY = "(max-width: 899px)";
-
 // Shown while the browser asks for the person's location.
 const LOCATION_ASK =
   "ICEPik asks for your location to show where you are and center the map. It stays on this device.";
@@ -84,47 +82,57 @@ const LOCATION_DENIED =
   "ICEPik can't see your location. To center the map on you, allow location for this site in your browser's settings.";
 const LOCATION_UNAVAILABLE = "Your device couldn't find your location. Try again in a moment.";
 
+// The phone layout in globals.css: a tab bar, and sheets that cover the map.
 function isPhone() {
-  return window.matchMedia(PHONE_QUERY).matches;
+  return readLayout() === "phone";
 }
 
-// On phones the detail card spans the top of the map. A point is shown in
-// the clear space below the card, or beside it on a phone on its side, away
-// from the report button, the map buttons and above the map credits. Pins are drawn
-// above their point, so this leaves room for one: 88px above the point and
-// 32px on either side.
-function phonePadding(shell: DOMRect, card: DOMRect | undefined): Padding {
-  if (!card) return { paddingTopLeft: [24, 96 + 88], paddingBottomRight: [24, 96] };
+type Edge = "top" | "right" | "bottom" | "left";
 
-  const box = (selector: string) => document.querySelector(selector)?.getBoundingClientRect();
-  const credits = box(".leaflet-control-attribution");
-  const report = box(".report-button");
-  const zoom = box(".map-controls");
-  const aboveCredits = (credits ? shell.bottom - credits.top : 0) + 8;
+// Everything that can float over the map on phones and tablets. globals.css
+// gives each one a --map-edge: the side of the map it takes up there.
+const MAP_COVERS =
+  ".search, .detail-card, .map-controls, .report-button, .pick-banner, .leaflet-control-attribution";
 
-  // On its side, the card leaves the left of the map free, above the map
-  // buttons, which sit at the bottom left there.
-  if (card.left - shell.left > 120) {
-    const aboveButtons = zoom && zoom.left < card.left ? shell.bottom - zoom.top + 8 : 0;
-    return {
-      paddingTopLeft: [32, 96 + 88],
-      paddingBottomRight: [shell.right - card.left + 32, Math.max(aboveCredits, aboveButtons)],
-    };
+// Phones and tablets: a point is shown in the part of the map that nothing
+// floats over. Pins are drawn above their point, so this leaves room for
+// one: 88px above the point and 32px on either side.
+function compactPadding(): Padding {
+  const map = document.querySelector(".map")?.getBoundingClientRect();
+  if (!map) return { paddingTopLeft: [32, 96 + 88], paddingBottomRight: [32, 96] };
+
+  const taken: Record<Edge, number> = { top: 0, right: 0, bottom: 0, left: 0 };
+  for (const element of document.querySelectorAll<HTMLElement>(MAP_COVERS)) {
+    const style = getComputedStyle(element);
+    const edge = style.getPropertyValue("--map-edge").trim() as Edge;
+    if (!(edge in taken) || style.visibility === "hidden") continue;
+    const box = element.getBoundingClientRect();
+    const overMap =
+      box.width > 0 &&
+      box.height > 0 &&
+      box.left < map.right &&
+      box.right > map.left &&
+      box.top < map.bottom &&
+      box.bottom > map.top;
+    if (!overMap) continue;
+    const depth = {
+      top: box.bottom - map.top,
+      right: map.right - box.left,
+      bottom: map.bottom - box.top,
+      left: box.right - map.left,
+    }[edge];
+    taken[edge] = Math.max(taken[edge], depth);
   }
 
-  const top = card.bottom - shell.top + 88;
-  // Across the map above the REPORT button when there's room for it...
-  if (report && report.top - shell.top - 8 >= top) {
-    return {
-      paddingTopLeft: [32, top],
-      paddingBottomRight: [zoom ? shell.right - zoom.left + 32 : 32, shell.bottom - report.top + 8],
-    };
-  }
-  // ...or else beside the button, down to the credits.
-  return {
-    paddingTopLeft: [32, top],
-    paddingBottomRight: [report ? shell.right - report.left + 32 : 32, aboveCredits],
-  };
+  let left = taken.left + 32;
+  let right = taken.right + 32;
+  let top = taken.top + 88;
+  let bottom = taken.bottom + 8;
+  // A window too small to leave any room: Leaflet can't fit a point into
+  // nothing, so let it use the whole map.
+  if (map.width - left - right < 64) left = right = 16;
+  if (map.height - top - bottom < 64) top = bottom = 16;
+  return { paddingTopLeft: [left, top], paddingBottomRight: [right, bottom] };
 }
 
 function reportCount(count: number) {
@@ -174,6 +182,11 @@ export function MapApp() {
   // null until the user toggles it: CSS then shows the panel on desktop and
   // hides it on phones, so neither layout flashes the wrong state on load.
   const [panelOpen, setPanelOpen] = useState<boolean | null>(null);
+  // Phones show the Reports sheet one tab at a time: the list, or the search.
+  const [reportsTab, setReportsTab] = useState<"nearby" | "search">("nearby");
+  const layout = useLayout();
+  // Phones and tablets: a tab bar or rail with Home in it, and docked panes.
+  const compact = layout !== "desktop";
   const [starterHidden, setStarterHidden] = useState(false);
   // The part of the map on screen, once the map has loaded.
   const [bounds, setBounds] = useState<Bounds | null>(null);
@@ -244,7 +257,12 @@ export function MapApp() {
 
   const selected = selectedId ? (sightings.find((s) => s.id === selectedId) ?? null) : null;
   const group = groupIds ? sightings.filter((s) => groupIds.includes(s.id)) : [];
-  const panelState = panelOpen === null ? "auto" : panelOpen ? "open" : "closed";
+  // Phones start with the list closed, everything else with it open. Desktop
+  // leaves an untouched panel to CSS ("auto"); phones and tablets always say
+  // which it is, so the tabs know what's showing.
+  const panelShown = panelOpen ?? layout !== "phone";
+  const panelState =
+    panelOpen === null && !compact ? "auto" : panelShown ? "open" : "closed";
 
   // Move a chosen sighting's pin out from under its card. This waits until
   // the card has rendered, because the card's size decides where the pin
@@ -275,6 +293,18 @@ export function MapApp() {
 
   // The re-center button was used before the position was known, and it
   // can't be: say why.
+  // On phones and tablets the card is docked beside or under the map, and it
+  // grows after it opens (the vote buttons arrive once the person's position
+  // is known). Keep its pin in view when it does.
+  useEffect(() => {
+    if (!selectedId || !compact) return;
+    const card = document.querySelector(".detail-card");
+    if (!card) return;
+    const observer = new ResizeObserver(() => revealSelected());
+    observer.observe(card);
+    return () => observer.disconnect();
+  }, [selectedId, compact]);
+
   // Whether the open card covers the map buttons (phones). Measured after the
   // card has rendered, and again when the window changes size.
   useEffect(() => {
@@ -327,15 +357,48 @@ export function MapApp() {
     setPanelOpen(opening);
   }
 
+  // The Reports button. On desktop it shows and hides the panel. On phones
+  // and tablets it's a tab next to Home: it always opens the list, from the
+  // top, over whatever else was open.
+  function openReports() {
+    if (!compact) return togglePanel();
+    setModal(null);
+    setReportsTab("nearby");
+    closeResults();
+    // On tablets a sighting's card takes the list's place: back to the list.
+    if (layout === "tablet") {
+      setSelectedId(null);
+      setGroupIds(null);
+    }
+    document.getElementById("panel-cards")?.scrollTo(0, 0);
+    setPanelOpen(true);
+  }
+
+  // The Home tab (phones and tablets): just the map.
+  function goHome() {
+    setModal(null);
+    setPanelOpen(false);
+    if (layout === "tablet") {
+      setSelectedId(null);
+      setGroupIds(null);
+    }
+  }
+
+  // The Search tab of the Reports sheet (phones): ready to type.
+  function showSearchTab() {
+    setReportsTab("search");
+    searchInput.current?.focus();
+  }
+
   // Keep the floating panel and the detail card from covering a point the map
   // is asked to show.
   function mapPadding(): Padding {
+    if (readLayout() !== "desktop") return compactPadding();
+
     const shell = document.querySelector(".map-shell")?.getBoundingClientRect();
     const panel = document.querySelector(".panel-cards");
     const detail = document.querySelector(".detail-card")?.getBoundingClientRect();
     if (!shell) return { paddingTopLeft: [48, 96], paddingBottomRight: [48, 48] };
-
-    if (isPhone()) return phonePadding(shell, detail);
 
     const left =
       panel && getComputedStyle(panel).visibility !== "hidden"
@@ -506,6 +569,8 @@ export function MapApp() {
     event.preventDefault();
     const q = query.trim();
     if (!q) return;
+    // In the phone's Reports sheet, results are listed under its Search tab.
+    setReportsTab("search");
 
     // Only the latest search may show its results.
     searchAbort.current?.abort();
@@ -587,13 +652,15 @@ export function MapApp() {
     const lng = Number(item.lon);
     if (Number.isFinite(lat) && Number.isFinite(lng)) {
       setSearchResult({ lat, lng, label: item.display_name });
-      // On phones the panel and the detail card would cover the place.
+      // On phones the detail card would cover the place. Searched from the
+      // map, the place shows on the map. Searched from the Reports sheet, the
+      // sheet stays, with its list now showing the reports around the place.
       if (isPhone()) {
-        setPanelOpen(false);
         setSelectedId(null);
         setGroupIds(null);
       }
     }
+    setReportsTab("nearby");
     setQuery(item.display_name);
     setResults([]);
     // The list is going away. Chosen with the keyboard (no clicks counted),
@@ -633,16 +700,29 @@ export function MapApp() {
   }
 
   return (
-    <div className="app" data-panel={panelState}>
+    <div className="app" data-panel={panelState} data-modal={modal ?? undefined} data-tab={reportsTab}>
       <nav className="rail" aria-label="ICEPik">
         <BrandLogo className="brand-logo" />
+
+        {/* Phones and tablets only (hidden on desktop): back to just the map. */}
+        <button
+          type="button"
+          className="rail-item rail-home"
+          aria-current={compact && !panelShown && !modal ? "page" : undefined}
+          onClick={goHome}
+        >
+          <span className="rail-icon">
+            <PlaceIcon name="home" />
+          </span>
+          Home
+        </button>
 
         <button
           type="button"
           className="rail-item rail-reports"
           aria-expanded={panelState !== "closed"}
           aria-controls="panel-cards"
-          onClick={togglePanel}
+          onClick={openReports}
         >
           <span className="rail-icon">
             <ReportsIcon />
@@ -650,7 +730,12 @@ export function MapApp() {
           Reports
         </button>
 
-        <button type="button" className="rail-item" onClick={() => setModal("rights")}>
+        <button
+          type="button"
+          className="rail-item rail-rights"
+          aria-current={compact && modal === "rights" ? "page" : undefined}
+          onClick={() => setModal("rights")}
+        >
           <span className="rail-icon">
             <DocumentIcon />
           </span>
@@ -689,6 +774,17 @@ export function MapApp() {
         />
 
         <div className="panel">
+          {/* Phones only: Settings sits beside the search box, because the
+              tab bar there holds just the three main sections. */}
+          <button
+            type="button"
+            className="panel-settings"
+            aria-label="Settings"
+            onClick={() => setModal("settings")}
+          >
+            <GearIcon />
+          </button>
+
           <form
             ref={searchForm}
             className="search"
@@ -759,6 +855,29 @@ export function MapApp() {
               ) : null}
             </div>
           </form>
+
+          {/* Phones only: the Reports sheet shows the list or the search. */}
+          <div className="panel-tabs" role="group" aria-label="Reports">
+            <button
+              type="button"
+              aria-pressed={reportsTab === "nearby"}
+              onClick={() => {
+                setReportsTab("nearby");
+                closeResults();
+              }}
+            >
+              Nearby
+            </button>
+            <button type="button" aria-pressed={reportsTab === "search"} onClick={showSearchTab}>
+              Search
+            </button>
+          </div>
+          <div className="search-pane list-empty">
+            <span className="list-empty-icon">
+              <SearchIcon />
+            </span>
+            <p className="list-empty-title">Search an address or place</p>
+          </div>
 
           <div id="panel-cards" className="panel-cards" inert={panelState === "closed"}>
             <section className="card nearby-card" aria-labelledby="nearby-title">
@@ -1010,7 +1129,7 @@ export function MapApp() {
       </main>
 
       {reportFormOpen && draft ? (
-        <div className="modal-layer" role="presentation" hidden={picking === "report"}>
+        <div className="modal-layer" data-kind="report" role="presentation" hidden={picking === "report"}>
           <section className="modal" role="dialog" aria-modal="true" aria-labelledby="report-title">
             <header className="modal-head">
               <h2 id="report-title">Report a sighting</h2>
@@ -1036,7 +1155,12 @@ export function MapApp() {
       ) : null}
 
       {modal ? (
-        <div className="modal-layer" onClick={() => setModal(null)} role="presentation">
+        <div
+          className="modal-layer"
+          data-kind={modal}
+          onClick={() => setModal(null)}
+          role="presentation"
+        >
           <section
             className="modal"
             role="dialog"
@@ -1066,6 +1190,7 @@ export function MapApp() {
                   <li>
                     <a href="https://www.ilrc.org/" target="_blank" rel="noreferrer">
                       Immigrant Legal Resource Center
+                      <ArrowIcon />
                     </a>
                   </li>
                   <li>
@@ -1075,6 +1200,7 @@ export function MapApp() {
                       rel="noreferrer"
                     >
                       Immigrant Defense Project
+                      <ArrowIcon />
                     </a>
                   </li>
                   <li>
@@ -1084,6 +1210,7 @@ export function MapApp() {
                       rel="noreferrer"
                     >
                       Philadelphia Office of Immigrant Affairs
+                      <ArrowIcon />
                     </a>
                   </li>
                 </ul>
