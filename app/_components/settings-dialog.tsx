@@ -25,6 +25,7 @@ import { ONE_MILE_M, distanceMeters } from "@/lib/geo";
 import type { Sighting } from "@/lib/sightings";
 import { forgetSession, type Client } from "@/lib/supabase/client";
 import type { ProfileTotals } from "@/lib/use-my-activity";
+import { BrandLogo } from "./brand-logo";
 import { Captcha, captchaEnabled } from "./captcha";
 import { PlaceIcon } from "./icons";
 import { PolicyText } from "./policy";
@@ -310,7 +311,9 @@ function SaveAccount({ supabase, onNotice, onBack }: Props & { onBack: () => voi
   }
 
   return (
-    <form className="form" onSubmit={save} noValidate>
+    <form className="form account-form" onSubmit={save} noValidate>
+      {/* Phones and tablets only: these read as sign-in pages there. */}
+      <BrandLogo className="auth-logo" />
       <h3>Save your account</h3>
       <ul className="warning-list">
         <li>Don&apos;t use your real name or a name people know you by.</li>
@@ -398,7 +401,9 @@ function LogIn({ supabase, user, activePosts, onNotice, onClose, onBack }: Props
   }
 
   return (
-    <form className="form" onSubmit={logIn} noValidate>
+    <form className="form account-form" onSubmit={logIn} noValidate>
+      {/* Phones and tablets only: these read as sign-in pages there. */}
+      <BrandLogo className="auth-logo" />
       <h3>Log in to a saved account</h3>
       {unsaved ? (
         <ul className="warning-list">

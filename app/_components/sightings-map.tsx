@@ -3,6 +3,7 @@
 import type * as Leaflet from "leaflet";
 import { useEffect, useImperativeHandle, useRef, useState, type Ref } from "react";
 import { MAP_CENTER } from "@/lib/geo";
+import { readLayout } from "@/lib/layout";
 import { type Sighting } from "@/lib/sightings";
 import type { MyPosition } from "@/lib/use-my-position";
 import {
@@ -150,6 +151,7 @@ export function SightingsMap({
     let cancelled = false;
     const darkScheme = window.matchMedia("(prefers-color-scheme: dark)");
     let stopFollowingScheme = () => {};
+    let stopWatchingSize = () => {};
 
     import("./leaflet").then(({ L }) => {
       if (cancelled || !node.current) return;
@@ -218,6 +220,15 @@ export function SightingsMap({
       darkScheme.addEventListener("change", showTiles);
       stopFollowingScheme = () => darkScheme.removeEventListener("change", showTiles);
 
+      // Leaflet only watches the window's size. On tablets the map also
+      // changes size when the pane beside it opens or closes. Not on desktop,
+      // where panels float over a map that only resizes with the window.
+      const sizeWatcher = new ResizeObserver(() => {
+        if (readLayout() !== "desktop") instance.invalidateSize();
+      });
+      sizeWatcher.observe(node.current);
+      stopWatchingSize = () => sizeWatcher.disconnect();
+
       const reportView = () => {
         const bounds = instance.getBounds();
         latest.current.onViewChange({
@@ -260,6 +271,7 @@ export function SightingsMap({
     return () => {
       cancelled = true;
       stopFollowingScheme();
+      stopWatchingSize();
       map.current?.remove();
       map.current = null;
       pins.current = null;

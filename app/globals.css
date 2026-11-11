@@ -1768,181 +1768,11 @@ textarea::placeholder {
   gap: 0.75rem;
 }
 
-@media (max-width: 899px) {
-  html {
-    font-size: 16px;
-    /* The map credits get their own row at the bottom, and everything else
-       at the bottom sits above it. One line fits from 320px wide; on
-       narrower phones the second line still ends below the report button. */
-    --map-credits: 1.125rem;
-  }
 
-  /* Phones: the rail becomes a top bar and the panel covers the map. */
-  .app {
-    display: flex;
-    flex-direction: column;
-  }
-
-  .rail {
-    flex-direction: row;
-    gap: 0.25rem;
-    padding: 0.5rem 0.75rem;
-    border-right: 0;
-    border-bottom: 0.0625rem solid var(--line);
-  }
-
-  .brand-logo {
-    width: 3.875rem;
-    margin-right: auto;
-  }
-
-  .rail-item {
-    gap: 0.25rem;
-    width: 5.5rem;
-    font-size: 0.75rem;
-  }
-
-  .rail-reports,
-  .rail-settings {
-    margin-top: 0;
-  }
-
-  .rail-icon {
-    width: 3.25rem;
-    height: 2rem;
-    border-radius: 0.625rem;
-  }
-
-  .rail-icon svg,
-  .rail-item[aria-expanded="true"] .rail-icon svg {
-    width: 1.375rem;
-    height: 1.375rem;
-  }
-
-  /* On phones the cards start hidden, so Reports starts unselected. */
-  .app[data-panel="auto"] .rail-reports {
-    color: #d6dbe7;
-    font-weight: 400;
-  }
-
-  .app[data-panel="auto"] .rail-reports .rail-icon {
-    color: inherit;
-  }
-
-  .app[data-panel="auto"] .rail-reports:not(:hover) .rail-icon {
-    background: transparent;
-  }
-
-  .map-shell {
-    flex: 1;
-    min-height: 0;
-  }
-
-  .panel {
-    top: 0.75rem;
-    right: 0.75rem;
-    bottom: calc(0.75rem + var(--map-credits));
-    left: 0.75rem;
-    width: auto;
-  }
-
-  .search {
-    padding: 0.5rem;
-  }
-
-  .app[data-panel="auto"] .panel-cards {
-    transform: translateX(calc(-100% - 2rem));
-    opacity: 0;
-    visibility: hidden;
-  }
-
-  .app[data-panel="auto"] .search {
-    border-radius: 1rem;
-  }
-
-  .nearby-card::before {
-    margin: 0 0.5rem;
-  }
-
-  /* Know Your Rights has its own button in the top bar, so on phones its
-     card gives its room to the list of sightings. */
-  .rights-card {
-    display: none;
-  }
-
-  .detail-card {
-    top: 5.25rem;
-    right: 0.75rem;
-    left: auto;
-    width: min(26rem, calc(100% - 1.5rem));
-    max-height: min(21.25rem, calc(100% - 11rem - var(--map-credits)));
-    border-radius: 1.75rem;
-  }
-
-  .report-button {
-    right: 1rem;
-    bottom: calc(1rem + var(--map-credits));
-    gap: 0.5rem;
-    height: 3.5rem;
-    padding: 0 1.25rem 0 1rem;
-    font-size: 1.125rem;
-  }
-
-  .report-button svg {
-    width: 1.375rem;
-    height: 1.375rem;
-  }
-
-  .map-controls {
-    right: 1rem;
-    bottom: calc(5.5rem + var(--map-credits));
-  }
-
-  /* The banner spans the screen; pinch to zoom instead. */
-  .pick-banner ~ .map-controls {
-    display: none;
-  }
-
-  .leaflet-bottom.leaflet-right {
-    left: 0;
-  }
-
-  .leaflet-bottom.leaflet-right .leaflet-control-attribution {
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    max-width: 100%;
-  }
-
-  .notice {
-    bottom: calc(6rem + var(--map-credits));
-  }
-
-  .pick-banner {
-    bottom: calc(1rem + var(--map-credits));
-  }
-
-  .pick-banner ~ .notice {
-    bottom: calc(11rem + var(--map-credits));
-  }
-
-  .starter {
-    bottom: calc(1.5rem + var(--map-credits));
-  }
-
-  .choices {
-    grid-template-columns: 1fr 1fr;
-  }
-
-  .consent-card {
-    padding: 1.5rem 1.25rem;
-  }
-}
-
-/* Phones on their side (wide ones get the desktop layout): too short for a
+/* Short touch screens wide enough for the desktop layout: too short for a
    scrolling list inside a scrolling panel, so the list stops scrolling on its
    own and the panel scrolls as one. */
-@media (max-width: 899px) and (max-height: 479px), (pointer: coarse) and (max-height: 479px) {
+@media (width >= 1280px) and (pointer: coarse) and (max-height: 479px) {
   .report-list {
     flex: none;
   }
@@ -2021,46 +1851,6 @@ textarea::placeholder {
   overflow-wrap: anywhere;
 }
 
-@media (max-width: 899px) {
-  /* Notices stay clear of the map buttons on the right. */
-  .notice {
-    left: 0.75rem;
-    right: 4.5rem;
-    width: auto;
-    max-width: none;
-    transform: none;
-  }
-
-  /* And above the place-naming form, which is taller than the pick banner. */
-  .place-form ~ .notice {
-    bottom: calc(15rem + var(--map-credits));
-  }
-}
-
-/* Phones on their side: too short for the buttons to stack between the
-   search box and the report button, so they make a row at the bottom left. */
-@media (max-width: 899px) and (max-height: 479px) {
-  .map-controls {
-    right: auto;
-    left: 0.75rem;
-    bottom: calc(0.75rem + var(--map-credits));
-    grid-auto-flow: column;
-  }
-
-  .map-control-group {
-    grid-auto-flow: column;
-  }
-
-  .map-control-group .map-control + .map-control {
-    border-top: 0;
-    border-left: 0.0625rem solid var(--line);
-  }
-
-  /* The notice sits above the row; nothing on the right to keep clear of. */
-  .notice {
-    right: 0.75rem;
-  }
-}
 
 /* High contrast mode would turn every cluster the same colour, so verified
    and unverified ones looked alike. Like the pins, they keep their colours
@@ -2075,4 +1865,1208 @@ textarea::placeholder {
    lightened so they read on the dark map. Their dark outlines stay dark. */
 .map-labels {
   filter: brightness(2.6);
+}
+
+/* ---------------------------------------------------------------------------
+   Phones and tablets: everything below 1280px wide.
+
+   The desktop layout above starts at 1280px, and nothing from here on applies
+   there except the hooks just below, which hide what only phones and tablets
+   show. There are two layouts:
+
+   - phone: under 768px wide, or under 500px tall (a phone on its side).
+     A full-screen map, a tab bar, and sheets and pages that cover the map.
+   - tablet: 768px to 1279px wide and at least 500px tall.
+     The list of reports in a pane beside the map.
+
+   Each sets --layout, which lib/layout.ts reads, so the breakpoints are
+   written only here.
+   --------------------------------------------------------------------------- */
+
+/* Only shown on phones and tablets. */
+.rail-home,
+.panel-settings,
+.panel-tabs,
+.search-pane,
+.resource-list .arrow,
+.auth-logo {
+  display: none;
+}
+
+/* End of the phone and tablet hooks. */
+
+/* Phones and tablets alike. */
+@media (width < 1280px) {
+  :root {
+    --layout: tablet;
+    --gutter: 0.75rem;
+    /* The notch, the rounded corners and the home indicator. */
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-right: env(safe-area-inset-right, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-left: env(safe-area-inset-left, 0px);
+  }
+
+  /* One fixed size instead of desktop's scaling one: text stays readable,
+     and text boxes are 16px, below which iOS zooms in when one is tapped. */
+  html {
+    font-size: 16px;
+  }
+
+  /* Navigation: Home joins Reports and Know Your Rights. */
+  .rail-home {
+    display: flex;
+  }
+
+  .rail-icon svg,
+  .rail-item[aria-expanded="true"] .rail-icon svg {
+    width: 1.5rem;
+    height: 1.5rem;
+  }
+
+  /* The current tab looks like the open Reports button. */
+  .rail-item[aria-current="page"] {
+    color: #fff;
+    font-weight: 600;
+  }
+
+  .rail-item[aria-current="page"] .rail-icon {
+    background: #39587b;
+    color: #7caee6;
+  }
+
+  /* With a dialog or page open over the list, Reports isn't the current tab. */
+  .app[data-modal] .rail-reports {
+    color: #d6dbe7;
+    font-weight: 400;
+  }
+
+  .app[data-modal] .rail-reports .rail-icon {
+    color: inherit;
+  }
+
+  .app[data-modal] .rail-reports:not(:hover) .rail-icon {
+    background: transparent;
+  }
+
+  /* Know Your Rights is in the navigation, so its card in the list gives
+     its room to the sightings. */
+  .rights-card {
+    display: none;
+  }
+
+  /* Everything that can be tapped is at least 44px in both directions. */
+  .icon-button {
+    width: 2.75rem;
+    height: 2.75rem;
+  }
+
+  .primary-button,
+  .secondary-button,
+  .danger-button,
+  .vote,
+  .link-button,
+  .text-button,
+  .search-results button {
+    min-height: 2.75rem;
+  }
+
+  .text-button {
+    display: inline-flex;
+    /* Never squeezed narrower than its words by the text beside it. */
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    min-width: 2.75rem;
+  }
+
+  .map-control,
+  .map-controls > .map-control {
+    width: 3rem;
+    height: 3rem;
+  }
+
+  /* Text boxes are inside labels and would take their smaller size. */
+  .form input,
+  .report-form input:not([type="radio"]),
+  .report-form textarea,
+  .place-form-field input {
+    min-height: 3rem;
+    font-size: 1rem;
+  }
+
+  /* A long list of places scrolls instead of running off the screen. */
+  .search-results {
+    max-height: min(22rem, 60dvh);
+    overflow-y: auto;
+  }
+
+  /* Home: what floats over the map. --map-edge names the side of the map each
+     one takes up, so a pin being shown lands clear of them (map-app.tsx). */
+  .report-button {
+    --map-edge: bottom;
+  }
+
+  .pick-banner {
+    --map-edge: bottom;
+  }
+
+  .search {
+    --map-edge: top;
+  }
+
+  .map-controls {
+    --map-edge: right;
+  }
+
+  .panel-settings {
+    place-items: center;
+    width: 3rem;
+    height: 3rem;
+    border-radius: 0.625rem;
+    background: var(--surface);
+    color: #fff;
+    box-shadow: 0 0.25rem 0.75rem rgb(0 0 0 / 0.25);
+  }
+
+  .panel-settings svg {
+    width: 1.5rem;
+    height: 1.5rem;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    /* A faint edge on the dark map, like the map buttons'. */
+    .panel-settings {
+      box-shadow:
+        0 0 0 0.0625rem rgb(255 255 255 / 0.25),
+        0 0.25rem 0.75rem rgb(0 0 0 / 0.5);
+    }
+  }
+
+  /* Reports: every sighting in the list is a card of its own, with its status
+     on its border as well as its icon. The sections around the list lose
+     their own card, since the sheet or pane they're in is one already. */
+  .panel-cards {
+    gap: 1.25rem;
+  }
+
+  .panel-cards .card {
+    overflow: visible;
+    border-radius: 0;
+    background: none;
+    box-shadow: none;
+  }
+
+  .nearby-card::before {
+    content: none;
+  }
+
+  .panel-cards .card-head {
+    padding: 0.25rem 0.25rem 0.625rem;
+  }
+
+  .report-list,
+  .report-list:has(> :nth-child(3)) {
+    display: grid;
+    gap: 0.625rem;
+    min-height: 0;
+    padding: 0;
+    overflow: visible;
+    border-radius: 0;
+  }
+
+  .report-list .report-row {
+    gap: 0.75rem;
+    padding: 0.75rem 0.875rem;
+    border: 0.125rem solid #5a5f69;
+    border-radius: 1rem;
+    background: var(--card);
+  }
+
+  .report-list .report-row:has(.status-verified) {
+    border-color: var(--red-strong);
+  }
+
+  .report-list .report-row:has(.status-unverified) {
+    border-color: var(--yellow);
+  }
+
+  .report-list .report-row:has(.status-disputed) {
+    border-style: dashed;
+    border-color: #8d9099;
+  }
+
+  .report-list .report-row:hover {
+    background: #3a3b40;
+  }
+
+  .report-list .report-row[aria-pressed="true"] {
+    background: #44464c;
+    box-shadow: none;
+  }
+
+  .report-list .report-row:focus-visible {
+    outline-offset: 0.125rem;
+  }
+
+  /* A long address wraps onto a second line before it is cut short. */
+  .report-row .row-address {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .panel-cards .list-empty {
+    border-radius: 1rem;
+    background: var(--card);
+  }
+
+  .panel-cards .place-link {
+    margin-bottom: 0.5rem;
+    padding: 0.75rem 0.875rem;
+    border-radius: 1rem;
+    background: var(--card);
+  }
+
+  .panel-cards .place-link:hover {
+    background: #3a3b40;
+  }
+
+  .panel-cards .places-more {
+    margin: 0 0.25rem;
+  }
+
+  .panel-cards .area-stats {
+    padding: 0.875rem 0;
+    border-radius: 1rem;
+    background: var(--card);
+  }
+
+  /* Alert card: a long address wraps onto a second line before it is cut,
+     since there's no hovering over it to read the rest. */
+  .detail-head h2 {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .detail-head {
+    padding: 0.75rem 0.75rem 0.75rem 1.125rem;
+    border-bottom-width: 0.0625rem;
+  }
+
+  .detail-body {
+    padding: 0.875rem 1.125rem 0.75rem;
+    border-bottom-width: 0.0625rem;
+  }
+
+  .detail-footer {
+    padding: 0.75rem 1.125rem 1rem;
+  }
+
+  /* Rows in a "sightings here" card are tall enough to tap. */
+  .group-list .report-row {
+    min-height: 3.5rem;
+    padding: 0.625rem 1.125rem;
+  }
+
+  /* Know Your Rights: each resource is a card with an arrow, tall enough to
+     tap comfortably. */
+  .resource-list a {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    min-height: 4.5rem;
+    padding: 1rem 1.125rem;
+  }
+
+  .resource-list .arrow {
+    display: block;
+    flex: none;
+    width: 1.25rem;
+    height: 1.25rem;
+    color: var(--link);
+  }
+
+  /* Log in and Save account: the logo above the form, as on a sign-in page. */
+  .auth-logo {
+    display: block;
+    justify-self: center;
+    width: 9rem;
+    margin: 0.25rem 0 0.5rem;
+  }
+
+  .auth-logo img {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+
+  /* Settings: a saved place's buttons are big enough to tap and apart from
+     each other. When they don't fit beside the name, they go under it. */
+  .place-row {
+    display: flex;
+    flex-wrap: wrap;
+  }
+
+  .place-row .row-text {
+    flex: 1 1 7rem;
+    min-width: 0;
+  }
+
+  .place-actions {
+    gap: 0.5rem;
+    margin-left: auto;
+  }
+}
+
+/* Phones, upright or on their side. */
+@media (width < 768px), (width < 1280px) and (height < 500px) {
+  :root {
+    --layout: phone;
+    /* The map credits get their own row at the bottom of the map, and
+       everything else at the bottom sits above it. */
+    --map-credits: 1.125rem;
+    --tabbar: calc(3.75rem + var(--safe-bottom));
+    --nav-left: 0px;
+  }
+
+  /* The rail becomes a tab bar under the map: Home, Reports, Know Your
+     Rights. Settings moves up beside the search box. */
+  .app {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .map-shell {
+    flex: 1;
+    min-height: 0;
+  }
+
+  .rail {
+    order: 1;
+    flex-direction: row;
+    align-items: stretch;
+    gap: 0;
+    height: var(--tabbar);
+    padding: 0.375rem calc(0.5rem + var(--safe-right)) calc(0.375rem + var(--safe-bottom))
+      calc(0.5rem + var(--safe-left));
+    border-top: 0.0625rem solid var(--line);
+    border-right: 0;
+  }
+
+  .rail .brand-logo,
+  .rail-settings {
+    display: none;
+  }
+
+  .rail-item {
+    flex: 1 1 0;
+    justify-content: center;
+    gap: 0.125rem;
+    width: auto;
+    min-width: 0;
+    font-size: 0.75rem;
+    white-space: nowrap;
+  }
+
+  .rail-reports {
+    margin-top: 0;
+  }
+
+  .rail-icon {
+    width: 3.5rem;
+    height: 1.875rem;
+    border-radius: 0.625rem;
+  }
+
+  .leaflet-bottom.leaflet-right {
+    left: 0;
+  }
+
+  .leaflet-bottom.leaflet-right .leaflet-control-attribution {
+    --map-edge: bottom;
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    max-width: 100%;
+  }
+
+  /* Home: Settings and the search box across the top of the map, with the
+     map buttons at the top right. */
+  .panel {
+    top: calc(var(--gutter) + var(--safe-top));
+    right: calc(var(--gutter) + 3.5rem + var(--safe-right));
+    bottom: auto;
+    left: calc(var(--gutter) + var(--safe-left));
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    column-gap: 0.5rem;
+    width: auto;
+  }
+
+  .panel-settings {
+    display: grid;
+  }
+
+  /* The list of places found hangs from the whole row, not just the box. */
+  .search,
+  .search-field {
+    position: static;
+  }
+
+  .search,
+  .app[data-panel="closed"] .search {
+    padding: 0;
+    border-radius: 0.75rem;
+  }
+
+  .search-results {
+    right: -3.5rem;
+    left: 0;
+  }
+
+  .app[data-panel="closed"] .panel-cards {
+    display: none;
+  }
+
+  .map-controls {
+    top: calc(var(--gutter) + var(--safe-top));
+    right: calc(var(--gutter) + var(--safe-right));
+    bottom: auto;
+    gap: 0.5rem;
+  }
+
+  .report-button {
+    right: calc(var(--gutter) + var(--safe-right));
+    bottom: calc(var(--gutter) + var(--map-credits));
+    gap: 0.5rem;
+    height: 3.5rem;
+    padding: 0 1.25rem 0 1rem;
+    font-size: 1.125rem;
+  }
+
+  .report-button svg {
+    width: 1.375rem;
+    height: 1.375rem;
+  }
+
+  /* Notices sit under the search box, clear of the map buttons and of
+     whatever is docked at the bottom. */
+  .notice,
+  .pick-banner ~ .notice {
+    top: calc(var(--gutter) + var(--safe-top) + 3.5rem);
+    right: calc(var(--gutter) + 3.5rem + var(--safe-right));
+    bottom: auto;
+    left: calc(var(--gutter) + var(--safe-left));
+    width: auto;
+    max-width: none;
+    transform: none;
+  }
+
+  /* Above the tab bar, and wide enough for the captcha (300px) on a 360px phone. */
+  .starter {
+    bottom: calc(var(--tabbar) + var(--map-credits) + var(--gutter));
+    width: calc(100% - 1.5rem);
+    padding: 1rem;
+  }
+
+  /* Reports: a sheet over the whole map, under the search box, with the list
+     (Nearby) or the places found (Search). */
+  .app[data-panel="open"] .panel {
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    grid-template-rows: auto auto minmax(0, 1fr);
+    padding: calc(var(--gutter) + var(--safe-top)) calc(var(--gutter) + var(--safe-right)) 0
+      calc(var(--gutter) + var(--safe-left));
+    background: var(--surface);
+    pointer-events: auto;
+  }
+
+  .app[data-panel="open"] .panel-tabs {
+    display: flex;
+    grid-column: 1 / -1;
+    gap: 0.5rem;
+    padding: 0.75rem 0 0.5rem;
+  }
+
+  .panel-tabs button {
+    min-height: 2.75rem;
+    padding: 0 1.125rem;
+    border-radius: 62.4375rem;
+    background: var(--card);
+    color: #fff;
+    font-size: 1rem;
+    font-weight: 700;
+  }
+
+  .panel-tabs button[aria-pressed="true"] {
+    background: var(--blue-strong);
+  }
+
+  .panel-cards {
+    grid-column: 1 / -1;
+    /* No pull below the sheet: it ends at the tab bar or the screen's edge. */
+    margin-bottom: 0;
+    padding-top: 0.25rem;
+  }
+
+  .app[data-panel="open"][data-tab="search"] .panel-cards {
+    display: none;
+  }
+
+  /* Search, before anything is found: what the box above is for. */
+  .app[data-panel="open"][data-tab="search"] .search-pane {
+    display: grid;
+    grid-column: 1 / -1;
+    align-self: start;
+  }
+
+  .app[data-panel="open"][data-tab="search"] .panel:has(.search-results) .search-pane {
+    display: none;
+  }
+
+  /* The places found fill the sheet under the tabs, one card each. */
+  .app[data-panel="open"] .search-results {
+    top: calc(var(--gutter) + var(--safe-top) + 7rem);
+    right: calc(var(--gutter) + var(--safe-right));
+    bottom: 0;
+    left: calc(var(--gutter) + var(--safe-left));
+    max-height: none;
+    padding: 0.25rem 0 var(--gutter);
+    border-radius: 0;
+    background: var(--surface);
+    box-shadow: none;
+  }
+
+  .app[data-panel="open"] .search-results button,
+  .app[data-panel="open"] .search-empty {
+    margin-bottom: 0.5rem;
+    padding: 0.875rem 1rem;
+    border-radius: 1rem;
+    background: var(--card);
+  }
+
+  /* Text: nothing a person reads on a phone is smaller than 16px. The tab
+     labels and the map's credits are the only exceptions. */
+  .card-head span,
+  .row-title,
+  .row-meta,
+  .search-status,
+  .search-results button,
+  .search-empty,
+  .places-more,
+  .primary-button,
+  .secondary-button,
+  .danger-button,
+  .text-button,
+  .vote,
+  .badge,
+  .detail-description,
+  .detail-status,
+  .detail-meta,
+  .detail-note,
+  .detail-hint,
+  .confirm-row,
+  .form label,
+  .report-form label,
+  .form small,
+  .report-form small,
+  .form-error,
+  .form-tip,
+  .warning-list,
+  .spot-row,
+  .choice-group legend,
+  .choice-label,
+  .choice-hint,
+  .nearby h3,
+  .modal .nearby p,
+  .searched-label,
+  .pick-banner .place-form-tip,
+  .consent-why,
+  .policy ul,
+  .totals dt {
+    font-size: 1rem;
+  }
+
+  /* Alert card: docked at the bottom of the map, above the credits, with its
+     status on its border. It takes less than half the map and scrolls inside. */
+  .detail-card {
+    --map-edge: bottom;
+    top: auto;
+    right: calc(var(--gutter) + var(--safe-right));
+    bottom: calc(0.375rem + var(--map-credits));
+    left: calc(var(--gutter) + var(--safe-left));
+    width: auto;
+    max-height: min(22rem, 46%);
+    border: 0.125rem solid #5a5f69;
+    border-radius: 1.5rem;
+  }
+
+  .detail-card:has(.badge-verified) {
+    border-color: var(--red-strong);
+  }
+
+  .detail-card:has(.badge-unverified) {
+    border-color: var(--yellow);
+  }
+
+  .detail-card:has(.badge-disputed) {
+    border-style: dashed;
+    border-color: #8d9099;
+  }
+
+  /* The card takes the report button's place until it is closed. */
+  .detail-card ~ .report-button {
+    display: none;
+  }
+
+  /* Choosing a spot on the map needs the map: the card waits. */
+  .map-shell:has(> .pick-banner) > .detail-card {
+    display: none;
+  }
+
+  /* Dialogs become pages on a phone: the whole screen, with a title bar that
+     stays put while the page scrolls under it. */
+  .modal-layer {
+    display: block;
+    padding: 0;
+    background: var(--surface);
+    backdrop-filter: none;
+  }
+
+  .modal {
+    width: 100%;
+    height: 100%;
+    max-height: none;
+    padding: 0 calc(1rem + var(--safe-right)) calc(1.5rem + var(--safe-bottom))
+      calc(1rem + var(--safe-left));
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .modal-head {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    margin: 0 calc(-1rem - var(--safe-right)) 1rem calc(-1rem - var(--safe-left));
+    padding: calc(0.625rem + var(--safe-top)) calc(0.625rem + var(--safe-right)) 0.625rem
+      calc(1rem + var(--safe-left));
+    border-bottom: 0.0625rem solid var(--line);
+    background: var(--surface);
+  }
+
+  .modal-head h2 {
+    font-size: 1.5rem;
+  }
+
+  /* A sticky footer (the terms' Back button) reaches the page's edges too. */
+  .sticky-actions {
+    bottom: calc(-1.5rem - var(--safe-bottom));
+    margin: 0 calc(-1rem - var(--safe-right)) calc(-1.5rem - var(--safe-bottom))
+      calc(-1rem - var(--safe-left));
+    padding: 0.875rem calc(1rem + var(--safe-right)) calc(1.5rem + var(--safe-bottom))
+      calc(1rem + var(--safe-left));
+  }
+
+  /* Buttons at the end of a form: full width, the main one first. They are
+     part of the page, not pinned over it, so they never cover a text box. */
+  .form-actions {
+    flex-direction: column-reverse;
+    flex-wrap: nowrap;
+  }
+
+  .form-actions > * {
+    min-height: 3rem;
+  }
+
+  /* Submit a report: choosing the spot. The banner is docked at the bottom of
+     the map, its two buttons side by side. */
+  .pick-banner {
+    right: calc(var(--gutter) + var(--safe-right));
+    bottom: calc(var(--gutter) + var(--map-credits));
+    left: calc(var(--gutter) + var(--safe-left));
+    width: auto;
+    transform: none;
+  }
+
+  .pick-banner .form-actions {
+    flex-direction: row;
+  }
+
+  .pick-banner .form-actions > * {
+    flex: 1;
+  }
+
+  /* Naming a place has a text box, so it goes at the top of the map, where
+     the keyboard can't cover it. Notices move below it. */
+  .pick-banner.place-form {
+    --map-edge: top;
+    top: calc(var(--gutter) + var(--safe-top) + 3.5rem);
+    right: calc(var(--gutter) + 3.5rem + var(--safe-right));
+    bottom: auto;
+  }
+
+  .place-form ~ .notice {
+    top: calc(var(--gutter) + var(--safe-top) + 19rem);
+  }
+
+  /* Submit a report: the form. "What did you see?" is a column of rows, the
+     name on the left and what it means on the right. */
+  .choices {
+    grid-template-columns: 1fr;
+  }
+
+  .report-form .choice {
+    grid-template-columns: 6.5rem minmax(0, 1fr);
+    align-items: center;
+    column-gap: 0.75rem;
+    min-height: 3.25rem;
+    padding: 0.625rem 0.875rem;
+  }
+
+  .report-submit {
+    min-height: 3.25rem;
+  }
+
+  /* Know Your Rights is one of the three tabs: its page leaves the tab bar
+     (or, on its side, the tabs down the left) in reach. */
+  .modal-layer[data-kind="rights"] {
+    bottom: var(--tabbar);
+    left: var(--nav-left);
+  }
+
+  .modal-layer[data-kind="rights"] .modal {
+    padding-bottom: 1.5rem;
+  }
+
+  /* Settings: buttons run the width of the page, one under another. */
+  .button-row {
+    flex-direction: column;
+  }
+
+  .button-column {
+    justify-items: stretch;
+  }
+
+  .button-row > *,
+  .button-column > * {
+    min-height: 3rem;
+  }
+
+  .totals dt {
+    line-height: 1.25;
+  }
+
+  /* Consent: the card nearly fills the screen, clear of the notch and the
+     home indicator. */
+  .consent {
+    padding: calc(1rem + var(--safe-top)) calc(0.75rem + var(--safe-right))
+      calc(1rem + var(--safe-bottom)) calc(0.75rem + var(--safe-left));
+  }
+
+  .consent-card {
+    padding: 1.5rem 1.25rem;
+    border-radius: 1.5rem;
+  }
+
+  .consent-agree {
+    min-height: 3.25rem;
+  }
+}
+
+/* Phones on their side: too short for a tab bar under the map, so the tabs
+   go down the left, with Settings back among them. From 480px wide, so an
+   upright phone whose keyboard has shortened the page doesn't switch. */
+@media (480px <= width < 1280px) and (height < 500px) {
+  :root {
+    --tabbar: 0px;
+    --nav-left: calc(4.75rem + var(--safe-left));
+  }
+
+  .app {
+    flex-direction: row;
+  }
+
+  .rail {
+    order: 0;
+    flex-direction: column;
+    gap: 0.25rem;
+    width: var(--nav-left);
+    height: auto;
+    padding: 0.5rem 0.25rem 0.5rem calc(0.25rem + var(--safe-left));
+    overflow-y: auto;
+    border-top: 0;
+    border-right: 0.0625rem solid var(--line);
+  }
+
+  .rail-item {
+    flex: none;
+    min-height: 3rem;
+    white-space: normal;
+  }
+
+  .rail-settings {
+    display: flex;
+    margin-top: auto;
+  }
+
+  /* Home, on its side: the search box at the top left, the map buttons in a
+     row at the bottom left. */
+  .panel {
+    right: auto;
+    left: var(--gutter);
+    grid-template-columns: minmax(0, 1fr);
+    width: min(22rem, 46%);
+  }
+
+  .panel-settings {
+    display: none;
+  }
+
+  .search-results {
+    right: 0;
+  }
+
+  .map-controls {
+    --map-edge: bottom;
+    top: auto;
+    right: auto;
+    bottom: calc(var(--gutter) + var(--map-credits));
+    left: var(--gutter);
+    grid-auto-flow: column;
+  }
+
+  .map-control-group {
+    grid-auto-flow: column;
+  }
+
+  .map-control-group .map-control + .map-control {
+    border-top: 0;
+    border-left: 0.0625rem solid var(--line);
+  }
+
+  .notice,
+  .pick-banner ~ .notice {
+    top: auto;
+    right: auto;
+    bottom: calc(var(--gutter) + var(--map-credits) + 3.75rem);
+    max-width: min(28rem, 52%);
+  }
+
+  /* Reports, on its side: a sheet down the left, the map still showing. */
+  .app[data-panel="open"] .panel {
+    right: auto;
+    width: min(24rem, 52%);
+    border-right: 0.0625rem solid var(--line);
+  }
+
+  /* Alert card, on its side: down the right of the map. */
+  .detail-card {
+    --map-edge: right;
+    top: var(--gutter);
+    bottom: auto;
+    left: auto;
+    width: min(21rem, 46%);
+    max-height: calc(100% - var(--gutter) - 0.375rem - var(--map-credits));
+  }
+
+  /* Choosing a spot, on its side: the banner at the bottom right, clear of
+     the map buttons. */
+  .pick-banner {
+    left: auto;
+    width: min(26rem, 56%);
+  }
+
+  .pick-banner.place-form {
+    top: var(--gutter);
+    right: calc(var(--gutter) + var(--safe-right));
+  }
+
+  .place-form ~ .notice {
+    top: auto;
+  }
+
+  /* Two columns again: there's the width for them, and little height. */
+  .choices {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  /* On its side there's little height: the terms get most of it. */
+  .consent-logo {
+    width: 6rem;
+  }
+
+  .consent-text {
+    max-height: 40dvh;
+  }
+
+  /* Log in and Save account, on its side: a centred column, not the full
+     width of the screen. */
+  .account-form {
+    justify-self: center;
+    width: min(30rem, 100%);
+  }
+
+  .auth-logo {
+    width: 6rem;
+  }
+}
+
+/* Tablets. On their side, the rail stays down the left as on desktop. */
+@media (768px <= width < 1280px) and (height >= 500px) {
+  :root {
+    --layout: tablet;
+    --rail-width: calc(5.75rem + var(--safe-left));
+    --pane: clamp(20rem, 40vw, 23.75rem);
+  }
+
+  .rail {
+    gap: 0.75rem;
+    padding: 1rem 0.375rem calc(1rem + var(--safe-bottom)) calc(0.375rem + var(--safe-left));
+  }
+
+  .brand-logo {
+    width: 4.25rem;
+  }
+
+  .rail-item {
+    gap: 0.25rem;
+    min-height: 3rem;
+    font-size: 0.8125rem;
+  }
+
+  .rail-home {
+    margin-top: 0.75rem;
+  }
+
+  .rail-reports {
+    margin-top: 0;
+  }
+
+  .rail-icon {
+    width: 4rem;
+    height: 2.5rem;
+  }
+
+  /* Home: with the list closed, the search box floats over the map's top
+     left corner. */
+  .panel {
+    top: var(--gutter);
+    bottom: auto;
+    left: var(--gutter);
+    width: calc(var(--pane) - 2 * var(--gutter));
+  }
+
+  .search,
+  .app[data-panel="closed"] .search {
+    padding: 0;
+    border-radius: 0.75rem;
+  }
+
+  .app[data-panel="closed"] .panel-cards {
+    display: none;
+  }
+
+  .map-controls {
+    right: calc(1rem + var(--safe-right));
+    bottom: 6.5rem;
+    gap: 0.5rem;
+  }
+
+  .report-button {
+    right: calc(1rem + var(--safe-right));
+    bottom: 2rem;
+    height: 3.5rem;
+    font-size: 1.125rem;
+  }
+
+  .report-button svg {
+    width: 1.375rem;
+    height: 1.375rem;
+  }
+
+  /* Reports: the list in a pane down the left, and the map beside it (not
+     under it), so what the map shows is what can be seen. */
+  .app[data-panel="open"] .panel {
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: var(--pane);
+    padding: var(--gutter) var(--gutter) 0;
+    border-right: 0.0625rem solid var(--line);
+    background: var(--surface);
+    pointer-events: auto;
+  }
+
+  .app[data-panel="open"] .search {
+    box-shadow: none;
+  }
+
+  .panel-cards {
+    flex: 1 1 auto;
+    margin-bottom: 0;
+    padding-top: 0.875rem;
+  }
+
+  /* Alert card: in the pane, in place of the list, which comes back when the
+     card is closed. The map keeps its width. */
+  .detail-card {
+    top: calc(3rem + 2 * var(--gutter));
+    right: auto;
+    bottom: 0;
+    left: 0;
+    width: var(--pane);
+    max-height: none;
+    border-right: 0.0625rem solid var(--line);
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .map-shell:has(> .detail-card) > .panel {
+    top: 0;
+    bottom: auto;
+    left: 0;
+    width: var(--pane);
+    padding: var(--gutter);
+    border-right: 0.0625rem solid var(--line);
+    background: var(--surface);
+    pointer-events: auto;
+  }
+
+  .map-shell:has(> .detail-card) .search {
+    box-shadow: none;
+  }
+
+  .map-shell:has(> .detail-card) .panel-cards {
+    display: none;
+  }
+
+  /* What's centred on the map is centred on the part beside the pane. */
+  .map-shell {
+    --map-left: 0px;
+  }
+
+  .app[data-panel="open"] .map-shell,
+  .map-shell:has(> .detail-card) {
+    --map-left: var(--pane);
+  }
+
+  .map {
+    left: var(--map-left);
+  }
+
+  .pick-banner,
+  .notice {
+    left: calc(var(--map-left) + (100% - var(--map-left)) / 2);
+  }
+
+  .pick-banner {
+    width: min(30rem, calc(100% - var(--map-left) - 2rem));
+  }
+
+  .notice {
+    max-width: min(28rem, calc(100% - var(--map-left) - 2rem));
+  }
+
+  /* The map buttons move up, out from under the banner. */
+  .pick-banner ~ .map-controls {
+    bottom: 10.5rem;
+  }
+
+  .place-form ~ .map-controls {
+    bottom: 17rem;
+  }
+
+  /* Submit a report: the form is a centred column, its buttons full size. */
+  .form-actions > * {
+    min-height: 3rem;
+  }
+
+  /* Know Your Rights: a wider dialog, the resources two to a row. */
+  .modal-layer[data-kind="rights"] .modal {
+    width: min(44rem, 100%);
+  }
+
+  .resource-list {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  /* Settings: a wider dialog. Log in and Save account are a centred column
+     inside it. */
+  .modal-layer[data-kind="settings"] .modal {
+    width: min(40rem, 100%);
+  }
+
+  .account-form {
+    justify-self: center;
+    width: min(26rem, 100%);
+  }
+}
+
+/* Upright tablets: a tab bar under the map, with room for the logo and
+   Settings at its ends and for labels beside the icons. */
+@media (768px <= width < 1280px) and (height >= 500px) and (orientation: portrait) {
+  .app {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .map-shell {
+    flex: 1;
+    min-height: 0;
+  }
+
+  .rail {
+    order: 1;
+    flex-direction: row;
+    gap: 0.5rem;
+    padding: 0.5rem calc(1rem + var(--safe-right)) calc(0.5rem + var(--safe-bottom))
+      calc(1rem + var(--safe-left));
+    border-top: 0.0625rem solid var(--line);
+    border-right: 0;
+  }
+
+  /* The logo and Settings take equal shares of the ends, which centres
+     the three tabs between them. */
+  .brand-logo {
+    flex: 1 1 0;
+    width: auto;
+  }
+
+  .brand-logo img {
+    width: 4.25rem;
+  }
+
+  .rail-item {
+    flex-direction: row;
+    gap: 0.375rem;
+    width: auto;
+    padding-right: 0.875rem;
+    font-size: 1rem;
+    white-space: nowrap;
+  }
+
+  .rail-home {
+    margin-top: 0;
+  }
+
+  .rail-settings {
+    flex: 1 1 0;
+    justify-content: flex-end;
+    margin-top: 0;
+    padding-right: 0;
+  }
+
+  .rail-icon {
+    width: 3rem;
+    height: 2.5rem;
+  }
 }
