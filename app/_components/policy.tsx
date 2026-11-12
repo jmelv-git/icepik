@@ -1,6 +1,6 @@
 // Change the version whenever the text below changes: everyone is asked to
 // agree again. The accepted version is kept in localStorage only.
-export const POLICY_VERSION = "2026-11-04b-draft";
+export const POLICY_VERSION = "2026-11-12-draft";
 
 // Plain-language terms and privacy notice, shown before anything else loads.
 // DRAFT: the team must review this text before launch.
@@ -45,12 +45,13 @@ export function PolicyText() {
         </li>
         <li>
           <strong>Your location stays on this device</strong>, except when you confirm or dispute a
-          sighting. When you first open the map, ICEPik asks your browser for your location, to
-          show where you are with a blue dot and center the map there. Centering loads the map
+          sighting. Then ICEPik sends it once, to check you’re within 1 km, and doesn’t store it.
+        </li>
+        <li>
+          <strong>The blue dot.</strong> When you first open the map, ICEPik asks your browser for
+          your location, to show where you are and center the map there. Centering loads the map
           images for that area, which CARTO sees (see below). You can say no and the map still
-          works. ICEPik remembers only your answer, so it doesn’t ask each time you open the
-          map. Confirming or disputing a sighting sends your location to check you’re within 1 km,
-          and it isn’t stored. Home, work and places you save and name stay on this device too.
+          works.
         </li>
         <li>
           <strong>What our providers see.</strong> Supabase (our database) and Vercel (our
@@ -68,9 +69,15 @@ export function PolicyText() {
         </li>
         <li>No ads, analytics or tracking.</li>
         <li>
+          <strong>What this device keeps.</strong> Your sign-in, your home, work and other saved
+          places, your answer about location, your choice for the moving background, and which
+          version of these terms you agreed to. Saved places and these choices are never sent to
+          us.
+        </li>
+        <li>
           You can delete your account in Settings. Your sightings stay on the map until they
           expire, with no link to you. &ldquo;Clear this device&rdquo; removes saved places and
-          signs this device out.
+          the background choice, and signs this device out.
         </li>
       </ul>
     </div>

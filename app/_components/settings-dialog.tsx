@@ -1,7 +1,7 @@
 "use client";
 
 import type { User } from "@supabase/supabase-js";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import {
   PASSWORD_RULES,
   USERNAME_RULES,
@@ -14,8 +14,10 @@ import {
 import {
   CUSTOM_PLACES_MAX,
   clearDeviceStorage,
+  rememberBackgroundMotion,
   removeCustomPlace,
   savePlace,
+  useBackgroundMotion,
   type CustomPlace,
   type PlaceName,
   type SavedPlace,
@@ -73,6 +75,13 @@ export function SettingsDialog(props: Props) {
   };
   useEffect(() => {
     document.querySelector(".modal")?.scrollTo(0, 0);
+    // The button that opened this view is gone: its heading takes focus, so
+    // keyboard users carry on from the top and screen readers read it.
+    if (view === "main") return;
+    const heading = document.querySelector<HTMLElement>(".modal .settings h3");
+    if (!heading) return;
+    heading.tabIndex = -1;
+    heading.focus({ preventScroll: true });
   }, [view]);
 
   return (
@@ -112,6 +121,7 @@ function MainView({
   onOpen,
 }: Props & { onOpen: (view: View) => void }) {
   const username = usernameOf(user);
+  const motion = useBackgroundMotion();
   const [placeStatus, setPlaceStatus] = useState("");
   const nearby = (place: SavedPlace) => {
     const near = sightings.filter(
@@ -182,10 +192,19 @@ function MainView({
                 <span className="place-actions">
                   {place ? (
                     <>
-                      <button type="button" className="text-button" onClick={() => onShowPlace(place)}>
+                      <button
+                        type="button"
+                        className="text-button"
+                        aria-label={`Show ${PLACE_LABEL[name]}`}
+                        onClick={() => onShowPlace(place)}
+                      >
                         Show
                       </button>
-                      <button type="button" className="text-button" onClick={() =>
+                      <button
+                        type="button"
+                        className="text-button"
+                        aria-label={`Remove ${PLACE_LABEL[name]}`}
+                        onClick={() =>
                           setPlaceStatus(
                             savePlace(name, null)
                               ? `${PLACE_LABEL[name]} removed from this device.`
@@ -196,7 +215,12 @@ function MainView({
                       </button>
                     </>
                   ) : (
-                    <button type="button" className="text-button" onClick={() => onPickPlace(name)}>
+                    <button
+                      type="button"
+                      className="text-button"
+                      aria-label={`Set on map: ${PLACE_LABEL[name]}`}
+                      onClick={() => onPickPlace(name)}
+                    >
                       Set on map
                     </button>
                   )}
@@ -261,6 +285,32 @@ function MainView({
         </p>
       </section>
 
+      <section className="settings-section" aria-labelledby="display-title">
+        <h3 id="display-title">Display</h3>
+        <label className="switch-row">
+          <span className="switch-text">
+            <span id="motion-label" className="switch-label">
+              Moving background
+            </span>
+            <span id="motion-hint" className="detail-hint">
+              The slow blue background of the terms, Log in and Save account. Your choice stays on
+              this device.
+            </span>
+          </span>
+          <span className="switch">
+            <input
+              type="checkbox"
+              role="switch"
+              checked={motion}
+              onChange={(event) => rememberBackgroundMotion(event.target.checked)}
+              aria-labelledby="motion-label"
+              aria-describedby="motion-hint"
+            />
+            <span className="switch-track" aria-hidden="true" />
+          </span>
+        </label>
+      </section>
+
       <section className="settings-section" aria-labelledby="privacy-title">
         <h3 id="privacy-title">Privacy</h3>
         <div className="button-column">
@@ -291,80 +341,106 @@ function SaveAccount({ supabase, onNotice, onBack }: Props & { onBack: () => voi
   const [repeat, setRepeat] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  // The field the message is about: it says it's invalid and points at it.
+  const [field, setField] = useState<"username" | "password" | "repeat" | null>(null);
+  const errorId = `${useId()}-error`;
+  const invalid = (name: typeof field) =>
+    field === name ? { "aria-invalid": true, "aria-describedby": errorId } : {};
 
   async function save(event: React.FormEvent) {
     event.preventDefault();
-    const problem =
-      checkUsername(username) ??
-      checkPassword(password) ??
-      (password === repeat ? null : "The passwords don't match.");
-    if (problem) return setMessage(problem);
+    const usernameProblem = checkUsername(username);
+    const passwordProblem = checkPassword(password);
+    const repeatProblem = password === repeat ? null : "The passwords don't match.";
+    const problem = usernameProblem ?? passwordProblem ?? repeatProblem;
+    if (problem) {
+      setField(usernameProblem ? "username" : passwordProblem ? "password" : "repeat");
+      return setMessage(problem);
+    }
 
     setBusy(true);
     setMessage(null);
+    setField(null);
     // Same user id: posts and votes stay with the account.
     const { error } = await supabase.auth.updateUser({ email: loginIdFor(username), password });
     setBusy(false);
-    if (error) return setMessage(authErrorMessage(error));
+    if (error) {
+      const code = error.code ?? "";
+      setField(
+        ["email_exists", "user_already_exists", "email_address_invalid"].includes(code)
+          ? "username"
+          : code === "weak_password"
+            ? "password"
+            : null,
+      );
+      return setMessage(authErrorMessage(error));
+    }
     onNotice(`Account saved. Your username is ${username.trim().toLowerCase()}.`);
     onBack();
   }
 
   return (
     <form className="form account-form" onSubmit={save} noValidate>
-      {/* Phones and tablets only: these read as sign-in pages there. */}
+      {/* Phones only (with :has(), tablets and desktop show the logo above the
+          dialog instead): these read as sign-in pages there. */}
       <BrandLogo className="auth-logo" />
-      <h3>Save your account</h3>
-      <ul className="warning-list">
-        <li>Don&apos;t use your real name or a name people know you by.</li>
-        <li>
-          There&apos;s no password reset. If you forget your password, this account can&apos;t be
-          recovered.
-        </li>
-      </ul>
-      <label>
-        Username
-        <input
-          autoComplete="username"
-          autoCapitalize="none"
-          spellCheck={false}
-          maxLength={20}
-          value={username}
-          onChange={(event) => setUsername(event.target.value)}
-        />
-        <small>{USERNAME_RULES}</small>
-      </label>
-      <label>
-        Password
-        <input
-          type="password"
-          autoComplete="new-password"
-          value={password}
-          onChange={(event) => setPassword(event.target.value)}
-        />
-        <small>{PASSWORD_RULES}</small>
-      </label>
-      <label>
-        Repeat password
-        <input
-          type="password"
-          autoComplete="new-password"
-          value={repeat}
-          onChange={(event) => setRepeat(event.target.value)}
-        />
-      </label>
-      {message ? (
-        <p className="form-error" role="alert">
-          {message}
-        </p>
-      ) : null}
-      <div className="form-actions">
-        <button type="button" className="secondary-button" onClick={onBack} disabled={busy}>
-          Back
-        </button>
-        <button type="submit" className="primary-button" disabled={busy}>
-          {busy ? "Saving…" : "Save account"}
-        </button>
+      {/* The card on phones; elsewhere this box doesn't exist (CSS). */}
+      <div className="account-card">
+        <h3>Save your account</h3>
+        <ul className="warning-list">
+          <li>Don&apos;t use your real name or a name people know you by.</li>
+          <li>
+            There&apos;s no password reset. If you forget your password, this account can&apos;t be
+            recovered.
+          </li>
+        </ul>
+        <label>
+          Username
+          <input
+            autoComplete="username"
+            autoCapitalize="none"
+            spellCheck={false}
+            maxLength={20}
+            value={username}
+            onChange={(event) => setUsername(event.target.value)}
+            {...invalid("username")}
+          />
+          <small>{USERNAME_RULES}</small>
+        </label>
+        <label>
+          Password
+          <input
+            type="password"
+            autoComplete="new-password"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            {...invalid("password")}
+          />
+          <small>{PASSWORD_RULES}</small>
+        </label>
+        <label>
+          Repeat password
+          <input
+            type="password"
+            autoComplete="new-password"
+            value={repeat}
+            onChange={(event) => setRepeat(event.target.value)}
+            {...invalid("repeat")}
+          />
+        </label>
+        {message ? (
+          <p id={errorId} className="form-error" role="alert">
+            {message}
+          </p>
+        ) : null}
+        <div className="form-actions">
+          <button type="button" className="secondary-button" onClick={onBack} disabled={busy}>
+            Back
+          </button>
+          <button type="submit" className="primary-button" disabled={busy}>
+            {busy ? "Saving…" : "Save account"}
+          </button>
+        </div>
       </div>
     </form>
   );
@@ -377,16 +453,22 @@ function LogIn({ supabase, user, activePosts, onNotice, onClose, onBack }: Props
   const [captchaReset, setCaptchaReset] = useState(0);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  // "Username or password is wrong" is about both fields.
+  const [wrong, setWrong] = useState(false);
+  const errorId = `${useId()}-error`;
+  const invalid = wrong ? { "aria-invalid": true, "aria-describedby": errorId } : {};
   const unsaved = user?.is_anonymous ?? false;
 
   async function logIn(event: React.FormEvent) {
     event.preventDefault();
     if (checkUsername(username) || !password) {
+      setWrong(true);
       return setMessage("Username or password is wrong.");
     }
 
     setBusy(true);
     setMessage(null);
+    setWrong(false);
     const { error } = await supabase.auth.signInWithPassword({
       email: loginIdFor(username),
       password,
@@ -395,70 +477,79 @@ function LogIn({ supabase, user, activePosts, onNotice, onClose, onBack }: Props
     setBusy(false);
     // A CAPTCHA token works once.
     if (captchaEnabled) setCaptchaReset((count) => count + 1);
-    if (error) return setMessage(authErrorMessage(error));
+    if (error) {
+      setWrong(error.code === "invalid_credentials");
+      return setMessage(authErrorMessage(error));
+    }
     onNotice(`Logged in as ${username.trim().toLowerCase()}.`);
     onClose();
   }
 
   return (
     <form className="form account-form" onSubmit={logIn} noValidate>
-      {/* Phones and tablets only: these read as sign-in pages there. */}
+      {/* Phones only (with :has(), tablets and desktop show the logo above the
+          dialog instead): these read as sign-in pages there. */}
       <BrandLogo className="auth-logo" />
-      <h3>Log in to a saved account</h3>
-      {unsaved ? (
-        <ul className="warning-list">
-          <li>
-            This device&apos;s account isn&apos;t saved
-            {activePosts ? `, and it has ${activePosts} sighting${activePosts === 1 ? "" : "s"} on the map` : ""}.
-            If you log in to another account, you can&apos;t get back to this one.
-          </li>
-        </ul>
-      ) : null}
-      <label>
-        Username
-        <input
-          autoComplete="username"
-          autoCapitalize="none"
-          spellCheck={false}
-          maxLength={20}
-          value={username}
-          onChange={(event) => setUsername(event.target.value)}
-        />
-      </label>
-      <label>
-        Password
-        <input
-          type="password"
-          autoComplete="current-password"
-          value={password}
-          onChange={(event) => setPassword(event.target.value)}
-        />
-      </label>
-      {captchaEnabled ? (
-        <Captcha
-          onToken={setToken}
-          onError={() =>
-            setMessage("The security check couldn't load. Check your connection, then go back and try again.")
-          }
-          resetKey={captchaReset}
-        />
-      ) : null}
-      {message ? (
-        <p className="form-error" role="alert">
-          {message}
-        </p>
-      ) : null}
-      <div className="form-actions">
-        <button type="button" className="secondary-button" onClick={onBack} disabled={busy}>
-          Back
-        </button>
-        <button
-          type="submit"
-          className="primary-button"
-          disabled={busy || (captchaEnabled && !token)}
-        >
-          {busy ? "Logging in…" : "Log in"}
-        </button>
+      {/* The card on phones; elsewhere this box doesn't exist (CSS). */}
+      <div className="account-card">
+        <h3>Log in to a saved account</h3>
+        {unsaved ? (
+          <ul className="warning-list">
+            <li>
+              This device&apos;s account isn&apos;t saved
+              {activePosts ? `, and it has ${activePosts} sighting${activePosts === 1 ? "" : "s"} on the map` : ""}.
+              If you log in to another account, you can&apos;t get back to this one.
+            </li>
+          </ul>
+        ) : null}
+        <label>
+          Username
+          <input
+            autoComplete="username"
+            autoCapitalize="none"
+            spellCheck={false}
+            maxLength={20}
+            value={username}
+            onChange={(event) => setUsername(event.target.value)}
+            {...invalid}
+          />
+        </label>
+        <label>
+          Password
+          <input
+            type="password"
+            autoComplete="current-password"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            {...invalid}
+          />
+        </label>
+        {captchaEnabled ? (
+          <Captcha
+            onToken={setToken}
+            onError={() =>
+              setMessage("The security check couldn't load. Check your connection, then go back and try again.")
+            }
+            resetKey={captchaReset}
+          />
+        ) : null}
+        {message ? (
+          <p id={errorId} className="form-error" role="alert">
+            {message}
+          </p>
+        ) : null}
+        <div className="form-actions">
+          <button type="button" className="secondary-button" onClick={onBack} disabled={busy}>
+            Back
+          </button>
+          <button
+            type="submit"
+            className="primary-button"
+            disabled={busy || (captchaEnabled && !token)}
+          >
+            {busy ? "Logging in…" : "Log in"}
+          </button>
+        </div>
       </div>
     </form>
   );

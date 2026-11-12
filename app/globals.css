@@ -23,6 +23,82 @@
   --blue: #4f93c8;
   /* Behind white text on buttons, where --blue is too light (5.4:1 instead of 3.3:1). */
   --blue-strong: #2f6f9f;
+  /* Card glass: floating cards that hold text. The tint alone must pass
+     over a white map, with the blur not counted and the glow at its
+     brightest. scripts/glass-contrast.mjs proves it; the ratios below are
+     its worst cases (over white, glow included). */
+  /* #0d0f11. Only mixed into the tint and the shadow. */
+  --glass-ink: color-mix(in srgb, var(--surface) 50%, black);
+  /* The lowest tint that passes with 0.1 to spare (87% passes with less).
+     #2a2c2e over white. Text 4.78:1 (.status-text-verified #ff6b70; --muted
+     5.44:1), status icons on their chips 3.11:1 (verified), focus ring
+     4.0:1 (5.66:1 over a black map). */
+  --glass-tint: color-mix(in srgb, var(--glass-ink) 88%, transparent);
+  /* The light inside the glass, in the top of a card. Counted under all
+     text, so the worst cases above include it (#2e3032 at its brightest). */
+  --glass-glow: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--text) 2%, transparent),
+    transparent 5rem
+  );
+  /* No contrast role: the blur is not counted. 0.5rem below 1280px. */
+  --glass-blur: 0.875rem;
+  --glass-filter: blur(var(--glass-blur)) saturate(1.8);
+  /* Decorative lines and shadow: no contrast role. 1px all round. */
+  --glass-line: color-mix(in srgb, var(--text) 9%, transparent);
+  /* 1px on the top edge. */
+  --glass-shine: color-mix(in srgb, var(--text) 16%, transparent);
+  --glass-shadow: 0 0.625rem 1.875rem color-mix(in srgb, var(--glass-ink) 40%, transparent);
+  /* Rows on glass darken instead of lighten. Hovered: text 5.39:1
+     (#ff6b70), icons 3.44:1 (verified). Pressed: text 5.85:1, icons 3.71:1. */
+  --glass-hover: color-mix(in srgb, black 18%, transparent);
+  --glass-pressed: color-mix(in srgb, black 32%, transparent);
+  /* Overlay glass: the layer behind dialogs. No text sits on it, and the
+     dialog on it is opaque, so it has no contrast role. Over the light map
+     it is nearly opaque, so it looks as dark as it does over the dark map
+     (0.6, set in the Glass section): a hint of what is behind, no more. */
+  --overlay-tint: rgb(5 7 10 / 0.92);
+  --overlay-filter: blur(0.75rem) saturate(1.3);
+  /* Edge of text boxes and choice cards: 4.56:1 on --surface, 3.6:1 on
+     card glass, 3.68:1 where the search field sits on a white map. */
+  --control-line: color-mix(in srgb, var(--text) 46%, var(--surface));
+  /* Lava lamp: the moving background of the consent screen and of Log in
+     and Save account. Blues only: red, yellow and green carry status
+     meaning. scripts/glass-contrast.mjs reads all of these. */
+  /* #1f303e. The lamp's base, and where the fade on the account views ends. */
+  --lava-base: color-mix(in srgb, var(--blue-strong) 22%, var(--surface));
+  --lava-1: color-mix(in srgb, var(--blue-strong) 70%, var(--surface));
+  --lava-2: var(--blue-strong);
+  --lava-3: color-mix(in srgb, var(--blue) 55%, var(--surface));
+  --lava-4: color-mix(in srgb, var(--link) 35%, var(--surface));
+  /* How strongly the blobs show over the base: 1 on tablets and desktop,
+     --lava-strength-phone on phones (set in the Lava lamp section). The
+     lamp's brightest point is #376f9f: the logo's words 4.72:1 on it, the
+     pause button's edge 3.14:1, its white focus ring 5.33:1. */
+  --lava-strength: 1;
+  /* The owner's choice, not a contrast limit: up to 1 passes, since the top
+     of the fade is the harder case for the phone card. */
+  --lava-strength-phone: 0.6;
+  /* Account views: the map shows at the top and fades into the base. The
+     contrast proof counts the brightness() (it must come last) and the most
+     see-through stop of the fade. */
+  --lava-fade: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--lava-base) 45%, transparent) 0,
+    color-mix(in srgb, var(--lava-base) 62%, transparent) 7%,
+    color-mix(in srgb, var(--lava-base) 80%, transparent) 14%,
+    color-mix(in srgb, var(--lava-base) 92%, transparent) 22%,
+    var(--lava-base) 30%
+  );
+  /* The top of the fade over a white map is #626a70: the logo's words 4.89:1. */
+  --lava-backdrop: blur(0.75rem) saturate(1.2) brightness(0.6);
+  /* Glass over the lamp: the consent card, the account dialog (tablets,
+     desktop) and the account card (phones). No backdrop-filter: what is
+     behind it is ours. 66% is the lowest that passes with 0.1 to spare.
+     Worst cases: consent card text 5.08:1 (--muted), edges 3.36:1
+     (--control-line); account dialog text 4.93:1, edges 3.26:1, focus ring
+     3.62:1; phone card text 5.11:1, edges 3.38:1 (over the fade's top). */
+  --glass-tint-lamp: color-mix(in srgb, var(--surface) 70%, transparent);
   --rail-width: 7.375rem;
   --panel-width: min(26.75rem, calc(100vw - var(--rail-width) - 26rem));
   --font-sans: var(--font-outfit), "Glacial Indifference", Arial, sans-serif;
@@ -38,7 +114,10 @@ body {
    value. It is 16px on a 1920x1080 window (the mockup's size), shrinks on
    smaller or shorter windows and grows on larger ones. */
 html {
-  font-size: clamp(12px, min(calc(6px + 0.52vw), calc(4px + 1.1vh)), 22px);
+  /* In rem (the browser's default font size, 16px unless the person changed
+     it), so the browser's font size setting works. At 16px this is the same
+     as clamp(12px, min(6px + 0.52vw, 4px + 1.1vh), 22px). */
+  font-size: clamp(0.75rem, min(calc(0.375rem + 0.52vw), calc(0.25rem + 1.1vh)), 1.375rem);
 }
 
 body {
@@ -82,6 +161,11 @@ button {
   display: block;
   width: 5.25rem;
   flex: none;
+}
+
+/* The rail has both logos; the wide one only shows in the upright-tablet bar. */
+.brand-logo-wide {
+  display: none;
 }
 
 .brand-logo img,
@@ -1910,7 +1994,7 @@ textarea::placeholder {
   /* One fixed size instead of desktop's scaling one: text stays readable,
      and text boxes are 16px, below which iOS zooms in when one is tapped. */
   html {
-    font-size: 16px;
+    font-size: 1rem;
   }
 
   /* Navigation: Home joins Reports and Know Your Rights. */
@@ -3041,6 +3125,14 @@ textarea::placeholder {
     width: auto;
   }
 
+  .brand-logo-tall {
+    display: none;
+  }
+
+  .brand-logo-wide {
+    display: block;
+  }
+
   .brand-logo img {
     width: 4.25rem;
   }
@@ -3069,4 +3161,1302 @@ textarea::placeholder {
     width: 3rem;
     height: 2.5rem;
   }
+}
+
+/* ---------------------------------------------------------------------------
+   Glass
+
+   Card glass goes only on cards that float over a map that shows around
+   them: dense, so the tint alone carries the contrast (see the tokens in
+   :root and scripts/glass-contrast.mjs). Overlay glass is the clearer layer
+   behind dialogs, which holds no text. Never glass on glass.
+
+   Where each surface gets it:
+   - desktop: the search block, the cards under it and the alert card;
+   - phones: the alert card docked over the map;
+   - every size: the pick banner (choose a spot, name a place) and the
+     account set-up message;
+   - desktop and tablets: overlay glass behind dialogs.
+
+   Lines and shadows are drawn with box-shadow, so nothing changes size.
+   The tint and the blur come only where backdrop-filter works; elsewhere
+   the cards keep their solid --surface. The last two blocks of the file
+   turn the glass off for reduced transparency and forced colours.
+   --------------------------------------------------------------------------- */
+
+@media (width < 1280px) {
+  :root {
+    --glass-blur: 0.5rem;
+  }
+}
+
+/* Over the dark map the layer behind dialogs can be clearer and still look
+   as dark as over the light map. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --overlay-tint: rgb(5 7 10 / 0.6);
+  }
+}
+
+/* The highlight and the shadow of card glass. */
+.pick-banner,
+.starter {
+  box-shadow:
+    inset 0 0.0625rem 0 var(--glass-shine),
+    inset 0 0 0 0.0625rem var(--glass-line),
+    var(--glass-shadow);
+}
+
+@media (width >= 1280px) {
+  .search,
+  .card,
+  .detail-card {
+    box-shadow:
+      inset 0 0.0625rem 0 var(--glass-shine),
+      inset 0 0 0 0.0625rem var(--glass-line),
+      var(--glass-shadow);
+  }
+
+  /* The search block and the first card read as one card: no line and no
+     shadow along the join. */
+  .app:not([data-panel="closed"]) .search {
+    box-shadow:
+      inset 0 0.0625rem 0 var(--glass-shine),
+      inset 0.0625rem 0 0 var(--glass-line),
+      inset -0.0625rem 0 0 var(--glass-line);
+  }
+
+  .nearby-card {
+    box-shadow:
+      inset 0.0625rem 0 0 var(--glass-line),
+      inset -0.0625rem 0 0 var(--glass-line),
+      inset 0 -0.0625rem 0 var(--glass-line),
+      var(--glass-shadow);
+  }
+}
+
+/* Phones: the alert card keeps its status border, which takes the place of
+   the faint line all round. */
+@media (width < 768px), (width < 1280px) and (height < 500px) {
+  .detail-card {
+    box-shadow:
+      inset 0 0.0625rem 0 var(--glass-shine),
+      var(--glass-shadow);
+  }
+}
+
+@supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
+  .pick-banner,
+  .starter {
+    background: var(--glass-glow), var(--glass-tint);
+    -webkit-backdrop-filter: var(--glass-filter);
+    backdrop-filter: var(--glass-filter);
+  }
+
+  /* Never glass on glass: over a dialog's layer, or over the phone's alert
+     card, the set-up message is solid. */
+  .app:has(.modal-layer:not([hidden])) .starter {
+    background: var(--surface);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  @media (width >= 1280px) {
+    .search,
+    .card,
+    .detail-card {
+      background: var(--glass-glow), var(--glass-tint);
+      -webkit-backdrop-filter: var(--glass-filter);
+      backdrop-filter: var(--glass-filter);
+    }
+
+    /* It carries on from the search block, whose glow is the one light. */
+    .nearby-card {
+      background: var(--glass-tint);
+    }
+
+    /* Rows on glass darken: a lighter row would take the grey and red text
+       under 4.5:1. The pressed row keeps its white bar. */
+    .card .report-row:hover,
+    .card .place-link:hover,
+    .detail-card .report-row:hover {
+      background: var(--glass-hover);
+    }
+
+    .card .report-row[aria-pressed="true"] {
+      background: var(--glass-pressed);
+    }
+
+    /* A parent fading with opacity hides the map from the cards' blur until
+       the fade ends, so the blur would snap in. The cards only slide; the
+       slide and visibility still hide them. */
+    .panel-cards {
+      transition:
+        transform 0.25s ease,
+        visibility 0.25s;
+    }
+
+    .app[data-panel="closed"] .panel-cards {
+      opacity: 1;
+    }
+  }
+
+  @media (width < 768px), (width < 1280px) and (height < 500px) {
+    .detail-card {
+      background: var(--glass-glow), var(--glass-tint);
+      -webkit-backdrop-filter: var(--glass-filter);
+      backdrop-filter: var(--glass-filter);
+    }
+
+    .detail-card .report-row:hover {
+      background: var(--glass-hover);
+    }
+
+    .app:has(.detail-card) .starter {
+      background: var(--surface);
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
+    }
+  }
+
+  /* Behind dialogs on desktop and tablets. On phones a dialog is a page. */
+  @media (width >= 1280px), (768px <= width < 1280px) and (height >= 500px) {
+    .modal-layer {
+      background: var(--overlay-tint);
+      -webkit-backdrop-filter: var(--overlay-filter);
+      backdrop-filter: var(--overlay-filter);
+    }
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Solid finish
+
+   The highlight and shadow of the glass on an opaque background, for
+   surfaces whose fixed bars must hide the text that scrolls under them, or
+   that sit beside the map rather than over it: dialogs on desktop and
+   tablets, and the tablet's alert card.
+   --------------------------------------------------------------------------- */
+
+@media (width >= 1280px), (768px <= width < 1280px) and (height >= 500px) {
+  .modal {
+    box-shadow:
+      inset 0 0.0625rem 0 var(--glass-shine),
+      inset 0 0 0 0.0625rem var(--glass-line),
+      var(--glass-shadow);
+  }
+}
+
+@media (768px <= width < 1280px) and (height >= 500px) {
+  .detail-card {
+    box-shadow:
+      inset 0 0.0625rem 0 var(--glass-shine),
+      inset 0 0 0 0.0625rem var(--glass-line),
+      var(--glass-shadow);
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Field edges
+
+   Text boxes and choice cards get a 1px edge of at least 3:1 (--control-line)
+   against the surface around them, drawn inside, so no size changes. Focus
+   keeps its blue ring and turns the edge blue too.
+   --------------------------------------------------------------------------- */
+
+.form input,
+.report-form input:not([type="radio"]),
+.report-form textarea,
+.place-form-field input,
+.report-form .choice {
+  box-shadow: inset 0 0 0 0.0625rem var(--control-line);
+}
+
+.form input:focus,
+.report-form input:not([type="radio"]):focus,
+.report-form textarea:focus,
+.place-form-field input:focus {
+  box-shadow:
+    inset 0 0 0 0.0625rem var(--blue),
+    0 0 0 0.125rem var(--blue);
+}
+
+.search-field {
+  border-color: var(--control-line);
+}
+
+/* Phones: the selected Reports tab has a white ring as well as its colour. */
+.panel-tabs button[aria-pressed="true"] {
+  box-shadow: inset 0 0 0 0.125rem var(--text);
+}
+
+/* ---------------------------------------------------------------------------
+   Motion
+
+   Small and quick, on opacity and the translate and scale properties only
+   (not transform, which .pick-banner, .starter and .notice use to centre
+   themselves). Only when motion is welcome.
+   --------------------------------------------------------------------------- */
+
+@keyframes surface-enter {
+  from {
+    opacity: 0;
+    translate: 0 0.5rem;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .primary-button,
+  .secondary-button,
+  .danger-button,
+  .rail-icon {
+    transition:
+      background 0.15s,
+      scale 0.15s;
+  }
+
+  .panel-tabs button {
+    transition: scale 0.15s;
+  }
+
+  .primary-button:active:not(:disabled, [aria-disabled="true"]),
+  .secondary-button:active:not(:disabled),
+  .danger-button:active:not(:disabled),
+  .rail-item:active .rail-icon,
+  .panel-tabs button:active {
+    scale: 0.98;
+  }
+
+  .modal,
+  .detail-card,
+  .pick-banner,
+  .starter {
+    animation: surface-enter 0.18s ease-out;
+  }
+}
+
+/* No motion: the app's own transitions are off. Listed by their own
+   selectors, not "*", because Leaflet ends a zoom on the transitionend of
+   its own classes. */
+@media (prefers-reduced-motion: reduce) {
+  .rail-icon,
+  .search,
+  .panel-cards,
+  .link-button .arrow,
+  .report-row,
+  .place-link,
+  .map-control,
+  .pin,
+  .report-button,
+  .primary-button,
+  .secondary-button,
+  .danger-button,
+  .vote {
+    transition: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Reduced transparency: card glass turns back into solid --surface, and the
+   layer behind dialogs loses its blur and hides what's behind.
+   --------------------------------------------------------------------------- */
+
+@media (prefers-reduced-transparency: reduce) {
+  .pick-banner,
+  .starter {
+    background: var(--surface);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  @media (width >= 1280px) {
+    .search,
+    .card,
+    .detail-card {
+      background: var(--surface);
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
+    }
+  }
+
+  @media (width < 768px), (width < 1280px) and (height < 500px) {
+    .detail-card {
+      background: var(--surface);
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
+    }
+  }
+
+  @media (width >= 1280px), (768px <= width < 1280px) and (height >= 500px) {
+    .modal-layer {
+      background: rgb(5 7 10 / 0.92);
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
+    }
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Forced colours: the browser keeps a background's alpha and paints no
+   box-shadow. So glass becomes solid with no filter, and text boxes and
+   choice cards get their edge from an outline in a system colour.
+   --------------------------------------------------------------------------- */
+
+@media (forced-colors: active) {
+  .pick-banner,
+  .starter {
+    background: Canvas;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  @media (width >= 1280px) {
+    .search,
+    .card,
+    .detail-card {
+      background: Canvas;
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
+    }
+  }
+
+  @media (width < 768px), (width < 1280px) and (height < 500px) {
+    .detail-card {
+      background: Canvas;
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
+    }
+  }
+
+  @media (width >= 1280px), (768px <= width < 1280px) and (height >= 500px) {
+    .modal-layer {
+      background: Canvas;
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
+    }
+  }
+
+  .form input,
+  .report-form input:not([type="radio"]),
+  .report-form textarea,
+  .place-form-field input,
+  .report-form .choice {
+    outline: 0.0625rem solid CanvasText;
+    outline-offset: -0.0625rem;
+  }
+
+  .form input:focus,
+  .report-form input:not([type="radio"]):focus,
+  .report-form textarea:focus,
+  .place-form-field input:focus,
+  .report-form .choice:has(input:checked) {
+    outline: 0.1875rem solid Highlight;
+    outline-offset: -0.1875rem;
+  }
+
+  /* The keyboard focus ring of a choice card stays outside it. */
+  .report-form .choice:has(input:focus-visible) {
+    outline: 0.1875rem solid Highlight;
+    outline-offset: 0.125rem;
+  }
+
+  /* The selected Reports tab: its ring stays, in the system's colours. */
+  .panel-tabs button[aria-pressed="true"] {
+    forced-color-adjust: none;
+    background: Highlight;
+    color: HighlightText;
+    box-shadow: inset 0 0 0 0.125rem HighlightText;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Lava lamp
+
+   A slow field of soft blue behind the consent screen and behind Log in and
+   Save account, and nowhere else. Four blobs larger than the screen overlap
+   on a blue base; each turns and drifts over 37 to 53 seconds. The soft
+   edge is a radial gradient in each blob: no filter, no blend mode, and
+   only transform moves. The pause button (bottom left) stops it for now;
+   "Moving background" in Settings stops it on this device.
+   --------------------------------------------------------------------------- */
+
+.lava {
+  position: absolute;
+  inset: 0;
+  overflow: clip;
+  pointer-events: none;
+}
+
+.lava__blob {
+  position: absolute;
+  width: 110vmax;
+  height: 110vmax;
+  border-radius: 50%;
+  /* A wide solid core, then a long soft edge in small steps (no bands).
+     The core is off centre, so turning the blob moves its colour. */
+  background: radial-gradient(
+    closest-side at 42% 46%,
+    var(--blob-color) 0%,
+    var(--blob-color) 30%,
+    color-mix(in srgb, var(--blob-color) 82%, transparent) 40%,
+    color-mix(in srgb, var(--blob-color) 62%, transparent) 50%,
+    color-mix(in srgb, var(--blob-color) 42%, transparent) 60%,
+    color-mix(in srgb, var(--blob-color) 25%, transparent) 70%,
+    color-mix(in srgb, var(--blob-color) 12%, transparent) 80%,
+    color-mix(in srgb, var(--blob-color) 4%, transparent) 90%,
+    transparent 100%
+  );
+  opacity: var(--lava-strength);
+  will-change: transform;
+}
+
+.lava__blob--a {
+  --blob-color: var(--lava-1);
+  top: -30vmax;
+  left: -45vmax;
+}
+
+.lava__blob--b {
+  --blob-color: var(--lava-2);
+  top: -10vmax;
+  right: -50vmax;
+}
+
+.lava__blob--c {
+  --blob-color: var(--lava-3);
+  bottom: -55vmax;
+  left: -35vmax;
+}
+
+.lava__blob--d {
+  --blob-color: var(--lava-4);
+  right: -40vmax;
+  bottom: -45vmax;
+}
+
+/* Every path only drifts sideways and down (y >= 0), so on the account
+   views no blob's core climbs into the map at the top (see below). */
+@keyframes lava-a {
+  from {
+    transform: translate3d(0, 0, 0) rotate(0deg) scale(1);
+  }
+  to {
+    transform: translate3d(14vmax, 10vmax, 0) rotate(160deg) scale(1.25);
+  }
+}
+
+@keyframes lava-b {
+  from {
+    transform: translate3d(0, 0, 0) rotate(0deg) scale(1.1);
+  }
+  to {
+    transform: translate3d(-16vmax, 8vmax, 0) rotate(-140deg) scale(0.95);
+  }
+}
+
+@keyframes lava-c {
+  from {
+    transform: translate3d(0, 0, 0) rotate(20deg) scale(1.2);
+  }
+  to {
+    transform: translate3d(12vmax, 4vmax, 0) rotate(200deg) scale(1);
+  }
+}
+
+@keyframes lava-d {
+  from {
+    transform: translate3d(0, 6vmax, 0) rotate(0deg) scale(1);
+  }
+  to {
+    transform: translate3d(-12vmax, 0, 0) rotate(-180deg) scale(1.2);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .lava__blob--a {
+    animation: lava-a 41s ease-in-out infinite alternate;
+  }
+
+  .lava__blob--b {
+    animation: lava-b 53s ease-in-out infinite alternate-reverse;
+  }
+
+  .lava__blob--c {
+    animation: lava-c 37s ease-in-out infinite alternate;
+  }
+
+  .lava__blob--d {
+    animation: lava-d 47s ease-in-out infinite alternate-reverse;
+  }
+
+  .lava[data-paused] .lava__blob {
+    animation-play-state: paused;
+  }
+}
+
+/* Phones: a dimmer lamp. */
+@media (width < 768px), (width < 1280px) and (height < 500px) {
+  :root {
+    --lava-strength: var(--lava-strength-phone);
+  }
+}
+
+/* Consent: the lamp fills the page, under the card. */
+.consent {
+  position: relative;
+  isolation: isolate;
+  background: var(--lava-base);
+}
+
+.consent > .lava {
+  position: fixed;
+  z-index: -1;
+}
+
+/* Solid where there's no backdrop-filter, or with reduced transparency (at
+   the end of this section). */
+.consent-card {
+  box-shadow:
+    inset 0 0.0625rem 0 var(--glass-shine),
+    inset 0 0 0 0.0625rem var(--glass-line),
+    0 1.875rem 5rem rgb(0 0 0 / 0.35);
+}
+
+/* ---------------------------------------------------------------------------
+   Log in and Save account
+
+   They stay views inside Settings. While one shows, the Settings layer holds
+   (bottom to top) the live map, the lamp, which blurs and darkens the map
+   and fades from see-through at the top to --lava-base, its blobs (kept out
+   of the top 30%), then the logo and the form. :has() picks these two views
+   only; where it isn't supported they keep their old look.
+   --------------------------------------------------------------------------- */
+
+.modal-layer > .lava,
+.modal-layer > .lava-toggle,
+.account-logo {
+  display: none;
+}
+
+.modal-layer:has(.account-form) {
+  background: transparent;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+.modal-layer:has(.account-form) > .lava {
+  position: fixed;
+  z-index: 0;
+  display: block;
+  /* Solid where there's no backdrop-filter: the contrast proof counts the
+     brightness() under the see-through part of the fade. */
+  background: var(--lava-base);
+}
+
+.modal-layer:has(.account-form) > .modal,
+.modal-layer:has(.account-form) > .account-logo {
+  position: relative;
+  z-index: 1;
+}
+
+.modal-layer:has(.account-form) > .lava-toggle {
+  display: grid;
+}
+
+/* The blobs sit low: a core reaches at most 29.6vmax above its blob's
+   centre (offset 9.84vmax plus radius 13.86vmax, both at scale 1.25), and
+   each centre is at least 30% + 30vmax down. */
+.modal-layer > .lava .lava__blob {
+  bottom: auto;
+}
+
+.modal-layer > .lava .lava__blob--a {
+  top: calc(30% - 25vmax);
+  left: -40vmax;
+}
+
+.modal-layer > .lava .lava__blob--b {
+  top: calc(30% - 18vmax);
+  right: -48vmax;
+}
+
+.modal-layer > .lava .lava__blob--c {
+  top: calc(30% - 4vmax);
+  left: -30vmax;
+}
+
+.modal-layer > .lava .lava__blob--d {
+  top: calc(30% + 2vmax);
+  right: -38vmax;
+}
+
+/* The card: the form itself on phones, the dialog on tablets and desktop.
+   Elsewhere its box doesn't exist. */
+.account-card {
+  display: contents;
+}
+
+/* Tablets and desktop: the dialog is the glass card; the logo sits above
+   it, outside it. */
+@media (width >= 1280px), (768px <= width < 1280px) and (height >= 500px) {
+  .modal-layer:has(.account-form) {
+    align-content: center;
+    row-gap: 1.25rem;
+  }
+
+  .modal-layer:has(.account-form) > .account-logo {
+    display: block;
+    width: 12rem;
+  }
+
+  .account-logo img {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+
+  /* The logo's height (12rem at 1186/2445.66, rounded up) and the gap. */
+  .modal-layer:has(.account-form) > .modal {
+    max-height: calc(100dvh - 2.5rem - 5.875rem - 1.25rem);
+  }
+
+  .modal-layer:has(.account-form) .auth-logo {
+    display: none;
+  }
+}
+
+/* Phones: a see-through page with the logo over the end of the fade and a
+   glass card with real padding below it, as in the Figma design. The
+   layer scrolls, so the pause button can sit after the form. */
+@media (width < 768px), (width < 1280px) and (height < 500px) {
+  .modal-layer:has(.account-form) {
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .modal-layer:has(.account-form) > .modal {
+    flex: 1 0 auto;
+    height: auto;
+    overflow: visible;
+    /* Room for the pause button under the form: the form's last button
+       clears it by 1rem. */
+    padding: 0 calc(0.75rem + var(--safe-right))
+      calc(1rem + 2.75rem + 1rem + var(--safe-bottom)) calc(0.75rem + var(--safe-left));
+    background: transparent;
+  }
+
+  .modal-layer:has(.account-form) .modal-head {
+    margin-right: calc(-0.75rem - var(--safe-right));
+    margin-left: calc(-0.75rem - var(--safe-left));
+  }
+
+  .modal-layer:has(.account-form) .auth-logo {
+    width: min(15rem, 62vw);
+    /* Lower on taller phones, so the logo straddles the end of the fade. */
+    margin: clamp(0rem, 30dvh - 13rem, 5rem) 0 0.5rem;
+  }
+
+  .modal-layer:has(.account-form) .account-card {
+    display: grid;
+    gap: 1rem;
+    padding: 1.5rem clamp(1rem, 5vw, 1.5rem);
+    border-radius: 1.75rem;
+    background: var(--surface);
+    box-shadow:
+      inset 0 0.0625rem 0 var(--glass-shine),
+      inset 0 0 0 0.0625rem var(--glass-line),
+      var(--glass-shadow);
+  }
+
+  /* In the page's flow, over the room left under the form. */
+  .modal-layer:has(.account-form) > .lava-toggle {
+    position: relative;
+    z-index: 2;
+    inset: auto;
+    flex: none;
+    align-self: flex-start;
+    margin: calc(-2.75rem - 1rem - var(--safe-bottom)) 0 calc(1rem + var(--safe-bottom))
+      calc(0.75rem + var(--safe-left));
+  }
+}
+
+/* Phones on their side: today's centred column, in the same card, with a
+   smaller logo (there's little height). */
+@media (width < 1280px) and (height < 500px) {
+  .modal-layer:has(.account-form) .auth-logo {
+    width: 8rem;
+    margin-top: 0;
+  }
+}
+
+@supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
+  .consent-card {
+    background: var(--glass-tint-lamp);
+  }
+
+  .modal-layer:has(.account-form) > .lava {
+    background: var(--lava-fade);
+    -webkit-backdrop-filter: var(--lava-backdrop);
+    backdrop-filter: var(--lava-backdrop);
+  }
+
+  .modal-layer:has(.account-form) .account-card {
+    background: var(--glass-tint-lamp);
+  }
+
+  @media (width >= 1280px), (768px <= width < 1280px) and (height >= 500px) {
+    .modal-layer:has(.account-form) > .modal {
+      background: var(--glass-tint-lamp);
+    }
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Pause button: bottom left, with a solid round background that reads on
+   any backdrop. On phones it sits at the end of the page instead of over
+   it, so it never covers the form or the terms.
+   --------------------------------------------------------------------------- */
+
+.lava-toggle {
+  position: fixed;
+  inset-block-end: calc(1rem + var(--safe-bottom, 0px));
+  inset-inline-start: calc(1rem + var(--safe-left, 0px));
+  z-index: 2;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow:
+    inset 0 0 0 0.0625rem var(--glass-line),
+    var(--glass-shadow);
+}
+
+.lava-toggle:hover {
+  background: color-mix(in srgb, var(--text) 8%, var(--surface));
+}
+
+/* White on the lamp: --blue is too close to its blues. */
+.lava-toggle:focus-visible {
+  outline-color: var(--text);
+}
+
+@media (width < 768px), (width < 1280px) and (height < 500px) {
+  .consent {
+    padding-bottom: calc(1rem + 2.75rem + 1rem + var(--safe-bottom));
+  }
+
+  .consent > .lava-toggle {
+    position: absolute;
+    inset-inline-start: calc(0.75rem + var(--safe-left));
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Moving background switch (Settings)
+   --------------------------------------------------------------------------- */
+
+.switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-height: 3rem;
+  cursor: pointer;
+}
+
+.switch-text {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.switch-label {
+  font-weight: 600;
+}
+
+.switch {
+  position: relative;
+  flex: none;
+  width: 3rem;
+  height: 1.75rem;
+}
+
+.switch input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+/* The knob is centred by flexbox, not by a margin: a margin would collapse
+   through the track and push the knob to its top edge. Clicks pass through
+   to the checkbox underneath. */
+.switch-track {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  padding: 0 0.25rem;
+  border-radius: 62.4375rem;
+  background: var(--card);
+  box-shadow: inset 0 0 0 0.0625rem var(--control-line);
+  pointer-events: none;
+}
+
+.switch-track::before {
+  content: "";
+  flex: none;
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 50%;
+  background: #c6c8ce;
+}
+
+.switch input:checked + .switch-track {
+  background: var(--blue-strong);
+  box-shadow: none;
+}
+
+.switch input:checked + .switch-track::before {
+  background: #fff;
+  translate: 1.25rem 0;
+}
+
+.switch input:focus-visible + .switch-track {
+  outline: 0.1875rem solid var(--blue);
+  outline-offset: 0.125rem;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .switch-track::before {
+    transition: translate 0.15s;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Lava lamp fallbacks
+   --------------------------------------------------------------------------- */
+
+/* Still and visible; no pause button, since nothing moves. */
+@media (prefers-reduced-motion: reduce) {
+  .lava-toggle,
+  .modal-layer:has(.account-form) > .lava-toggle {
+    display: none;
+  }
+}
+
+/* Solid cards and a solid backdrop: the map doesn't show. */
+@media (prefers-reduced-transparency: reduce) {
+  .consent-card {
+    background: #262830;
+  }
+
+  .modal-layer:has(.account-form) > .lava {
+    background: var(--lava-base);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  .modal-layer:has(.account-form) .account-card {
+    background: var(--surface);
+  }
+
+  @media (width >= 1280px), (768px <= width < 1280px) and (height >= 500px) {
+    .modal-layer:has(.account-form) > .modal {
+      background: var(--surface);
+    }
+  }
+}
+
+/* No lamp and no pause button; the layer and the cards are solid. */
+@media (forced-colors: active) {
+  .lava,
+  .lava-toggle,
+  .modal-layer:has(.account-form) > .lava,
+  .modal-layer:has(.account-form) > .lava-toggle {
+    display: none;
+  }
+
+  .consent-card,
+  .modal-layer:has(.account-form),
+  .modal-layer:has(.account-form) > .modal,
+  .modal-layer:has(.account-form) .account-card {
+    background: Canvas;
+  }
+
+  .modal-layer:has(.account-form) .account-card {
+    outline: 0.0625rem solid CanvasText;
+  }
+
+  .switch-track {
+    forced-color-adjust: none;
+    background: Canvas;
+    box-shadow: inset 0 0 0 0.0625rem CanvasText;
+  }
+
+  .switch-track::before {
+    background: CanvasText;
+  }
+
+  .switch input:checked + .switch-track {
+    background: Highlight;
+  }
+
+  .switch input:checked + .switch-track::before {
+    background: HighlightText;
+  }
+
+  .switch input:focus-visible + .switch-track {
+    outline-color: Highlight;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Forced colours: edges for what had only a fill
+
+   High contrast mode removes background colours and box-shadows, so filled
+   buttons read as plain text, cards melt into the page and selected states
+   vanish. Everything here is an outline (drawn inside where it could touch
+   a neighbour), so nothing moves or changes size.
+   --------------------------------------------------------------------------- */
+
+@media (forced-colors: active) {
+  /* Buttons and button-like links. While focused, the focus ring takes the
+     edge's place. */
+  :is(
+      .primary-button,
+      .secondary-button,
+      .danger-button,
+      .report-button,
+      .vote,
+      .panel-tabs button,
+      .panel-settings,
+      .map-controls > .map-control,
+      .resource-list a
+    ):not(:focus-visible),
+  .map-control-group {
+    outline: 0.0625rem solid ButtonText;
+    outline-offset: -0.0625rem;
+  }
+
+  .primary-button:is(:disabled, [aria-disabled="true"]),
+  .secondary-button:disabled,
+  .danger-button:disabled,
+  .vote:disabled {
+    color: GrayText;
+    outline-color: GrayText;
+  }
+
+  /* Selected states: the system highlight, as on the selected Reports tab. */
+  .rail-item:is([aria-current="page"], [aria-expanded="true"]) .rail-icon,
+  .vote[aria-pressed="true"] {
+    forced-color-adjust: none;
+    background: Highlight;
+    color: HighlightText;
+  }
+
+  .report-row[aria-pressed="true"]:not(:focus-visible) {
+    outline: 0.1875rem solid Highlight;
+    outline-offset: -0.1875rem;
+  }
+
+  /* Cards, boxes and messages (the terms box can take focus). */
+  .consent-card,
+  .consent-text:not(:focus-visible),
+  .detail-card,
+  .pick-banner,
+  .starter,
+  .notice,
+  .search-results,
+  .nearby,
+  .totals div,
+  .place-row,
+  .warning-list,
+  .form-error,
+  .badge:not(.badge-disputed) {
+    outline: 0.0625rem solid CanvasText;
+    outline-offset: -0.0625rem;
+  }
+
+  /* The phone's alert card keeps its status border instead. */
+  @media (width < 768px), (width < 1280px) and (height < 500px) {
+    .detail-card {
+      outline: none;
+    }
+
+    .app[data-panel="open"] .search-results button:not(:focus-visible) {
+      outline: 0.0625rem solid ButtonText;
+      outline-offset: -0.0625rem;
+    }
+  }
+
+  /* Desktop: the search block and the cards under it float over the map. */
+  @media (width >= 1280px) {
+    .search,
+    .card {
+      outline: 0.0625rem solid CanvasText;
+      outline-offset: -0.0625rem;
+    }
+  }
+
+  /* Dialogs on tablets and desktop sit on a page of the same colour. */
+  @media (width >= 1280px), (768px <= width < 1280px) and (height >= 500px) {
+    .modal {
+      outline: 0.0625rem solid CanvasText;
+      outline-offset: -0.0625rem;
+    }
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Accessibility pass
+
+   Nothing here moves or resizes anything: the skip link is fixed and shows
+   only while it has focus; scroll padding only changes where a focused
+   control scrolls to; the rest are colours and focus rings.
+   --------------------------------------------------------------------------- */
+
+/* The first Tab stop on the map screens. Out of sight (like .visually-hidden)
+   until it has focus, then a button-like link at the top start corner. */
+.skip-link {
+  position: fixed;
+  inset-block-start: calc(0.75rem + var(--safe-top, 0px));
+  inset-inline-start: calc(0.75rem + var(--safe-left, 0px));
+  z-index: 2300;
+  padding: 0.75rem 1.25rem;
+  border-radius: 62.4375rem;
+  background: var(--blue-strong);
+  color: #fff;
+  font-weight: 700;
+  text-decoration: underline;
+}
+
+.skip-link:not(:focus) {
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Focus put on these by the app (the skip link's target, a dialog as it
+   opens, a Settings page's heading): no ring round the whole map or dialog.
+   The next Tab lands on a control, which has its ring. */
+@media (forced-colors: none) {
+  .map-shell:focus,
+  .modal:focus,
+  .settings h3:focus {
+    outline: none;
+  }
+}
+
+/* A focused control scrolls clear of the bars that stay in place: the
+   phone's title bar at the top and the terms' Back bar at the bottom. */
+.modal:has(.sticky-actions) {
+  scroll-padding-block-end: 6rem;
+}
+
+@media (width < 768px), (width < 1280px) and (height < 500px) {
+  .modal,
+  .modal-layer {
+    scroll-padding-block-start: calc(4.25rem + var(--safe-top, 0px));
+  }
+}
+
+/* Phones and tablets: report rows are solid --card, a little lighter than
+   the glass the status colours were picked for. Verified text 5.14:1 on
+   --card and 4.62:1 hovered (#ff6b70 was 4.49:1). On the selected row
+   (#44464c) the grey line and the verified red are lighter again: 4.75:1
+   and 4.66:1. */
+@media (width < 1280px) {
+  .report-list .report-row .status-text-verified {
+    color: #ff8085;
+  }
+
+  .report-list .report-row[aria-pressed="true"] .row-meta {
+    color: #b5b8bf;
+  }
+
+  .report-list .report-row[aria-pressed="true"] .status-text-verified {
+    color: #ff9a9e;
+  }
+}
+
+/* The search box's focus ring matches the other fields: 2px outside its edge
+   (it was two 1px lines, under 2px at desktop sizes). A shadow: nothing moves. */
+.search-field:focus-within {
+  box-shadow: 0 0 0 0.125rem var(--blue);
+}
+
+/* Phones and tablets: the verified icon on its chip on a solid row (the
+   chip over --card) 3.82:1, and 3.04:1 on the selected row (--red was 2.94:1
+   and 2.34:1). */
+@media (width < 1280px) {
+  .report-list .report-row .row-icon.status-verified {
+    color: #ff5f65;
+  }
+}
+
+/* Light map: the credits' links. Leaflet's #0078a8 on its 80% white box is
+   3.1:1 where the map under the box is dark; #00567a is 5.0:1 even over
+   black, 8.0:1 over white. The dark map has its own (above). */
+@media (prefers-color-scheme: light) {
+  .leaflet-container .leaflet-control-attribution a {
+    color: #00567a;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Approved by the owner after the accessibility check (docs/accessibility-
+   checklist.md, "Ask-first findings")
+   --------------------------------------------------------------------------- */
+
+/* A and B. Notices: on top of everything (only the skip link, while
+   focused, is above them), at the top right on desktop and the top center on
+   tablets and phones, with a button that keeps them on screen. They sit
+   outside the map in the page, so fixed to the window. */
+.app > .notice {
+  position: fixed;
+  inset-block: 1rem auto;
+  inset-inline: auto 1rem;
+  z-index: 2200;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: max-content;
+  max-width: min(28rem, calc(100vw - 2rem));
+  padding-block: 0.375rem;
+  padding-inline: 1.25rem 0.375rem;
+  transform: none;
+}
+
+/* On the light notice: dark icon (14.9:1), focus ring --blue-strong (4.8:1;
+   --blue would be 3.0:1 here). */
+.notice-pause {
+  flex: none;
+  width: 2.25rem;
+  height: 2.25rem;
+  color: #1d1f26;
+}
+
+.notice-pause:hover {
+  background: rgb(0 0 0 / 0.08);
+}
+
+.notice-pause:focus-visible {
+  outline-color: var(--blue-strong);
+}
+
+.notice-pause svg {
+  width: 1.125rem;
+  height: 1.125rem;
+}
+
+/* Desktop with an alert card open: the card is docked at the top right, so
+   the notice sits just to its left, clear of its heading and Close button. */
+@media (width >= 1280px) {
+  .app:has(.detail-card) > .notice {
+    inset-inline-end: calc(2.75rem + 21rem + 1rem);
+  }
+}
+
+/* Tablets and phones: centered, under the bar across the top of the map. */
+@media (width < 1280px) {
+  .app > .notice {
+    inset-block-start: calc(var(--gutter) + var(--safe-top) + 3.5rem);
+    inset-inline: 50% auto;
+    max-width: min(28rem, calc(100vw - 1.5rem));
+    transform: translateX(-50%);
+  }
+
+  .notice-pause {
+    width: 2.75rem;
+    height: 2.75rem;
+  }
+}
+
+/* Phones: a dialog is a page; the notice goes under its title bar, clear of
+   the Close button. */
+@media (width < 768px), (width < 1280px) and (height < 500px) {
+  .app:has(.modal-layer:not([hidden])) > .notice {
+    inset-block-start: calc(4.25rem + var(--safe-top));
+  }
+}
+
+/* Upright phones: over the map, the notice stays clear of the map buttons
+   down the right (and, centered, of the same width on the left). */
+@media (width < 768px) {
+  .app:not(:has(.modal-layer:not([hidden]))) > .notice {
+    max-width: min(28rem, calc(100vw - 2 * (var(--gutter) + 3.5rem)));
+  }
+}
+
+/* D. The alert card's heading keeps its one line on desktop (two on phones
+   and tablets). Cut short, it shows all of itself on a click on it or on its
+   chevron button (sighting-card.tsx). */
+.detail-head h2 {
+  position: relative;
+}
+
+.detail-head h2.detail-title-expandable {
+  cursor: pointer;
+}
+
+/* Expanded, the pin and the buttons line up with its first line. */
+.detail-head:has(> h2.detail-title-open) {
+  align-items: flex-start;
+}
+
+.detail-head h2.detail-title-open {
+  display: block;
+  overflow: visible;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  -webkit-line-clamp: unset;
+}
+
+/* A copy of the heading on one line, out of sight and clipped by its 0x0
+   box: its width changes with the font and the spacing, which tells the card
+   to check whether the heading is cut short. */
+.detail-title-measure {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  visibility: hidden;
+}
+
+.detail-title-measure > span {
+  display: inline-block;
+  white-space: nowrap;
+}
+
+/* E. A report row's summary and status line wrap instead of being cut short:
+   the row grows only when the text doesn't fit (long text, large text, or
+   more spacing between letters and lines). */
+.row-title,
+.row-meta {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+/* F. Windows under 260px tall (1280x800 at 400% zoom): the + and - buttons
+   would sit under "Submit a report". They go, and so leave the Tab order;
+   a pinch, the scroll wheel or + and - on the focused map still zoom. */
+@media (height < 260px) {
+  .map-control-group {
+    display: none;
+  }
+}
+
+/* H. Choosing a spot with the keyboard: a line in the banner while the map
+   has keyboard focus. --muted on --surface: 6.8:1. */
+.pick-key-hint {
+  color: var(--muted);
+  font-size: 0.875rem;
+  line-height: 1.4;
 }
