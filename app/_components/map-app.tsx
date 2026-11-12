@@ -984,7 +984,7 @@ export function MapApp() {
       >
         Skip to main content
       </a>
-      {/* Notices sit on top of everything (desktop: top left; tablets and
+      {/* Notices sit on top of everything (desktop: top right; tablets and
           phones: top center), outside the map and the dialogs, so their
           pause button works while a dialog is open. Screen readers hear them
           from the live copy at the end. */}

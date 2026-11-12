@@ -4314,13 +4314,13 @@ textarea::placeholder {
    --------------------------------------------------------------------------- */
 
 /* A and B. Notices: on top of everything (only the skip link, while
-   focused, is above them), at the top left on desktop and the top center on
+   focused, is above them), at the top right on desktop and the top center on
    tablets and phones, with a button that keeps them on screen. They sit
    outside the map in the page, so fixed to the window. */
 .app > .notice {
   position: fixed;
   inset-block: 1rem auto;
-  inset-inline: 1rem auto;
+  inset-inline: auto 1rem;
   z-index: 2200;
   display: flex;
   align-items: center;
@@ -4354,11 +4354,19 @@ textarea::placeholder {
   height: 1.125rem;
 }
 
+/* Desktop with an alert card open: the card is docked at the top right, so
+   the notice sits just to its left, clear of its heading and Close button. */
+@media (width >= 1280px) {
+  .app:has(.detail-card) > .notice {
+    inset-inline-end: calc(2.75rem + 21rem + 1rem);
+  }
+}
+
 /* Tablets and phones: centered, under the bar across the top of the map. */
 @media (width < 1280px) {
   .app > .notice {
     inset-block-start: calc(var(--gutter) + var(--safe-top) + 3.5rem);
-    inset-inline-start: 50%;
+    inset-inline: 50% auto;
     max-width: min(28rem, calc(100vw - 1.5rem));
     transform: translateX(-50%);
   }
