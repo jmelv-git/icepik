@@ -23,6 +23,43 @@
   --blue: #4f93c8;
   /* Behind white text on buttons, where --blue is too light (5.4:1 instead of 3.3:1). */
   --blue-strong: #2f6f9f;
+  /* Card glass: floating cards that hold text. The tint alone must pass
+     over a white map, with the blur not counted and the glow at its
+     brightest. scripts/glass-contrast.mjs proves it; the ratios below are
+     its worst cases (over white, glow included). */
+  /* #0d0f11. Only mixed into the tint and the shadow. */
+  --glass-ink: color-mix(in srgb, var(--surface) 50%, black);
+  /* The lowest tint that passes with 0.1 to spare (87% passes with less).
+     #2a2c2e over white. Text 4.78:1 (.status-text-verified #ff6b70; --muted
+     5.44:1), status icons on their chips 3.11:1 (verified), focus ring
+     4.0:1 (5.66:1 over a black map). */
+  --glass-tint: color-mix(in srgb, var(--glass-ink) 88%, transparent);
+  /* The light inside the glass, in the top of a card. Counted under all
+     text, so the worst cases above include it (#2e3032 at its brightest). */
+  --glass-glow: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--text) 2%, transparent),
+    transparent 5rem
+  );
+  /* No contrast role: the blur is not counted. 0.5rem below 1280px. */
+  --glass-blur: 0.875rem;
+  --glass-filter: blur(var(--glass-blur)) saturate(1.8);
+  /* Decorative lines and shadow: no contrast role. 1px all round. */
+  --glass-line: color-mix(in srgb, var(--text) 9%, transparent);
+  /* 1px on the top edge. */
+  --glass-shine: color-mix(in srgb, var(--text) 16%, transparent);
+  --glass-shadow: 0 0.625rem 1.875rem color-mix(in srgb, var(--glass-ink) 40%, transparent);
+  /* Rows on glass darken instead of lighten. Hovered: text 5.39:1
+     (#ff6b70), icons 3.44:1 (verified). Pressed: text 5.85:1, icons 3.71:1. */
+  --glass-hover: color-mix(in srgb, black 18%, transparent);
+  --glass-pressed: color-mix(in srgb, black 32%, transparent);
+  /* Overlay glass: the layer behind dialogs. No text sits on it, and the
+     dialog on it is opaque, so it has no contrast role. */
+  --overlay-tint: rgb(5 7 10 / 0.6);
+  --overlay-filter: blur(0.75rem) saturate(1.3);
+  /* Edge of text boxes and choice cards: 4.56:1 on --surface, 3.6:1 on
+     card glass, 3.68:1 where the search field sits on a white map. */
+  --control-line: color-mix(in srgb, var(--text) 46%, var(--surface));
   --rail-width: 7.375rem;
   --panel-width: min(26.75rem, calc(100vw - var(--rail-width) - 26rem));
   --font-sans: var(--font-outfit), "Glacial Indifference", Arial, sans-serif;
@@ -3068,5 +3105,114 @@ textarea::placeholder {
   .rail-icon {
     width: 3rem;
     height: 2.5rem;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Glass
+
+   Card glass goes only on cards that float over a map that shows around
+   them: dense, so the tint alone carries the contrast (see the tokens in
+   :root and scripts/glass-contrast.mjs). Overlay glass is the clearer layer
+   behind dialogs, which holds no text. Never glass on glass.
+
+   The lines and the shadow are drawn with box-shadow, so nothing changes
+   size. The tint and the blur come only where backdrop-filter works;
+   elsewhere the cards keep their solid --surface. The reduced-transparency
+   and forced-colors blocks at the end of the file turn the glass off.
+   --------------------------------------------------------------------------- */
+
+@media (width < 1280px) {
+  :root {
+    --glass-blur: 0.5rem;
+  }
+}
+
+/* Desktop: the search block, the cards under it and the alert card. */
+@media (width >= 1280px) {
+  .search,
+  .card,
+  .detail-card {
+    box-shadow:
+      inset 0 0.0625rem 0 var(--glass-shine),
+      inset 0 0 0 0.0625rem var(--glass-line),
+      var(--glass-shadow);
+  }
+
+  /* The search block and the first card read as one card: no line and no
+     shadow along the join. */
+  .app:not([data-panel="closed"]) .search {
+    box-shadow:
+      inset 0 0.0625rem 0 var(--glass-shine),
+      inset 0.0625rem 0 0 var(--glass-line),
+      inset -0.0625rem 0 0 var(--glass-line);
+  }
+
+  .nearby-card {
+    box-shadow:
+      inset 0.0625rem 0 0 var(--glass-line),
+      inset -0.0625rem 0 0 var(--glass-line),
+      inset 0 -0.0625rem 0 var(--glass-line),
+      var(--glass-shadow);
+  }
+}
+
+/* Phones: the alert card docked over the map. It keeps its status border,
+   which takes the place of the faint line all round. */
+@media (width < 768px), (width < 1280px) and (height < 500px) {
+  .detail-card {
+    box-shadow:
+      inset 0 0.0625rem 0 var(--glass-shine),
+      var(--glass-shadow);
+  }
+}
+
+@supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
+  @media (width >= 1280px) {
+    .search,
+    .card,
+    .detail-card {
+      background: var(--glass-glow), var(--glass-tint);
+      -webkit-backdrop-filter: var(--glass-filter);
+      backdrop-filter: var(--glass-filter);
+    }
+
+    /* It carries on from the search block, whose glow is the one light. */
+    .nearby-card {
+      background: var(--glass-tint);
+    }
+
+    /* Rows on glass darken: a lighter row would take the grey and red text
+       under 4.5:1. The pressed row keeps its white bar. */
+    .card .report-row:hover,
+    .card .place-link:hover,
+    .detail-card .report-row:hover {
+      background: var(--glass-hover);
+    }
+
+    .card .report-row[aria-pressed="true"] {
+      background: var(--glass-pressed);
+    }
+  }
+
+  @media (width < 768px), (width < 1280px) and (height < 500px) {
+    .detail-card {
+      background: var(--glass-glow), var(--glass-tint);
+      -webkit-backdrop-filter: var(--glass-filter);
+      backdrop-filter: var(--glass-filter);
+    }
+
+    .detail-card .report-row:hover {
+      background: var(--glass-hover);
+    }
+  }
+
+  /* Behind dialogs on desktop and tablets. On phones a dialog is a page. */
+  @media (width >= 1280px), (768px <= width < 1280px) and (height >= 500px) {
+    .modal-layer {
+      background: var(--overlay-tint);
+      -webkit-backdrop-filter: var(--overlay-filter);
+      backdrop-filter: var(--overlay-filter);
+    }
   }
 }
