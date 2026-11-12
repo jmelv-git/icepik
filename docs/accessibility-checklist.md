@@ -1,6 +1,6 @@
 # ICEPik accessibility checklist (WCAG 2.2 AA)
 
-> **Draft:** the Ask-first decisions and the final axe numbers are still to be filled in (placeholders in capitals).
+> **Draft:** the Ask-first decisions are still to be filled in (placeholders in capitals).
 
 Checked on 12 November 2026, on the work branch after the style pass (glass cards, lava lamp, field edges). Every line of the owner's checklist is below, in the owner's order, with a status, the evidence and the file or screen it refers to.
 
@@ -258,7 +258,14 @@ The codes come from the previous handoffs (branches `claude/handoff-icepik-map-1
 
 Run with axe-core 4.10.3 on every screen state (19 states: consent, home, map only, alert card, Reports, phone Search tab, search results, choosing a spot, naming a place, report form, report form with an error, Settings, Terms, Clear this device, Delete my account, Log in, Log in with an error, Save account, Know Your Rights, account set-up), at the 7 sizes, in light and dark: 272 runs.
 
-AXE-RESULTS
+| | Before this pass | After |
+|---|---|---|
+| Violations | 1 rule, on 12 of the 14 size and scheme pairs (every size below 1280 px): `color-contrast` on verified text in solid report rows, 4.49:1 | **0** |
+| Needs review: `color-contrast` | 1,040 elements (text on glass with a gradient, text over the map or partly covered) | 680 elements, same reasons |
+| Needs review: `aria-prohibited-attr` | 14 (the terms box: `aria-label` with no role) | 0 |
+| Needs review: `duplicate-id-aria` | 4 (`nearby-title` twice) | 0 |
+
+The "needs review" contrast items are on glass or over the map, where axe can't see the background. `scripts/glass-contrast.mjs` proves the glass (161 of 161 pass); `scripts/a11y-audit.mjs` measures text over the map over white and over black. Only rule ids, counts and CSS targets were recorded, never HTML or URLs.
 
 ## Test script for the owner
 
