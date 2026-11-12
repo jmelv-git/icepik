@@ -3987,20 +3987,25 @@ textarea::placeholder {
   cursor: pointer;
 }
 
+/* The knob is centred by flexbox, not by a margin: a margin would collapse
+   through the track and push the knob to its top edge. Clicks pass through
+   to the checkbox underneath. */
 .switch-track {
-  display: block;
+  display: flex;
+  align-items: center;
   height: 100%;
+  padding: 0 0.25rem;
   border-radius: 62.4375rem;
   background: var(--card);
   box-shadow: inset 0 0 0 0.0625rem var(--control-line);
+  pointer-events: none;
 }
 
 .switch-track::before {
   content: "";
-  display: block;
+  flex: none;
   width: 1.25rem;
   height: 1.25rem;
-  margin: 0.25rem;
   border-radius: 50%;
   background: #c6c8ce;
 }
