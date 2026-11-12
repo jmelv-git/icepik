@@ -17,7 +17,8 @@
 //   4. Text spacing (1.4.12): with line height 1.5, paragraph spacing 2,
 //      letter spacing 0.12 and word spacing 0.16 (times the font size), no
 //      text is cut off that wasn't already. Text cut short on purpose at rest
-//      (an ellipsis) is listed, not failed.
+//      (an ellipsis) is listed, not failed; so is the alert card's heading
+//      when its button to show the rest is there.
 //
 //   node scripts/a11y-audit.mjs                  everything; exit 1 on a failure
 //   Options: --sizes 1280x800,390x844  --schemes light,dark  --states home,alert
@@ -637,6 +638,9 @@ function clippedText() {
     range.selectNodeContents(node);
     const text = range.getBoundingClientRect();
     if (text.width < 1) continue;
+    // Cut short with a button that shows the rest (the alert card's
+    // heading): nothing is lost.
+    if (el.closest(".detail-head")?.querySelector('.detail-title-toggle[aria-expanded="false"]')) continue;
     // Its own box: an ellipsis or a line clamp.
     const own = getComputedStyle(el);
     if (["hidden", "clip"].includes(own.overflowX) || ["hidden", "clip"].includes(own.overflowY)) {
@@ -698,7 +702,8 @@ async function audit(page, where) {
   // Text spacing.
   const before = await page.evaluate(clippedText);
   const style = await page.addStyleTag({ content: SPACING });
-  await page.waitForTimeout(150);
+  // Long enough for the alert card to notice its heading is cut short.
+  await page.waitForTimeout(400);
   const after = await page.evaluate(clippedText);
   await style.evaluate((node) => node.remove());
   for (const [key, how] of Object.entries(after)) {

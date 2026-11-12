@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { deleteSighting, voteOnSighting } from "@/app/actions/sightings";
 import { VOTE_RADIUS_M, distanceMeters, formatDistance, roundCoord } from "@/lib/geo";
 import { runAction } from "@/lib/run-action";
@@ -65,14 +65,59 @@ export function SightingCard({
   onDeleted,
 }: Props) {
   const status = statusOf(sighting);
+  const title = sightingTitle(sighting);
+  // A long address is cut short (one line on desktop, two on phones and
+  // tablets). Then a click on it, or its chevron button, shows all of it.
+  const [expanded, setExpanded] = useState(false);
+  const [truncated, setTruncated] = useState(false);
+  const heading = useRef<HTMLHeadingElement>(null);
+  const measure = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    const h2 = heading.current;
+    const copy = measure.current;
+    if (!h2 || !copy) return;
+    const check = () =>
+      setTruncated(h2.scrollWidth > h2.clientWidth + 1 || h2.scrollHeight > h2.clientHeight + 1);
+    // The copy's width follows the font and the text spacing; the heading's
+    // box follows the card.
+    const observer = new ResizeObserver(check);
+    observer.observe(h2);
+    observer.observe(copy);
+    return () => observer.disconnect();
+  }, []);
+  const expandable = truncated || expanded;
 
   return (
     <section className="detail-card" aria-labelledby="detail-title">
       <header className="detail-head">
         <PinIcon />
-        <h2 id="detail-title" title={sightingTitle(sighting)}>
-          {sightingTitle(sighting)}
+        <h2
+          ref={heading}
+          id="detail-title"
+          className={
+            [expanded ? "detail-title-open" : "", expandable ? "detail-title-expandable" : ""]
+              .filter(Boolean)
+              .join(" ") || undefined
+          }
+          onClick={expandable ? () => setExpanded(!expanded) : undefined}
+        >
+          {title}
+          <span className="detail-title-measure" aria-hidden="true">
+            <span ref={measure}>{title}</span>
+          </span>
         </h2>
+        {expandable ? (
+          <button
+            type="button"
+            className="icon-button detail-title-toggle"
+            aria-expanded={expanded}
+            aria-controls="detail-title"
+            aria-label="Full address"
+            onClick={() => setExpanded(!expanded)}
+          >
+            <ChevronIcon direction={expanded ? "up" : "down"} />
+          </button>
+        ) : null}
         <button type="button" className="icon-button" onClick={onClose} aria-label="Close sighting">
           <CloseIcon />
         </button>

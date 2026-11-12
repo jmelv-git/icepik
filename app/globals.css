@@ -4313,27 +4313,113 @@ textarea::placeholder {
    checklist.md, "Ask-first findings")
    --------------------------------------------------------------------------- */
 
-/* A. Every notice shows on top of the dialogs, in the same place as before.
-   One exception: the account set-up message stays above notices, because a
-   notice in the same spot would hide its "Try again" and "Just view the map"
-   buttons (and the keyboard focus on them, WCAG 2.4.11). The skip link,
-   shown only while focused, stays above both. */
-.app .notice {
+/* A and B. Notices: on top of everything (only the skip link, while
+   focused, is above them), at the top left on desktop and the top center on
+   tablets and phones, with a button that keeps them on screen. They sit
+   outside the map in the page, so fixed to the window. */
+.app > .notice {
+  position: fixed;
+  inset-block: 1rem auto;
+  inset-inline: 1rem auto;
   z-index: 2200;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: max-content;
+  max-width: min(28rem, calc(100vw - 2rem));
+  padding-block: 0.375rem;
+  padding-inline: 1.25rem 0.375rem;
+  transform: none;
 }
 
-.app .starter {
-  z-index: 2250;
+/* On the light notice: dark icon (14.9:1), focus ring --blue-strong (4.8:1;
+   --blue would be 3.0:1 here). */
+.notice-pause {
+  flex: none;
+  width: 2.25rem;
+  height: 2.25rem;
+  color: #1d1f26;
 }
 
-/* D. Desktop: the alert card's heading wraps to a second line before it is
-   cut short, as on phones and tablets. */
+.notice-pause:hover {
+  background: rgb(0 0 0 / 0.08);
+}
+
+.notice-pause:focus-visible {
+  outline-color: var(--blue-strong);
+}
+
+.notice-pause svg {
+  width: 1.125rem;
+  height: 1.125rem;
+}
+
+/* Tablets and phones: centered, under the bar across the top of the map. */
+@media (width < 1280px) {
+  .app > .notice {
+    inset-block-start: calc(var(--gutter) + var(--safe-top) + 3.5rem);
+    inset-inline-start: 50%;
+    max-width: min(28rem, calc(100vw - 1.5rem));
+    transform: translateX(-50%);
+  }
+
+  .notice-pause {
+    width: 2.75rem;
+    height: 2.75rem;
+  }
+}
+
+/* Phones: a dialog is a page; the notice goes under its title bar, clear of
+   the Close button. */
+@media (width < 768px), (width < 1280px) and (height < 500px) {
+  .app:has(.modal-layer:not([hidden])) > .notice {
+    inset-block-start: calc(4.25rem + var(--safe-top));
+  }
+}
+
+/* Upright phones: over the map, the notice stays clear of the map buttons
+   down the right (and, centered, of the same width on the left). */
+@media (width < 768px) {
+  .app:not(:has(.modal-layer:not([hidden]))) > .notice {
+    max-width: min(28rem, calc(100vw - 2 * (var(--gutter) + 3.5rem)));
+  }
+}
+
+/* D. The alert card's heading keeps its one line on desktop (two on phones
+   and tablets). Cut short, it shows all of itself on a click on it or on its
+   chevron button (sighting-card.tsx). */
 .detail-head h2 {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  position: relative;
+}
+
+.detail-head h2.detail-title-expandable {
+  cursor: pointer;
+}
+
+.detail-head h2.detail-title-open {
+  display: block;
+  overflow: visible;
   white-space: normal;
   overflow-wrap: anywhere;
+  -webkit-line-clamp: unset;
+}
+
+/* A copy of the heading on one line, out of sight and clipped by its 0x0
+   box: its width changes with the font and the spacing, which tells the card
+   to check whether the heading is cut short. */
+.detail-title-measure {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  visibility: hidden;
+}
+
+.detail-title-measure > span {
+  display: inline-block;
+  white-space: nowrap;
 }
 
 /* E. A report row's summary and status line wrap instead of being cut short:

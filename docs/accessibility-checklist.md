@@ -42,9 +42,9 @@ The "Fix now" changes keep every element where it was. The owner then approved e
 | Light map: the credits' links `#00567a` (Leaflet's `#0078a8` was 3.1:1 where the map under the box is dark; now at least 5.0:1). | `globals.css` | 2.3 |
 | The search box's focus ring is 2 px outside its edge, like the other fields (it was two 1 px lines, under 2 px at desktop sizes). | `globals.css` | 2.2 |
 | `scripts/a11y-audit.mjs` (new). | `scripts/` | 1.5, 2.3, 3.2, 3.4 |
-| **Approved A.** Notices show on top of the dialogs ("Account saved" was hidden under Settings). The account set-up message stays above them (see A below). | `globals.css` | 2.1 |
-| **Approved B, as changed by the owner.** Notices stay 20 seconds instead of 6, and the time stops while the pointer is over one. | `map-app.tsx` | 2.2 |
-| **Approved D.** The alert card's heading wraps to a second line on desktop too, as on phones and tablets (problem 14). | `globals.css` | 3.1, 4.4 |
+| **Approved A, placed by the owner.** Notices show on top of everything, dialogs included ("Account saved" was hidden under Settings): at the top left on desktop, and at the top center on tablets and phones, under the bar across the top of the map (under the title bar while a phone dialog is open). On upright phones they are narrow enough to clear the map buttons. They now sit outside the map in the page, so their pause button works while a dialog is open. | `map-app.tsx`, `globals.css` | 2.1, 2.2 |
+| **Approved B, as changed by the owner.** Notices stay 20 seconds instead of 6. Each has a pause button (keyboard, touch and mouse) that keeps it until it is played again; the time also stops while the pointer is over it or focus is in it. | `map-app.tsx`, `globals.css` | 2.2 |
+| **Approved D, as changed by the owner.** The alert card's heading keeps its one line on desktop (two on phones and tablets). When it is cut short, a chevron button ("Full address", `aria-expanded`) or a click on the heading shows all of it (problem 14). | `sighting-card.tsx`, `globals.css` | 2.4, 3.1, 4.4 |
 | **Approved E.** A report row's summary and status line wrap instead of being cut short. | `globals.css` | 3.1, 4.4 |
 | **Approved F.** Under 260 px tall (1280×800 at 400%) the + and − buttons, which sat under "Submit a report", are hidden. | `globals.css` | 3.2 |
 | **Approved G.** A search that finds nothing says "No places found." | `map-app.tsx` | 2.1 |
@@ -99,6 +99,7 @@ The "Fix now" changes keep every element where it was. The owner then approved e
   - **No traps:** none found; Escape closes, in order, a dialog, the report form, the place being named, choosing a spot, then a card (F11).
   - **Things that didn't work by keyboard and now do:** placing a pin for a report, home, work or a new place (needed a click on the map; now Enter on the map, and the banner says so while the map has keyboard focus); opening a pin or cluster (P2); the Settings pages (focus was lost when the button that opened them went away).
   - **Focus ring:** a 3 px blue outline (`--blue`), 3.3:1 or more on every surface (glass-contrast.mjs); fields add a 2 px blue ring. The search box's ring was thinner and now matches. Focus put on the dialog, `<main>` or a Settings heading by the app shows no ring; the next Tab lands on a control that has one.
+  - **Notices (2.2.1):** they stay 20 seconds and have a pause button that keyboard, touch and pointer users can reach; the second Tab stop on the page, and one Shift+Tab from a dialog.
   - **Focus not obscured (2.4.11):** `scroll-padding` keeps focus clear of the phone's title bar and the terms' Back bar (problem 6). Behind the phone's Reports sheet nothing is reachable any more (P17); search results close when focus leaves them. The keyboard pass found nothing fully hidden behind author content except the cases the W3C note allows: pins under the docked alert card and under the place-name form, which Escape now closes without moving focus. At 400% zoom the + and − buttons were hidden under "Submit a report"; they are now left out below 260 px of height (3.2).
 - **Where:** `map-app.tsx`, `settings-dialog.tsx`, `globals.css`; every screen.
 
@@ -130,7 +131,7 @@ The "Fix now" changes keep every element where it was. The owner then approved e
   - From 1920×1080, every text is 2.02× larger except "Submit a report" and the rail labels, at 1.73× and 1.75×: the tablet layout sets them smaller than desktop does. They reach 2× at about 240% zoom.
   - No sideways scroll and no loss at either.
   - Browser zoom is enough for 1.4.4 (W3C technique G142), so this passed. But the root font size was set in pixels at every width (`clamp(12px, …, 22px)` on desktop, `16px` below 1280), so a browser's default-font-size setting was ignored; EN 301 549 11.7 asks software to follow it. Fixed with the owner's approval (I): the same sizes in rem. With the browser set to 20 px, the root goes from 12.66 to 15 px at 1280×800 and from 16 to 20 px at 390×844; at the default nothing changes.
-  - Text spacing (1.4.12, checked by `scripts/a11y-audit.mjs`): the report rows' summary and status lines and the desktop card heading were cut off with the WCAG spacing. Fixed with the owner's approval (D, E): they wrap. The card heading still stops at two lines (as on phones), so an address longer than two lines is cut short on every layout; its full text stays in the heading for screen readers and in its `title`.
+  - Text spacing (1.4.12, checked by `scripts/a11y-audit.mjs`): the report rows' summary and status lines and the desktop card heading were cut off with the WCAG spacing. Fixed with the owner's approval: the rows' lines wrap (E); the card heading keeps its one line (two on phones and tablets) and, when cut short, has a button that shows all of it (D), so nothing is lost. The audit counts a heading with that button as not cut off.
 - **Where:** `globals.css` (`html` font size).
 
 ### 3.2 No horizontal scrolling at 320 CSS px (400% zoom).
@@ -187,7 +188,7 @@ The "Fix now" changes keep every element where it was. The owner then approved e
 
 ### 4.4 For right-to-left languages, set `dir="rtl"`, mirror the layout, and use CSS logical properties. Avoid fixed-size text boxes, because translations run long.
 - **Status:** Not in this pass.
-- **Evidence:** `globals.css` names a physical side (`left`, `right`, `padding-left`…) in about 134 places and uses logical properties in 4 (the new rules in this pass use `inset-inline-start` and `scroll-padding-block`). Map buttons, the rail and the panel are placed by side. Fixed sizes that would cut translations: the desktop and phone card heading (two lines at most), the rail labels, the tab bar labels, the Reports tabs. **What it would need:** `dir` from the language on `<html>`, the physical properties rewritten as logical ones, the chevrons and arrows mirrored, Leaflet's controls checked in RTL (the map itself stays as it is), and a pass with long translations.
+- **Evidence:** `globals.css` names a physical side (`left`, `right`, `padding-left`…) in about 134 places and uses logical properties in 4 (the new rules in this pass use `inset-inline-start` and `scroll-padding-block`). Map buttons, the rail and the panel are placed by side. Fixed sizes that would cut translations: the card heading (one line on desktop, two on phones and tablets, with a button to show all of it), the rail labels, the tab bar labels, the Reports tabs. **What it would need:** `dir` from the language on `<html>`, the physical properties rewritten as logical ones, the chevrons and arrows mirrored, Leaflet's controls checked in RTL (the map itself stays as it is), and a pass with long translations.
 - **Where:** `globals.css`.
 
 ### 4.5 Accept names in native scripts, and keep character limits fair across languages.
@@ -231,10 +232,10 @@ The owner was asked once, with a screenshot and a recommendation for each, and a
 
 | | Finding | Recommendation | Owner | Result |
 |---|---|---|---|---|
-| A | Notices show under dialogs: "Account saved" can't be seen (problem 7). Screen readers already hear it (Fix now). | Show the notice on top of the dialog, in the same place. | Yes: "every notice should be on top" | Done. Notices are above the dialogs at every size. **One exception, for the owner to confirm:** on desktop the account set-up message sits in the same spot, and a notice on top of it hid its "Try again" and "Just view the map" buttons completely (and the keyboard focus on them, 2.4.11). The account message therefore stays above notices. While a dialog is open the notice is inert, so taps go through it to the dialog. |
-| B | Notices disappear after 6 seconds (problem 8; WCAG 2.2.1 Timing Adjustable). | Keep each notice until the person's next tap, click or key. | No: "just extend the duration or other solutions" | Notices stay 20 seconds, and the time stops while the pointer is over one (not while a dialog is open, when the notice is inert). Screen readers get each notice once from a live region. 2.2.1 asks that a person can turn off, adjust or extend a time limit; a fixed 20 s with a hover pause is a partial answer, recorded here for the owner. A keyboard or touch user can't pause it. |
+| A | Notices show under dialogs: "Account saved" can't be seen (problem 7). Screen readers already hear it (Fix now). | Show the notice on top of the dialog, in the same place. | Yes: "every notice should be on top"; then "on desktop, the top left; on tablets and phones, the top center" | Done. Notices are above everything at every size, and no longer share a place with the account set-up message at the bottom. Desktop: the top left corner, over the logo and part of the search box (part of the search box stays visible, so focus there is never hidden). Tablets and phones: centered under the bar across the top of the map, or under a phone dialog's title bar; on upright phones narrow enough to leave the map buttons and Settings clear. |
+| B | Notices disappear after 6 seconds (problem 8; WCAG 2.2.1 Timing Adjustable). | Keep each notice until the person's next tap, click or key. | No: "extend the duration or other solutions"; then "let keyboard and touch users pause, with the longer duration" | Done. Notices stay 20 seconds; a pause button keeps one until it is played again (the same pattern as the lava lamp's button: "Keep this message" / "Let this message close"); focus or the pointer in the notice also stops the time. The notice comes right after the skip link in the page, so it is the second Tab stop, and Shift+Tab from a dialog's first control reaches it. 2.2.1 is met by the pause (a person can stop the time limit). |
 | C | Desktop text buttons ("Move pin"; Show/Remove/Set on map) are 16.6 px high (problem 10). They pass 2.5.8 by spacing. | Leave them. | Yes | Left as they are. |
-| D | The alert card's heading is cut short on desktop, with the rest only in a `title` tooltip (problem 14); the WCAG text spacing cuts it too. | Let it wrap to two lines, as on phones. | Yes | Done. Long addresses still stop at two lines on every layout (see 3.1). |
+| D | The alert card's heading is cut short on desktop, with the rest only in a `title` tooltip (problem 14); the WCAG text spacing cuts it too. | Let it wrap to two lines, as on phones. | Yes; then "click-to-expand, but stop the wrap at one line" | Done. One line on desktop, as before (phones and tablets keep their two lines from the redesign). Cut short, a chevron button beside it, or a click on it, shows the whole address; the button is there only when the heading is cut short, and it notices text spacing and font size changes. The `title` tooltip is gone. |
 | E | A report row's summary and status line are cut short with the WCAG text spacing (1.4.12) on phones and tablets, and the "already reported nearby" status line is cut at 320 px. | Let them wrap; rows grow only when the text doesn't fit. | Yes | Done. `scripts/a11y-audit.mjs` reports no text spacing failure. |
 | F | 1280×800 at 400% zoom (320×200): the + and − buttons sit under "Submit a report" but are still Tab stops. | Below 260 px of height, hide them. | Yes | Done (3.2). |
 | G | A search that finds nothing shows nothing. Screen readers hear "No places found" (Fix now). | Show "No places found." in the results, like the error. | Yes | Done. |
@@ -251,14 +252,14 @@ The owner was asked once, with a screenshot and a recommendation for each, and a
 | 4 | `nearby-title` used twice | Fixed (2.1) |
 | 5 | `.consent-text` label with no role | Fixed (2.1) |
 | 6 | Sticky bars can cover the focused control | Fixed (2.2, 3.8) |
-| 7 | A notice that appears while a dialog is open is behind it | Fixed: screen readers (Fix now); on screen (A) |
-| 8 | Notices disappear after 6 seconds | Changed to 20 s with a hover pause (B); 2.2.1 partly met |
+| 7 | A notice that appears while a dialog is open is behind it | Fixed: screen readers (Fix now); on screen, on top of everything (A) |
+| 8 | Notices disappear after 6 seconds | Fixed: 20 s, with a pause button for every input (B) |
 | 9 | New-tab links don't say so | Fixed (2.4) |
 | 10 | Desktop text buttons under 24 px | Pass by spacing; left as is (C) |
 | 11 | Desktop text size from the window size | Pass by zoom; the browser's font size setting now works (I) |
 | 12 | Moving the map needs a drag | Not in this pass (3.5) |
 | 13 | Form errors not tied to fields | Fixed (2.4) |
-| 14 | Alert card heading cut short on desktop | Fixed (D); still two lines at most |
+| 14 | Alert card heading cut short on desktop | Fixed: click-to-expand (D) |
 
 ## Problems known from earlier rounds
 
@@ -316,11 +317,11 @@ What only a person can check. Use a Vercel preview of this branch (or a local bu
 ### T2. VoiceOver on iOS and TalkBack on Android
 Use Safari on an iPhone and Chrome on an Android phone, held upright.
 1. **Consent:** swipe through. Expect "Before you start, heading level 1", then the intro, then "Terms and privacy, region". Double-tap "I agree" before reaching the end: expect "dimmed" or "disabled" and the hint "Scroll to the end of the terms to agree". Scroll the terms to the end (three-finger swipe), then agree.
-2. **Map:** expect "ICEPik map, heading level 1" near the top. The tab bar: "Home, selected", "Reports, collapsed", "Know Your Rights". Swipe to the pins: each says its street and status ("Market Street & 15th, verified"). Double-tap one: its card opens; expect the card's heading.
+2. **Map:** expect "ICEPik map, heading level 1" near the top. The tab bar: "Home, selected", "Reports, collapsed", "Know Your Rights". Swipe to the pins: each says its street and status ("Market Street & 15th, verified"). Double-tap one: its card opens; expect the card's heading. With a long address, expect "Full address, button, collapsed" beside it; double-tap: "expanded", and the heading shows all of the address.
 3. **Reports:** double-tap Reports: "expanded". Swipe: the map and its pins should not be reachable now. Each row says its street, what was seen, the status and the time.
 4. **Search:** type "city hall" and search. Expect "2 places found, listed after the search box" (or "No places found"). Choose one: expect "Searched place marked on the map".
 5. **Settings:** open it. Expect "Settings, dialog" and the title. Swiping should never leave the dialog. Open Log in: expect "Log in to a saved account, heading". Submit empty: expect "Username or password is wrong" and the fields "invalid". Go Back: you land on the Log in button. Close: you land on the Settings button.
-6. **Save account:** save with a username and password. Back in Settings, expect "Account saved. Your username is …" to be read.
+6. **Save account:** save with a username and password. Back in Settings, expect "Account saved. Your username is …" to be read. Swipe back from the dialog's Close button: expect the notice and "Keep this message, button". Double-tap it: the notice stays until "Let this message close" is double-tapped.
 7. **Know Your Rights:** each link ends with "opens in a new tab". The tab bar stays reachable.
 8. **Submit a report:** expect the banner to be read ("Tap the map where you saw ICE…"). Place the pin by double-tapping the map, Use this spot, then the form: "Report a sighting, dialog". Post with nothing chosen: expect "Choose what you saw" and the choices "invalid".
 9. Note anything read twice, skipped, or read in the wrong order.

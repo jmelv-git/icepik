@@ -41,7 +41,9 @@ import {
   GearIcon,
   LocateIcon,
   MinusIcon,
+  PauseIcon,
   PinIcon,
+  PlayIcon,
   PinOutlineIcon,
   PlaceIcon,
   PlusIcon,
@@ -244,18 +246,35 @@ export function MapApp() {
     return () => data.subscription.unsubscribe();
   }, [supabase]);
 
-  // A notice stays 20 seconds (it was 6: too short to read for many people),
-  // and while the pointer is over it the time stops and starts again.
+  // A notice stays 20 seconds (it was 6: too short to read for many people).
+  // The time stops while the pointer is over it or focus is in it, and its
+  // pause button keeps it until it's played again (WCAG 2.2.1).
   const NOTICE_MS = 20000;
-  const showNotice = useCallback((message: string) => {
+  const [noticePaused, setNoticePaused] = useState(false);
+  const noticePausedRef = useRef(false);
+  const startNoticeTimer = useCallback(() => {
     window.clearTimeout(noticeTimer.current);
-    setNotice(message);
     noticeTimer.current = window.setTimeout(() => setNotice(""), NOTICE_MS);
   }, []);
+  const showNotice = useCallback(
+    (message: string) => {
+      noticePausedRef.current = false;
+      setNoticePaused(false);
+      setNotice(message);
+      startNoticeTimer();
+    },
+    [startNoticeTimer],
+  );
   const holdNotice = () => window.clearTimeout(noticeTimer.current);
   const releaseNotice = () => {
-    window.clearTimeout(noticeTimer.current);
-    noticeTimer.current = window.setTimeout(() => setNotice(""), NOTICE_MS);
+    if (!noticePausedRef.current) startNoticeTimer();
+  };
+  const toggleNoticePause = () => {
+    const paused = !noticePausedRef.current;
+    noticePausedRef.current = paused;
+    setNoticePaused(paused);
+    // Played again: the 20 seconds start over once focus or the pointer leaves.
+    if (paused) holdNotice();
   };
 
   const cancelReport = useCallback(() => {
@@ -965,6 +984,33 @@ export function MapApp() {
       >
         Skip to main content
       </a>
+      {/* Notices sit on top of everything (desktop: top left; tablets and
+          phones: top center), outside the map and the dialogs, so their
+          pause button works while a dialog is open. Screen readers hear them
+          from the live copy at the end. */}
+      {noticeText ? (
+        <div
+          className="notice"
+          onPointerEnter={holdNotice}
+          onPointerLeave={releaseNotice}
+          onFocus={holdNotice}
+          onBlur={(event) => {
+            if (!event.currentTarget.contains(event.relatedTarget as Node | null)) releaseNotice();
+          }}
+        >
+          <p>{noticeText}</p>
+          {notice ? (
+            <button
+              type="button"
+              className="icon-button notice-pause"
+              aria-label={noticePaused ? "Let this message close" : "Keep this message"}
+              onClick={toggleNoticePause}
+            >
+              {noticePaused ? <PlayIcon /> : <PauseIcon />}
+            </button>
+          ) : null}
+        </div>
+      ) : null}
       <nav className="rail" aria-label="ICEPik" inert={railInert}>
         <BrandLogo className="brand-logo brand-logo-tall" variant="tall" loading="lazy" />
         <BrandLogo className="brand-logo brand-logo-wide" loading="lazy" />
@@ -1439,12 +1485,6 @@ export function MapApp() {
             </button>
           </div>
         </div>
-
-        {/* Screen readers hear this from the copy after the dialogs, which
-            stays live while a dialog makes the map inert. */}
-        <p className="notice" onPointerEnter={holdNotice} onPointerLeave={releaseNotice}>
-          {noticeText}
-        </p>
 
         {/* Tells screen readers the searched place is on the map. */}
         <p className="visually-hidden" role="status">
