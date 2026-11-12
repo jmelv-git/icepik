@@ -284,7 +284,10 @@ async function measure(page) {
     const out = {};
     const round = (n) => Math.round(n * 100) / 100;
     for (const [name, selector, count] of keys) {
-      const els = [...document.querySelectorAll(selector)].slice(0, count);
+      // The rail holds two logos and shows one: measure the one on screen.
+      const all = [...document.querySelectorAll(selector)];
+      const shown = all.filter((e) => e.getClientRects().length);
+      const els = (count === 1 && shown.length ? shown : all).slice(0, count);
       els.forEach((el, i) => {
         const r = el.getBoundingClientRect();
         const key = count === 1 ? name : `${name}[${i}]`;
