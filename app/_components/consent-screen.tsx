@@ -54,7 +54,15 @@ export function ConsentScreen({ updated }: { updated: boolean }) {
           ICEPik is a community map of possible ICE activity in Philadelphia. Please read how it
           works and what it keeps. The map loads only after you agree.
         </p>
-        <div ref={textBox} className="consent-text" tabIndex={0} aria-label="Terms and privacy">
+        {/* A region, so its name is read when it takes focus (it takes
+            focus so the keyboard can scroll it). */}
+        <div
+          ref={textBox}
+          className="consent-text"
+          role="region"
+          tabIndex={0}
+          aria-label="Terms and privacy"
+        >
           <PolicyText />
           <span ref={textEnd} className="consent-text-end" aria-hidden="true" />
         </div>

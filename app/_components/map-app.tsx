@@ -198,11 +198,34 @@ export function MapApp() {
   const [bounds, setBounds] = useState<Bounds | null>(null);
   const [notice, setNotice] = useState("");
   const noticeTimer = useRef<number | undefined>(undefined);
+  const mainRef = useRef<HTMLElement>(null);
+
+  // The dialog on screen, if any. The report form's layer is hidden while its
+  // pin is moved on the map, and then it isn't one.
+  const reportShown = reportFormOpen && draft !== null && picking !== "report";
+  const dialog = modal ?? (reportShown ? "report" : null);
+  // While a dialog shows, everything behind it is inert: Tab stays in the
+  // dialog layer (and the account set-up message, which sits above it). On
+  // phones Know Your Rights is a tab, and the tab bar beside it stays in reach.
+  const railInert = dialog !== null && !(dialog === "rights" && layout === "phone");
+  // The control that opened the dialog, to go back to when it closes.
+  const dialogOpener = useRef<HTMLElement | null>(null);
+  // Where focus goes when the dialog closes, instead of its opener.
+  const focusAfterDialog = useRef<string | null>(null);
+  // Where focus goes when the report form shows again after moving its pin.
+  const focusInReport = useRef<string | null>(null);
+  // The row or pin that opened the alert card, to go back to when it closes.
+  const cardOpener = useRef<HTMLElement | null>(null);
+  // Upright phones: the Reports sheet covers the whole map. The map, its pins
+  // and buttons are then out of the Tab order, since nobody can see them.
+  const [sheetCovers, setSheetCovers] = useState(false);
 
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState(false);
+  // A search that found nothing. Nothing shows for it; screen readers hear it.
+  const [noResults, setNoResults] = useState(false);
   const [searchResult, setSearchResult] = useState<(Point & { label: string }) | null>(null);
   const searchForm = useRef<HTMLFormElement>(null);
   const searchInput = useRef<HTMLInputElement>(null);
@@ -231,23 +254,191 @@ export function MapApp() {
     setReportFormOpen(false);
   }, []);
 
+  // Focus the first of these that is on screen and can take focus.
+  function focusFirst(candidates: (HTMLElement | string | null)[]) {
+    for (const candidate of candidates) {
+      const element =
+        typeof candidate === "string" ? document.querySelector<HTMLElement>(candidate) : candidate;
+      if (
+        element?.isConnected &&
+        element.getClientRects().length &&
+        getComputedStyle(element).visibility !== "hidden" &&
+        !element.closest("[inert]")
+      ) {
+        element.focus({ preventScroll: true });
+        return;
+      }
+    }
+  }
+
+  // The map takes Enter to place a pin at its center (onMapKeyDown).
+  function focusMap() {
+    window.requestAnimationFrame(() => focusFirst([".map-shell .leaflet-container"]));
+  }
+
+  // Open a dialog, remembering the control that opened it.
+  function openModal(kind: "rights" | "settings") {
+    if (!dialog) {
+      const active = document.activeElement;
+      dialogOpener.current = active instanceof HTMLElement && active !== document.body ? active : null;
+    }
+    setModal(kind);
+  }
+
+  // Close the alert card. If focus was in it, go back to the row or pin that
+  // opened it, or else to the map.
+  function closeCard(close: () => void) {
+    const card = document.querySelector(".detail-card");
+    const wasInCard = Boolean(card?.contains(document.activeElement));
+    const opener = cardOpener.current;
+    cardOpener.current = null;
+    close();
+    if (wasInCard) {
+      window.requestAnimationFrame(() => focusFirst([opener, ".map-shell .leaflet-container"]));
+    }
+  }
+
+  // Pick-mode keyboard: Enter or Space on the focused map places the pin (or
+  // the place) at the map's center. The arrow keys move the map first.
+  function onMapKeyDown(event: React.KeyboardEvent) {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    const target = event.target as HTMLElement;
+    // Pins and clusters are Tab stops with role="button", but Leaflet only
+    // listens for clicks on them: Enter and Space click them, as on a button.
+    if (target.classList?.contains("leaflet-marker-icon") && target.getAttribute("role") === "button") {
+      event.preventDefault();
+      target.click();
+      return;
+    }
+    if (!target.classList?.contains("leaflet-container")) return;
+    if (!picking && !naming) return;
+    const center = mapApi.current?.center();
+    if (!center) return;
+    event.preventDefault();
+    place(center);
+  }
+
+  // Escape closes one thing at a time, the top one first: a dialog, the
+  // report form, the place being named, choosing a spot, then a card.
+  const onEscape = useEffectEvent(() => {
+    if (modal) setModal(null);
+    else if (reportShown) cancelReport();
+    else if (naming) closeNaming();
+    else if (picking === "report" && !reportFormOpen) cancelReport();
+    else if (picking) setPicking(null);
+    else if (selectedId) closeCard(() => setSelectedId(null));
+    else if (groupIds) closeCard(() => setGroupIds(null));
+  });
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key !== "Escape") return;
-      if (modal) setModal(null);
-      else if (naming) closeNaming();
-      else if (picking === "report" && !reportFormOpen) cancelReport();
-      else if (picking) setPicking(null);
+      if (event.key === "Escape") onEscape();
     }
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [modal, naming, picking, reportFormOpen, cancelReport]);
+  }, []);
 
   const closeResults = useCallback(() => {
     setResults([]);
     setSearchError(false);
+    setNoResults(false);
   }, []);
+
+  // Focus follows the dialogs: into one when it opens, and back to the
+  // control that opened it when it closes. If that control is gone or hidden,
+  // the nearest one that does the same job.
+  const previousDialog = useRef(dialog);
+  const onDialogChange = useEffectEvent(() => {
+    const before = previousDialog.current;
+    previousDialog.current = dialog;
+    if (dialog === before) return;
+
+    if (dialog) {
+      const into = focusInReport.current;
+      focusInReport.current = null;
+      const section = document.querySelector<HTMLElement>(".modal-layer:not([hidden]) .modal");
+      const target = (into && section?.querySelector<HTMLElement>(into)) || section;
+      target?.focus({ preventScroll: true });
+      return;
+    }
+
+    // The report form hid to let its pin move: the map takes focus, so the
+    // pin can be placed with the keyboard, and "Move pin" gets it back after.
+    if (before === "report" && reportFormOpen) {
+      focusInReport.current = ".spot-row .text-button";
+      focusMap();
+      return;
+    }
+
+    // Focus moved on by itself (a tab in the tab bar closed the dialog):
+    // leave it there.
+    const active = document.activeElement;
+    if (active && active !== document.body && active.isConnected && !active.closest(".modal-layer"))
+      return;
+
+    const fallbacks: Record<string, string[]> = {
+      settings: [".rail-settings", ".panel-settings"],
+      rights: [".rail-rights", ".rights-card .link-button"],
+      // Posting, or choosing a sighting near the spot, opens its card.
+      report: [".detail-card .icon-button", ".report-button"],
+    };
+    const candidates: (HTMLElement | string | null)[] = [
+      focusAfterDialog.current,
+      before === "report" ? null : dialogOpener.current,
+      ...(fallbacks[before ?? ""] ?? []),
+    ];
+    focusAfterDialog.current = null;
+    dialogOpener.current = null;
+    window.requestAnimationFrame(() => focusFirst(candidates));
+  });
+  useEffect(() => {
+    onDialogChange();
+  }, [dialog, reportFormOpen]);
+
+  // Phones: the account set-up message can cover "Submit a report". While it
+  // does, the button is out of the Tab order, like the map buttons under a card.
+  const starterShown = Boolean(supabase && user === null && !starterHidden);
+  const [starterCovers, setStarterCovers] = useState(false);
+  useEffect(() => {
+    const measure = () => {
+      const starter = document.querySelector(".starter")?.getBoundingClientRect();
+      const button = document.querySelector(".report-button")?.getBoundingClientRect();
+      setStarterCovers(
+        Boolean(
+          starter &&
+            button?.width &&
+            starter.left <= button.left &&
+            starter.right >= button.right &&
+            starter.top <= button.top &&
+            starter.bottom >= button.bottom,
+        ),
+      );
+    };
+    const frame = window.requestAnimationFrame(measure);
+    const starter = document.querySelector(".starter");
+    const observer = new ResizeObserver(measure);
+    if (starter) observer.observe(starter);
+    window.addEventListener("resize", measure);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      observer.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, [starterShown, layout, picking, selectedId, groupIds]);
+
+  // The map element belongs to the map component: mark it here.
+  useEffect(() => {
+    document.querySelector(".map-shell > .map")?.toggleAttribute("inert", sheetCovers);
+  }, [sheetCovers]);
+
+  // While the map waits for a spot, focusing it reads the banner's words.
+  const waitingForSpot = picking !== null && naming === null;
+  useEffect(() => {
+    const container = document.querySelector(".map-shell .leaflet-container");
+    if (!container) return;
+    if (waitingForSpot) container.setAttribute("aria-describedby", "pick-help");
+    else container.removeAttribute("aria-describedby");
+  }, [waitingForSpot]);
 
   // A click or tap anywhere outside the search box closes its results. Listen
   // in the capture phase so the map can't swallow the event first.
@@ -269,6 +460,33 @@ export function MapApp() {
   const panelShown = panelOpen ?? layout !== "phone";
   const panelState =
     panelOpen === null && !compact ? "auto" : panelShown ? "open" : "closed";
+
+  // Upright phones: whether the Reports sheet covers the whole map.
+  // Measured after each render that can change it, and on resize.
+  useEffect(() => {
+    const measure = () => {
+      const panel = document.querySelector(".panel")?.getBoundingClientRect();
+      const map = document.querySelector(".map")?.getBoundingClientRect();
+      setSheetCovers(
+        Boolean(
+          panelState === "open" &&
+            panel &&
+            map &&
+            panel.left <= map.left + 1 &&
+            panel.right >= map.right - 1 &&
+            panel.top <= map.top + 1 &&
+            panel.bottom >= map.bottom - 1,
+        ),
+      );
+    };
+    const frame = window.requestAnimationFrame(measure);
+    window.addEventListener("resize", measure);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("resize", measure);
+    };
+  }, [panelState, layout]);
+
 
   // Move a chosen sighting's pin out from under its card. This waits until
   // the card has rendered, because the card's size decides where the pin
@@ -416,6 +634,13 @@ export function MapApp() {
 
   // Open a sighting's card and bring its pin into view.
   function selectSighting(id: string) {
+    const active = document.activeElement;
+    cardOpener.current =
+      active instanceof HTMLElement &&
+      active !== document.body &&
+      !active.closest(".detail-card, .modal-layer")
+        ? active
+        : null;
     setSelectedId(id);
     setGroupIds(null);
     setRevealCount((count) => count + 1);
@@ -454,6 +679,8 @@ export function MapApp() {
     setReportFormOpen(false);
     setPicking("report");
     if (isPhone()) setPanelOpen(false);
+    // The button goes away: the map takes focus, ready for Enter.
+    focusMap();
   }
 
   // Moving the pin of an open report goes back to the form; otherwise stop.
@@ -463,6 +690,8 @@ export function MapApp() {
   }
 
   function pickPlace(name: PlaceName | "custom") {
+    // Settings closes and the map waits for the spot: it takes focus.
+    focusAfterDialog.current = ".map-shell .leaflet-container";
     setModal(null);
     setNaming(null);
     setPicking(name);
@@ -584,6 +813,7 @@ export function MapApp() {
     searchAbort.current = controller;
     setSearching(true);
     setSearchError(false);
+    setNoResults(false);
 
     try {
       // In the body, not the URL, so the search never lands in request logs.
@@ -595,7 +825,10 @@ export function MapApp() {
       });
       if (!response.ok) throw new Error(`Search failed: ${response.status}`);
       const found: SearchResult[] = await response.json();
-      if (!controller.signal.aborted) setResults(found);
+      if (!controller.signal.aborted) {
+        setResults(found);
+        setNoResults(found.length === 0);
+      }
     } catch {
       if (controller.signal.aborted) return;
       setResults([]);
@@ -705,9 +938,24 @@ export function MapApp() {
     };
   }
 
+  const noticeText = notice || (me.status === "asking" ? LOCATION_ASK : "");
+
   return (
     <div className="app" data-panel={panelState} data-modal={modal ?? undefined} data-tab={reportsTab}>
-      <nav className="rail" aria-label="ICEPik">
+      {/* The first Tab stop. Shown only while focused; fixed, so it moves
+          nothing. It focuses the main content without changing the URL. */}
+      <a
+        className="skip-link"
+        href="#main"
+        inert={dialog !== null}
+        onClick={(event) => {
+          event.preventDefault();
+          mainRef.current?.focus();
+        }}
+      >
+        Skip to main content
+      </a>
+      <nav className="rail" aria-label="ICEPik" inert={railInert}>
         <BrandLogo className="brand-logo brand-logo-tall" variant="tall" loading="lazy" />
         <BrandLogo className="brand-logo brand-logo-wide" loading="lazy" />
 
@@ -741,7 +989,7 @@ export function MapApp() {
           type="button"
           className="rail-item rail-rights"
           aria-current={compact && modal === "rights" ? "page" : undefined}
-          onClick={() => setModal("rights")}
+          onClick={() => openModal("rights")}
         >
           <span className="rail-icon">
             <DocumentIcon />
@@ -752,7 +1000,7 @@ export function MapApp() {
         <button
           type="button"
           className="rail-item rail-settings"
-          onClick={() => setModal("settings")}
+          onClick={() => openModal("settings")}
         >
           <span className="rail-icon">
             <GearIcon />
@@ -761,7 +1009,15 @@ export function MapApp() {
         </button>
       </nav>
 
-      <main className="map-shell">
+      <main
+        ref={mainRef}
+        id="main"
+        className="map-shell"
+        tabIndex={-1}
+        inert={dialog !== null}
+        onKeyDown={onMapKeyDown}
+      >
+        <h1 className="visually-hidden">ICEPik map</h1>
         <SightingsMap
           ref={mapApi}
           sightings={sightings}
@@ -787,7 +1043,7 @@ export function MapApp() {
             type="button"
             className="panel-settings"
             aria-label="Settings"
-            onClick={() => setModal("settings")}
+            onClick={() => openModal("settings")}
           >
             <GearIcon />
           </button>
@@ -798,6 +1054,16 @@ export function MapApp() {
             role="search"
             onSubmit={searchPlaces}
             onKeyDown={onSearchKeyDown}
+            onBlur={(event) => {
+              // Where the results float over the map, they close when focus
+              // moves on, as they do on a click elsewhere, so they never hide
+              // the control that has focus. In the phone's Reports sheet
+              // they are the sheet's content and stay.
+              const next = event.relatedTarget as Node | null;
+              const inSheet = layout === "phone" && panelShown;
+              if (resultsOpen && next && !event.currentTarget.contains(next) && !inSheet)
+                closeResults();
+            }}
           >
             <div className="search-field">
               {/* Enter searches too, so keyboard users skip this button. */}
@@ -862,6 +1128,18 @@ export function MapApp() {
               ) : null}
             </div>
           </form>
+          {/* Tells screen readers what the search is doing. */}
+          <p className="visually-hidden" role="status">
+            {searching
+              ? "Searching…"
+              : searchError
+                ? "Search is unavailable right now."
+                : results.length
+                  ? `${results.length} ${results.length === 1 ? "place" : "places"} found, listed after the search box.`
+                  : noResults
+                    ? "No places found."
+                    : ""}
+          </p>
 
           {/* Phones only: the Reports sheet shows the list or the search. */}
           <div className="panel-tabs" role="group" aria-label="Reports">
@@ -952,7 +1230,7 @@ export function MapApp() {
                   );
                 })}
                 {morePlaces > 0 ? (
-                  <button type="button" className="link-button places-more" onClick={() => setModal("settings")}>
+                  <button type="button" className="link-button places-more" onClick={() => openModal("settings")}>
                     {morePlaces} more saved {morePlaces === 1 ? "place" : "places"} in Settings
                     <ArrowIcon />
                   </button>
@@ -967,7 +1245,7 @@ export function MapApp() {
               <div>
                 <h2 id="rights-card-title">Know your rights</h2>
                 <p>Find trusted information and legal support.</p>
-                <button type="button" className="link-button" onClick={() => setModal("rights")}>
+                <button type="button" className="link-button" onClick={() => openModal("rights")}>
                   View resources
                   <ArrowIcon />
                 </button>
@@ -999,7 +1277,7 @@ export function MapApp() {
             isMine={activity.posts.has(selected.id)}
             myVote={activity.votes.get(selected.id)}
             signedIn={Boolean(user)}
-            onClose={() => setSelectedId(null)}
+            onClose={() => closeCard(() => setSelectedId(null))}
             onVoted={voted}
             onGone={gone}
             onDeleted={deleted}
@@ -1012,7 +1290,7 @@ export function MapApp() {
               <button
                 type="button"
                 className="icon-button"
-                onClick={() => setGroupIds(null)}
+                onClick={() => closeCard(() => setGroupIds(null))}
                 aria-label="Close"
               >
                 <CloseIcon />
@@ -1058,7 +1336,8 @@ export function MapApp() {
           </form>
         ) : picking ? (
           <div className="pick-banner">
-            <p>
+            {/* Also the description of the map while it waits for a spot. */}
+            <p id="pick-help" role="status">
               {picking === "report"
                 ? draft
                   ? "Drag the pin, or tap somewhere else to move it."
@@ -1066,6 +1345,11 @@ export function MapApp() {
                 : picking === "custom"
                   ? "Tap the place you want to save. It's saved on this device only."
                   : `Tap your ${picking === "home" ? "home" : "workplace"} on the map. It's saved on this device only.`}
+              <span className="visually-hidden">
+                {" "}
+                With a keyboard, move the map with the arrow keys, then press Enter on the map to
+                choose its center.
+              </span>
             </p>
             <div className="form-actions">
               <button type="button" className="secondary-button" onClick={leavePicking}>
@@ -1086,14 +1370,19 @@ export function MapApp() {
             </div>
           </div>
         ) : (
-          <button type="button" className="report-button" onClick={startReport}>
+          <button type="button" className="report-button" onClick={startReport} inert={sheetCovers || starterCovers}>
             <PlusIcon />
             Submit a report
           </button>
         )}
 
-        {/* Hidden, and out of the Tab order, while a card covers them. */}
-        <div className="map-controls" data-covered={controlsCovered || undefined} inert={controlsCovered}>
+        {/* Hidden, and out of the Tab order, while a card covers them. Out of
+            the Tab order too while the phone's Reports sheet covers them. */}
+        <div
+          className="map-controls"
+          data-covered={controlsCovered || undefined}
+          inert={controlsCovered || sheetCovers}
+        >
           <button
             type="button"
             className="map-control"
@@ -1123,9 +1412,9 @@ export function MapApp() {
           </div>
         </div>
 
-        <p className="notice" role="status" aria-live="polite">
-          {notice || (me.status === "asking" ? LOCATION_ASK : "")}
-        </p>
+        {/* Screen readers hear this from the copy after the dialogs, which
+            stays live while a dialog makes the map inert. */}
+        <p className="notice">{noticeText}</p>
 
         {/* Tells screen readers the searched place is on the map. */}
         <p className="visually-hidden" role="status">
@@ -1137,7 +1426,13 @@ export function MapApp() {
 
       {reportFormOpen && draft ? (
         <div className="modal-layer" data-kind="report" role="presentation" hidden={picking === "report"}>
-          <section className="modal" role="dialog" aria-modal="true" aria-labelledby="report-title">
+          <section
+            className="modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="report-title"
+            tabIndex={-1}
+          >
             <header className="modal-head">
               <h2 id="report-title">Report a sighting</h2>
               <button type="button" className="icon-button" onClick={cancelReport} aria-label="Close">
@@ -1180,6 +1475,7 @@ export function MapApp() {
             role="dialog"
             aria-modal="true"
             aria-labelledby="modal-title"
+            tabIndex={-1}
             onClick={(event) => event.stopPropagation()}
           >
             <header className="modal-head">
@@ -1204,6 +1500,7 @@ export function MapApp() {
                   <li>
                     <a href="https://www.ilrc.org/" target="_blank" rel="noreferrer">
                       Immigrant Legal Resource Center
+                      <span className="visually-hidden"> (opens in a new tab)</span>
                       <ArrowIcon />
                     </a>
                   </li>
@@ -1214,6 +1511,7 @@ export function MapApp() {
                       rel="noreferrer"
                     >
                       Immigrant Defense Project
+                      <span className="visually-hidden"> (opens in a new tab)</span>
                       <ArrowIcon />
                     </a>
                   </li>
@@ -1224,6 +1522,7 @@ export function MapApp() {
                       rel="noreferrer"
                     >
                       Philadelphia Office of Immigrant Affairs
+                      <span className="visually-hidden"> (opens in a new tab)</span>
                       <ArrowIcon />
                     </a>
                   </li>
@@ -1267,6 +1566,12 @@ export function MapApp() {
           onDismiss={() => setStarterHidden(true)}
         />
       ) : null}
+
+      {/* The notice for screen readers. Outside the map and the dialogs, so
+          it's heard even while a dialog is open (Account saved, Logged in). */}
+      <p className="visually-hidden" role="status">
+        {noticeText}
+      </p>
     </div>
   );
 }

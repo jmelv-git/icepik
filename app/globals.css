@@ -4205,3 +4205,102 @@ textarea::placeholder {
     }
   }
 }
+
+/* ---------------------------------------------------------------------------
+   Accessibility pass
+
+   Nothing here moves or resizes anything: the skip link is fixed and shows
+   only while it has focus; scroll padding only changes where a focused
+   control scrolls to; the rest are colours and focus rings.
+   --------------------------------------------------------------------------- */
+
+/* The first Tab stop on the map screens. Out of sight (like .visually-hidden)
+   until it has focus, then a button-like link at the top start corner. */
+.skip-link {
+  position: fixed;
+  inset-block-start: calc(0.75rem + var(--safe-top, 0px));
+  inset-inline-start: calc(0.75rem + var(--safe-left, 0px));
+  z-index: 2300;
+  padding: 0.75rem 1.25rem;
+  border-radius: 62.4375rem;
+  background: var(--blue-strong);
+  color: #fff;
+  font-weight: 700;
+  text-decoration: underline;
+}
+
+.skip-link:not(:focus) {
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Focus put on these by the app (the skip link's target, a dialog as it
+   opens, a Settings page's heading): no ring round the whole map or dialog.
+   The next Tab lands on a control, which has its ring. */
+@media (forced-colors: none) {
+  .map-shell:focus,
+  .modal:focus,
+  .settings h3:focus {
+    outline: none;
+  }
+}
+
+/* A focused control scrolls clear of the bars that stay in place: the
+   phone's title bar at the top and the terms' Back bar at the bottom. */
+.modal:has(.sticky-actions) {
+  scroll-padding-block-end: 6rem;
+}
+
+@media (width < 768px), (width < 1280px) and (height < 500px) {
+  .modal,
+  .modal-layer {
+    scroll-padding-block-start: calc(4.25rem + var(--safe-top, 0px));
+  }
+}
+
+/* Phones and tablets: report rows are solid --card, a little lighter than
+   the glass the status colours were picked for. Verified text 5.14:1 on
+   --card and 4.62:1 hovered (#ff6b70 was 4.49:1). On the selected row
+   (#44464c) the grey line and the verified red are lighter again: 4.75:1
+   and 4.66:1. */
+@media (width < 1280px) {
+  .report-list .report-row .status-text-verified {
+    color: #ff8085;
+  }
+
+  .report-list .report-row[aria-pressed="true"] .row-meta {
+    color: #b5b8bf;
+  }
+
+  .report-list .report-row[aria-pressed="true"] .status-text-verified {
+    color: #ff9a9e;
+  }
+}
+
+/* The search box's focus ring matches the other fields: 2px outside its edge
+   (it was two 1px lines, under 2px at desktop sizes). A shadow: nothing moves. */
+.search-field:focus-within {
+  box-shadow: 0 0 0 0.125rem var(--blue);
+}
+
+/* Phones and tablets: the verified icon on its chip on a solid row (the
+   chip over --card) 3.82:1, and 3.04:1 on the selected row (--red was 2.94:1
+   and 2.34:1). */
+@media (width < 1280px) {
+  .report-list .report-row .row-icon.status-verified {
+    color: #ff5f65;
+  }
+}
+
+/* Light map: the credits' links. Leaflet's #0078a8 on its 80% white box is
+   3.1:1 where the map under the box is dark; #00567a is 5.0:1 even over
+   black, 8.0:1 over white. The dark map has its own (above). */
+@media (prefers-color-scheme: light) {
+  .leaflet-container .leaflet-control-attribution a {
+    color: #00567a;
+  }
+}

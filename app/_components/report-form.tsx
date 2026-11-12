@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { postSighting } from "@/app/actions/sightings";
 import { NEARBY_RADIUS_M, distanceMeters, formatDistance } from "@/lib/geo";
 import { runAction } from "@/lib/run-action";
@@ -54,6 +54,12 @@ export function ReportForm({
   const [description, setDescription] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  // Which field the message is about, so the field says it's invalid and
+  // points at the message (null: the message is about the whole form).
+  const [problem, setProblem] = useState<"category" | "counts" | null>(null);
+  const id = useId();
+  const errorId = `${id}-error`;
+  const nearbyTitleId = `${id}-nearby-title`;
 
   const pointKey = `${point.lat},${point.lng}`;
   const label = typedLabel ?? (suggested?.key === pointKey ? suggested.label : "");
@@ -92,13 +98,18 @@ export function ReportForm({
     const agentCount = parseCount(agents);
     const vehicleCount = parseCount(vehicles);
 
-    if (!category) return setMessage("Choose what you saw.");
+    if (!category) {
+      setProblem("category");
+      return setMessage("Choose what you saw.");
+    }
     if (agentCount === undefined || vehicleCount === undefined) {
+      setProblem("counts");
       return setMessage("Counts must be whole numbers from 0 to 99.");
     }
 
     setBusy(true);
     setMessage(null);
+    setProblem(null);
     const result = await runAction(() =>
       postSighting({
         lat: point.lat,
@@ -127,8 +138,8 @@ export function ReportForm({
       </div>
 
       {nearby.length ? (
-        <section className="nearby" aria-labelledby="nearby-title">
-          <h3 id="nearby-title">Already reported nearby?</h3>
+        <section className="nearby" aria-labelledby={nearbyTitleId}>
+          <h3 id={nearbyTitleId}>Already reported nearby?</h3>
           <p>Confirm an existing sighting instead of posting it again.</p>
           <ul>
             {nearby.map(({ sighting, distance }) => (
@@ -152,7 +163,10 @@ export function ReportForm({
         </section>
       ) : null}
 
-      <fieldset className="choice-group">
+      <fieldset
+        className="choice-group"
+        aria-describedby={problem === "category" ? errorId : undefined}
+      >
         <legend>What did you see?</legend>
         <div className="choices">
           {CATEGORIES.map((option) => (
@@ -162,6 +176,7 @@ export function ReportForm({
                 name="category"
                 value={option.value}
                 checked={category === option.value}
+                aria-invalid={problem === "category" || undefined}
                 onChange={() => setCategory(option.value)}
               />
               <span className="choice-label">{option.label}</span>
@@ -181,6 +196,10 @@ export function ReportForm({
             max={LIMITS.count}
             step={1}
             placeholder="Not sure"
+            aria-invalid={(problem === "counts" && parseCount(agents) === undefined) || undefined}
+            aria-describedby={
+              problem === "counts" && parseCount(agents) === undefined ? errorId : undefined
+            }
             value={agents}
             onChange={(event) => setAgents(event.target.value)}
           />
@@ -194,6 +213,10 @@ export function ReportForm({
             max={LIMITS.count}
             step={1}
             placeholder="Not sure"
+            aria-invalid={(problem === "counts" && parseCount(vehicles) === undefined) || undefined}
+            aria-describedby={
+              problem === "counts" && parseCount(vehicles) === undefined ? errorId : undefined
+            }
             value={vehicles}
             onChange={(event) => setVehicles(event.target.value)}
           />
@@ -234,7 +257,7 @@ export function ReportForm({
       </p>
 
       {message ? (
-        <p className="form-error" role="alert">
+        <p id={errorId} className="form-error" role="alert">
           {message}
         </p>
       ) : null}

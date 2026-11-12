@@ -1,7 +1,7 @@
 "use client";
 
 import type { User } from "@supabase/supabase-js";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import {
   PASSWORD_RULES,
   USERNAME_RULES,
@@ -75,6 +75,13 @@ export function SettingsDialog(props: Props) {
   };
   useEffect(() => {
     document.querySelector(".modal")?.scrollTo(0, 0);
+    // The button that opened this view is gone: its heading takes focus, so
+    // keyboard users carry on from the top and screen readers read it.
+    if (view === "main") return;
+    const heading = document.querySelector<HTMLElement>(".modal .settings h3");
+    if (!heading) return;
+    heading.tabIndex = -1;
+    heading.focus({ preventScroll: true });
   }, [view]);
 
   return (
@@ -185,10 +192,19 @@ function MainView({
                 <span className="place-actions">
                   {place ? (
                     <>
-                      <button type="button" className="text-button" onClick={() => onShowPlace(place)}>
+                      <button
+                        type="button"
+                        className="text-button"
+                        aria-label={`Show ${PLACE_LABEL[name]}`}
+                        onClick={() => onShowPlace(place)}
+                      >
                         Show
                       </button>
-                      <button type="button" className="text-button" onClick={() =>
+                      <button
+                        type="button"
+                        className="text-button"
+                        aria-label={`Remove ${PLACE_LABEL[name]}`}
+                        onClick={() =>
                           setPlaceStatus(
                             savePlace(name, null)
                               ? `${PLACE_LABEL[name]} removed from this device.`
@@ -199,7 +215,12 @@ function MainView({
                       </button>
                     </>
                   ) : (
-                    <button type="button" className="text-button" onClick={() => onPickPlace(name)}>
+                    <button
+                      type="button"
+                      className="text-button"
+                      aria-label={`Set on map: ${PLACE_LABEL[name]}`}
+                      onClick={() => onPickPlace(name)}
+                    >
                       Set on map
                     </button>
                   )}
@@ -320,21 +341,40 @@ function SaveAccount({ supabase, onNotice, onBack }: Props & { onBack: () => voi
   const [repeat, setRepeat] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  // The field the message is about: it says it's invalid and points at it.
+  const [field, setField] = useState<"username" | "password" | "repeat" | null>(null);
+  const errorId = `${useId()}-error`;
+  const invalid = (name: typeof field) =>
+    field === name ? { "aria-invalid": true, "aria-describedby": errorId } : {};
 
   async function save(event: React.FormEvent) {
     event.preventDefault();
-    const problem =
-      checkUsername(username) ??
-      checkPassword(password) ??
-      (password === repeat ? null : "The passwords don't match.");
-    if (problem) return setMessage(problem);
+    const usernameProblem = checkUsername(username);
+    const passwordProblem = checkPassword(password);
+    const repeatProblem = password === repeat ? null : "The passwords don't match.";
+    const problem = usernameProblem ?? passwordProblem ?? repeatProblem;
+    if (problem) {
+      setField(usernameProblem ? "username" : passwordProblem ? "password" : "repeat");
+      return setMessage(problem);
+    }
 
     setBusy(true);
     setMessage(null);
+    setField(null);
     // Same user id: posts and votes stay with the account.
     const { error } = await supabase.auth.updateUser({ email: loginIdFor(username), password });
     setBusy(false);
-    if (error) return setMessage(authErrorMessage(error));
+    if (error) {
+      const code = error.code ?? "";
+      setField(
+        ["email_exists", "user_already_exists", "email_address_invalid"].includes(code)
+          ? "username"
+          : code === "weak_password"
+            ? "password"
+            : null,
+      );
+      return setMessage(authErrorMessage(error));
+    }
     onNotice(`Account saved. Your username is ${username.trim().toLowerCase()}.`);
     onBack();
   }
@@ -363,6 +403,7 @@ function SaveAccount({ supabase, onNotice, onBack }: Props & { onBack: () => voi
             maxLength={20}
             value={username}
             onChange={(event) => setUsername(event.target.value)}
+            {...invalid("username")}
           />
           <small>{USERNAME_RULES}</small>
         </label>
@@ -373,6 +414,7 @@ function SaveAccount({ supabase, onNotice, onBack }: Props & { onBack: () => voi
             autoComplete="new-password"
             value={password}
             onChange={(event) => setPassword(event.target.value)}
+            {...invalid("password")}
           />
           <small>{PASSWORD_RULES}</small>
         </label>
@@ -383,10 +425,11 @@ function SaveAccount({ supabase, onNotice, onBack }: Props & { onBack: () => voi
             autoComplete="new-password"
             value={repeat}
             onChange={(event) => setRepeat(event.target.value)}
+            {...invalid("repeat")}
           />
         </label>
         {message ? (
-          <p className="form-error" role="alert">
+          <p id={errorId} className="form-error" role="alert">
             {message}
           </p>
         ) : null}
@@ -410,16 +453,22 @@ function LogIn({ supabase, user, activePosts, onNotice, onClose, onBack }: Props
   const [captchaReset, setCaptchaReset] = useState(0);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  // "Username or password is wrong" is about both fields.
+  const [wrong, setWrong] = useState(false);
+  const errorId = `${useId()}-error`;
+  const invalid = wrong ? { "aria-invalid": true, "aria-describedby": errorId } : {};
   const unsaved = user?.is_anonymous ?? false;
 
   async function logIn(event: React.FormEvent) {
     event.preventDefault();
     if (checkUsername(username) || !password) {
+      setWrong(true);
       return setMessage("Username or password is wrong.");
     }
 
     setBusy(true);
     setMessage(null);
+    setWrong(false);
     const { error } = await supabase.auth.signInWithPassword({
       email: loginIdFor(username),
       password,
@@ -428,7 +477,10 @@ function LogIn({ supabase, user, activePosts, onNotice, onClose, onBack }: Props
     setBusy(false);
     // A CAPTCHA token works once.
     if (captchaEnabled) setCaptchaReset((count) => count + 1);
-    if (error) return setMessage(authErrorMessage(error));
+    if (error) {
+      setWrong(error.code === "invalid_credentials");
+      return setMessage(authErrorMessage(error));
+    }
     onNotice(`Logged in as ${username.trim().toLowerCase()}.`);
     onClose();
   }
@@ -459,6 +511,7 @@ function LogIn({ supabase, user, activePosts, onNotice, onClose, onBack }: Props
             maxLength={20}
             value={username}
             onChange={(event) => setUsername(event.target.value)}
+            {...invalid}
           />
         </label>
         <label>
@@ -468,6 +521,7 @@ function LogIn({ supabase, user, activePosts, onNotice, onClose, onBack }: Props
             autoComplete="current-password"
             value={password}
             onChange={(event) => setPassword(event.target.value)}
+            {...invalid}
           />
         </label>
         {captchaEnabled ? (
@@ -480,7 +534,7 @@ function LogIn({ supabase, user, activePosts, onNotice, onClose, onBack }: Props
           />
         ) : null}
         {message ? (
-          <p className="form-error" role="alert">
+          <p id={errorId} className="form-error" role="alert">
             {message}
           </p>
         ) : null}
