@@ -1,7 +1,5 @@
 # ICEPik accessibility checklist (WCAG 2.2 AA)
 
-> **Draft:** the Ask-first decisions are still to be filled in (placeholders in capitals).
-
 Checked on 12 November 2026, on the work branch after the style pass (glass cards, lava lamp, field edges). Every line of the owner's checklist is below, in the owner's order, with a status, the evidence and the file or screen it refers to.
 
 **Statuses.** **Pass**: met as it was. **Fixed**: met after a change in this pass. **Not applicable**: nothing in ICEPik that the line is about. **Needs a person**: only a person on a real device can check it; the test script at the end says how. **Not in this pass**: the fix is a new feature or is outside this pass's scope; what it would need is written down.
@@ -20,7 +18,7 @@ Nothing was tested with a real screen reader, a real phone or a real user. Those
 
 ## Changes in this pass
 
-Each change keeps every element where it was: `capture-layout.mjs --compare` reports no difference.
+The "Fix now" changes keep every element where it was. The owner then approved eight of the nine Ask-first changes (see [Ask-first findings](#ask-first-findings)); with the test data none of them moves anything either, and `capture-layout.mjs --compare` still reports no difference above 1 px in 188 screen states.
 
 | Change | Files | Checklist lines |
 |---|---|---|
@@ -44,8 +42,14 @@ Each change keeps every element where it was: `capture-layout.mjs --compare` rep
 | Light map: the credits' links `#00567a` (Leaflet's `#0078a8` was 3.1:1 where the map under the box is dark; now at least 5.0:1). | `globals.css` | 2.3 |
 | The search box's focus ring is 2 px outside its edge, like the other fields (it was two 1 px lines, under 2 px at desktop sizes). | `globals.css` | 2.2 |
 | `scripts/a11y-audit.mjs` (new). | `scripts/` | 1.5, 2.3, 3.2, 3.4 |
-
-ASK-FIRST-RESULTS
+| **Approved A.** Notices show on top of the dialogs ("Account saved" was hidden under Settings). The account set-up message stays above them (see A below). | `globals.css` | 2.1 |
+| **Approved B, as changed by the owner.** Notices stay 20 seconds instead of 6, and the time stops while the pointer is over one. | `map-app.tsx` | 2.2 |
+| **Approved D.** The alert card's heading wraps to a second line on desktop too, as on phones and tablets (problem 14). | `globals.css` | 3.1, 4.4 |
+| **Approved E.** A report row's summary and status line wrap instead of being cut short. | `globals.css` | 3.1, 4.4 |
+| **Approved F.** Under 260 px tall (1280×800 at 400%) the + and − buttons, which sat under "Submit a report", are hidden. | `globals.css` | 3.2 |
+| **Approved G.** A search that finds nothing says "No places found." | `map-app.tsx` | 2.1 |
+| **Approved H.** While the map has keyboard focus, the banner says "Press Enter to put the pin at the center of the map." | `map-app.tsx`, `globals.css` | 2.2 |
+| **Approved I.** The root font size is in rem, so the browser's font size setting works; at the default 16 px nothing changes (problem 11). | `globals.css` | 3.1 |
 
 ## 1. Next.js and Vercel setup
 
@@ -93,15 +97,15 @@ ASK-FIRST-RESULTS
   - **Skip link:** the first Tab stop on the map screens; it moves focus to `<main>`, shows only while focused, moves nothing (problem 2). The consent screen has no navigation before its content, so it has none.
   - **Order:** desktop: skip link, rail, map (arrows pan, + and − zoom), pins, credits, search, report rows, Know your rights link, Submit, map buttons. Phones: skip link, tab bar, map, pins, credits, Settings, search, Submit, map buttons. The map comes before the search box because it comes first in the page. With the skip link that order is workable; moving the search first would change what keyboard users meet, so it is left as it is.
   - **No traps:** none found; Escape closes, in order, a dialog, the report form, the place being named, choosing a spot, then a card (F11).
-  - **Things that didn't work by keyboard and now do:** placing a pin for a report, home, work or a new place (needed a click on the map; now Enter on the map); opening a pin or cluster (P2); the Settings pages (focus was lost when the button that opened them went away).
+  - **Things that didn't work by keyboard and now do:** placing a pin for a report, home, work or a new place (needed a click on the map; now Enter on the map, and the banner says so while the map has keyboard focus); opening a pin or cluster (P2); the Settings pages (focus was lost when the button that opened them went away).
   - **Focus ring:** a 3 px blue outline (`--blue`), 3.3:1 or more on every surface (glass-contrast.mjs); fields add a 2 px blue ring. The search box's ring was thinner and now matches. Focus put on the dialog, `<main>` or a Settings heading by the app shows no ring; the next Tab lands on a control that has one.
-  - **Focus not obscured (2.4.11):** `scroll-padding` keeps focus clear of the phone's title bar and the terms' Back bar (problem 6). Behind the phone's Reports sheet nothing is reachable any more (P17); search results close when focus leaves them. The keyboard pass found nothing fully hidden behind author content except the cases the W3C note allows: pins under the docked alert card and under the place-name form, which Escape now closes without moving focus. One exception remains at 400% zoom: see 3.2.
+  - **Focus not obscured (2.4.11):** `scroll-padding` keeps focus clear of the phone's title bar and the terms' Back bar (problem 6). Behind the phone's Reports sheet nothing is reachable any more (P17); search results close when focus leaves them. The keyboard pass found nothing fully hidden behind author content except the cases the W3C note allows: pins under the docked alert card and under the place-name form, which Escape now closes without moving focus. At 400% zoom the + and − buttons were hidden under "Submit a report"; they are now left out below 260 px of height (3.2).
 - **Where:** `map-app.tsx`, `settings-dialog.tsx`, `globals.css`; every screen.
 
 ### 2.3 Contrast: 4.5:1 for text and 3:1 for UI components. Never rely on colour alone.
 - **Status:** Fixed.
 - **Evidence:**
-  - `scripts/a11y-audit.mjs` measured 4,840 text elements, 1,141 icons and 454 field edges on opaque surfaces across 354 screen states: no failure. Text over the map (the credits) is measured over white and over black.
+  - `scripts/a11y-audit.mjs` measured 4,837 text elements, 1,139 icons and 454 field edges on opaque surfaces across 354 screen states: no failure. Text over the map (the credits) is measured over white and over black.
   - The 1,396 elements on glass or on the lava lamp can't be measured from the page (the backdrop is the map or an animation). `scripts/glass-contrast.mjs` proves them from the tokens, with the blur not counted: 161 of 161 pass; worst text 4.78:1, worst icon 3.11:1, worst field edge 3.26:1, focus ring 3.31:1.
   - Fixed here: verified text on the solid report rows of phones and tablets (4.49:1, the one axe violation), the verified icon there (2.94:1) and the selected row's grey line and red (3.87:1, 3.41:1); the light map's credit links (3.1:1 over dark map). New values are in the table above.
   - Colour alone: status is shown by colour plus a word (Verified, Unverified, Disputed), an icon (tick, "!", "?") and, on pins and phone rows, a shape or border style (disputed is dashed). Errors have words. The selected row has a white bar (desktop) or a lighter fill and is `aria-pressed`.
@@ -120,17 +124,18 @@ ASK-FIRST-RESULTS
 ## 3. Mobile web
 
 ### 3.1 Pinch-zoom is allowed, and text scales to 200%.
-- **Status:** Pass (ASK-ZOOM).
+- **Status:** Fixed.
 - **Evidence:** The viewport doesn't block zoom (1.1). On the map, a pinch zooms the map (Leaflet), elsewhere it zooms the page. Playwright has no page zoom, so 200% was emulated as a window half as wide and high at twice the pixel density, and text sizes were compared in device pixels (problem 11):
   - From 1280×800, every measured text is at least 2.02× larger at 200% (the layout becomes the sideways-phone one, at 16 px to the rem).
   - From 1920×1080, every text is 2.02× larger except "Submit a report" and the rail labels, at 1.73× and 1.75×: the tablet layout sets them smaller than desktop does. They reach 2× at about 240% zoom.
   - No sideways scroll and no loss at either.
-  - Browser zoom is enough for 1.4.4 (W3C technique G142), so this passes. But the root font size is set in pixels at every width (`clamp(12px, …, 22px)` on desktop, `16px` below 1280), so a browser's default-font-size setting is ignored. EN 301 549 11.7 asks software to follow the user's font size setting.
+  - Browser zoom is enough for 1.4.4 (W3C technique G142), so this passed. But the root font size was set in pixels at every width (`clamp(12px, …, 22px)` on desktop, `16px` below 1280), so a browser's default-font-size setting was ignored; EN 301 549 11.7 asks software to follow it. Fixed with the owner's approval (I): the same sizes in rem. With the browser set to 20 px, the root goes from 12.66 to 15 px at 1280×800 and from 16 to 20 px at 390×844; at the default nothing changes.
+  - Text spacing (1.4.12, checked by `scripts/a11y-audit.mjs`): the report rows' summary and status lines and the desktop card heading were cut off with the WCAG spacing. Fixed with the owner's approval (D, E): they wrap. The card heading still stops at two lines (as on phones), so an address longer than two lines is cut short on every layout; its full text stays in the heading for screen readers and in its `title`.
 - **Where:** `globals.css` (`html` font size).
 
 ### 3.2 No horizontal scrolling at 320 CSS px (400% zoom).
-- **Status:** Pass, with one issue (ASK-400).
-- **Evidence:** `scripts/a11y-audit.mjs` checks the page and every scroll box at 320×568 and 320×200 (1280×800 at 400%): no sideways scroll on any of the 23 states. All controls are on screen and every state can be reached. At 320×200 the map is small (31% of it free on the home screen, 13% while choosing a spot) but a pin can still be placed by tap or by Enter. At 320×200 the zoom buttons sit under "Submit a report": fully covered, but still Tab stops (2.4.11). Zoom still works with a pinch, the wheel, or + and − on the focused map.
+- **Status:** Fixed.
+- **Evidence:** `scripts/a11y-audit.mjs` checks the page and every scroll box at 320×568 and 320×200 (1280×800 at 400%): no sideways scroll on any of the 23 states. All controls are on screen and every state can be reached. At 320×200 the map is small (31% of it free on the home screen, 13% while choosing a spot) but a pin can still be placed by tap or by Enter. At 320×200 the + and − buttons sat under "Submit a report": fully covered, but still Tab stops (2.4.11). Fixed with the owner's approval (F): below 260 px of height they are hidden and so leave the Tab order; a pinch, the wheel, or + and − on the focused map still zoom, and "Show where I am" stays.
 - **Where:** home screen at 320×200.
 
 ### 3.3 Do not lock orientation.
@@ -140,7 +145,7 @@ ASK-FIRST-RESULTS
 
 ### 3.4 Tap targets are at least 24×24 CSS px, ideally 44×44.
 - **Status:** Pass.
-- **Evidence:** `scripts/a11y-audit.mjs` measured 3,019 pointer targets on 354 states. Below 1280 px every target is at least 44 px high. On desktop two kinds of text button are 16.6 px high ("Move pin" in the report form; Show/Remove/Set on map in Settings): they pass by the spacing exception (a 24 px circle on each touches no other target) (problem 10, ASK-TARGETS). Exempt by the W3C rules: map pins (essential: their position is the information) and the credit links (inline in a line of text).
+- **Evidence:** `scripts/a11y-audit.mjs` measured 3,018 pointer targets on 354 states. Below 1280 px every target is at least 44 px high. On desktop two kinds of text button are 16.6 px high ("Move pin" in the report form; Show/Remove/Set on map in Settings): they pass by the spacing exception (a 24 px circle on each touches no other target) (problem 10; the owner chose to leave them, C). Exempt by the W3C rules: map pins (essential: their position is the information) and the credit links (inline in a line of text).
 - **Where:** report form, Settings (desktop).
 
 ### 3.5 A single-tap alternative to pinch or path gestures, and a non-drag alternative to dragging.
@@ -182,7 +187,7 @@ ASK-FIRST-RESULTS
 
 ### 4.4 For right-to-left languages, set `dir="rtl"`, mirror the layout, and use CSS logical properties. Avoid fixed-size text boxes, because translations run long.
 - **Status:** Not in this pass.
-- **Evidence:** `globals.css` names a physical side (`left`, `right`, `padding-left`…) in about 134 places and uses logical properties in 4 (the new rules in this pass use `inset-inline-start` and `scroll-padding-block`). Map buttons, the rail and the panel are placed by side. Fixed sizes that would cut translations: the one-line report rows and the desktop card heading (ellipsis, see ASK-WRAP), the rail labels, the tab bar labels, the Reports tabs. **What it would need:** `dir` from the language on `<html>`, the physical properties rewritten as logical ones, the chevrons and arrows mirrored, Leaflet's controls checked in RTL (the map itself stays as it is), and a pass with long translations.
+- **Evidence:** `globals.css` names a physical side (`left`, `right`, `padding-left`…) in about 134 places and uses logical properties in 4 (the new rules in this pass use `inset-inline-start` and `scroll-padding-block`). Map buttons, the rail and the panel are placed by side. Fixed sizes that would cut translations: the desktop and phone card heading (two lines at most), the rail labels, the tab bar labels, the Reports tabs. **What it would need:** `dir` from the language on `<html>`, the physical properties rewritten as logical ones, the chevrons and arrows mirrored, Leaflet's controls checked in RTL (the map itself stays as it is), and a pass with long translations.
 - **Where:** `globals.css`.
 
 ### 4.5 Accept names in native scripts, and keep character limits fair across languages.
@@ -210,7 +215,7 @@ ASK-FIRST-RESULTS
 - **Status:** Needs a person. See [T2](#t2-voiceover-on-ios-and-talkback-on-android).
 
 ### 5.5 320 px and 400% zoom.
-- **Status:** Pass, with one issue. See 3.2.
+- **Status:** Fixed. See 3.2.
 
 ### 5.6 Real users, including non-English speakers.
 - **Status:** Needs a person. See [T5](#t5-a-session-with-real-users).
@@ -222,7 +227,38 @@ ASK-FIRST-RESULTS
 
 ## Ask-first findings
 
-ASK-FIRST-TABLE
+The owner was asked once, with a screenshot and a recommendation for each, and answered on 12 November 2026.
+
+| | Finding | Recommendation | Owner | Result |
+|---|---|---|---|---|
+| A | Notices show under dialogs: "Account saved" can't be seen (problem 7). Screen readers already hear it (Fix now). | Show the notice on top of the dialog, in the same place. | Yes: "every notice should be on top" | Done. Notices are above the dialogs at every size. **One exception, for the owner to confirm:** on desktop the account set-up message sits in the same spot, and a notice on top of it hid its "Try again" and "Just view the map" buttons completely (and the keyboard focus on them, 2.4.11). The account message therefore stays above notices. While a dialog is open the notice is inert, so taps go through it to the dialog. |
+| B | Notices disappear after 6 seconds (problem 8; WCAG 2.2.1 Timing Adjustable). | Keep each notice until the person's next tap, click or key. | No: "just extend the duration or other solutions" | Notices stay 20 seconds, and the time stops while the pointer is over one (not while a dialog is open, when the notice is inert). Screen readers get each notice once from a live region. 2.2.1 asks that a person can turn off, adjust or extend a time limit; a fixed 20 s with a hover pause is a partial answer, recorded here for the owner. A keyboard or touch user can't pause it. |
+| C | Desktop text buttons ("Move pin"; Show/Remove/Set on map) are 16.6 px high (problem 10). They pass 2.5.8 by spacing. | Leave them. | Yes | Left as they are. |
+| D | The alert card's heading is cut short on desktop, with the rest only in a `title` tooltip (problem 14); the WCAG text spacing cuts it too. | Let it wrap to two lines, as on phones. | Yes | Done. Long addresses still stop at two lines on every layout (see 3.1). |
+| E | A report row's summary and status line are cut short with the WCAG text spacing (1.4.12) on phones and tablets, and the "already reported nearby" status line is cut at 320 px. | Let them wrap; rows grow only when the text doesn't fit. | Yes | Done. `scripts/a11y-audit.mjs` reports no text spacing failure. |
+| F | 1280×800 at 400% zoom (320×200): the + and − buttons sit under "Submit a report" but are still Tab stops. | Below 260 px of height, hide them. | Yes | Done (3.2). |
+| G | A search that finds nothing shows nothing. Screen readers hear "No places found" (Fix now). | Show "No places found." in the results, like the error. | Yes | Done. |
+| H | The keyboard way to place a pin is told only to screen readers. | Show "Press Enter to put the pin at the center of the map." while the map has keyboard focus. | Yes | Done. For home, work and new places it says "Press Enter to choose the center of the map." It shows only for keyboard focus, not after a tap or click. |
+| I | The root font size is in px: the browser's font size setting is ignored, and at 200% from 1920×1080 two labels grow only 1.73× (problem 11). | The same sizes in rem. | Yes | Done (3.1). At 200% from 1920×1080 the two labels still grow 1.73–1.75×, because the tablet layout sets them smaller than desktop; they reach 2× at about 240% zoom, which browser zoom allows. |
+
+### The known problems from the handoff
+
+| # | Problem | Result |
+|---|---|---|
+| 1 | Dialogs don't take, keep or give back focus | Fixed (2.2) |
+| 2 | No skip link | Fixed (2.2) |
+| 3 | No `<h1>` on the map screens | Fixed (2.1) |
+| 4 | `nearby-title` used twice | Fixed (2.1) |
+| 5 | `.consent-text` label with no role | Fixed (2.1) |
+| 6 | Sticky bars can cover the focused control | Fixed (2.2, 3.8) |
+| 7 | A notice that appears while a dialog is open is behind it | Fixed: screen readers (Fix now); on screen (A) |
+| 8 | Notices disappear after 6 seconds | Changed to 20 s with a hover pause (B); 2.2.1 partly met |
+| 9 | New-tab links don't say so | Fixed (2.4) |
+| 10 | Desktop text buttons under 24 px | Pass by spacing; left as is (C) |
+| 11 | Desktop text size from the window size | Pass by zoom; the browser's font size setting now works (I) |
+| 12 | Moving the map needs a drag | Not in this pass (3.5) |
+| 13 | Form errors not tied to fields | Fixed (2.4) |
+| 14 | Alert card heading cut short on desktop | Fixed (D); still two lines at most |
 
 ## Problems known from earlier rounds
 
