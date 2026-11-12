@@ -26,12 +26,13 @@ import {
   type VoteType,
 } from "@/lib/sightings";
 import { createClient, type Client } from "@/lib/supabase/client";
-import { isSupabaseConfigured } from "@/lib/supabase/config";
+import { projectFor } from "@/lib/supabase/config";
 import { useLiveSightings } from "@/lib/use-live-sightings";
 import { useMyActivity } from "@/lib/use-my-activity";
 import { useMyPosition } from "@/lib/use-my-position";
 import { AccountStarter } from "./account-starter";
 import { BrandLogo } from "./brand-logo";
+import { DEMO_ABOUT, useDemo } from "./demo-context";
 import { LavaLamp, LavaToggle } from "./lava-lamp";
 import {
   ArrowIcon,
@@ -153,8 +154,10 @@ function inBounds(point: Point, bounds: Bounds) {
 }
 
 export function MapApp() {
+  // The demo at /demo has its own database (demo-context.tsx).
+  const demo = useDemo();
   const [supabase] = useState<Client | null>(() =>
-    isSupabaseConfigured ? createClient() : null,
+    projectFor(demo).configured ? createClient(demo) : null,
   );
   // undefined until the saved session (if any) has been read.
   const [user, setUser] = useState<User | null | undefined>(undefined);
@@ -265,6 +268,10 @@ export function MapApp() {
     },
     [startNoticeTimer],
   );
+  // The demo says what it is when it opens.
+  useEffect(() => {
+    if (demo) showNotice(DEMO_ABOUT);
+  }, [demo, showNotice]);
   const holdNotice = () => window.clearTimeout(noticeTimer.current);
   const releaseNotice = () => {
     if (!noticePausedRef.current) startNoticeTimer();
@@ -1084,7 +1091,7 @@ export function MapApp() {
             setMapKeyboardFocus(false);
         }}
       >
-        <h1 className="visually-hidden">ICEPik map</h1>
+        <h1 className="visually-hidden">{demo ? "ICEPik demo map" : "ICEPik map"}</h1>
         <SightingsMap
           ref={mapApi}
           sightings={sightings}

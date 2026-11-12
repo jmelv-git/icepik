@@ -28,6 +28,7 @@ import type { Sighting } from "@/lib/sightings";
 import { forgetSession, type Client } from "@/lib/supabase/client";
 import type { ProfileTotals } from "@/lib/use-my-activity";
 import { BrandLogo } from "./brand-logo";
+import { DEMO_ABOUT, useDemo } from "./demo-context";
 import { Captcha, captchaEnabled } from "./captcha";
 import { PlaceIcon } from "./icons";
 import { PolicyText } from "./policy";
@@ -122,6 +123,7 @@ function MainView({
 }: Props & { onOpen: (view: View) => void }) {
   const username = usernameOf(user);
   const motion = useBackgroundMotion();
+  const demo = useDemo();
   const [placeStatus, setPlaceStatus] = useState("");
   const nearby = (place: SavedPlace) => {
     const near = sightings.filter(
@@ -132,6 +134,12 @@ function MainView({
 
   return (
     <>
+      {demo ? (
+        <section className="settings-section" aria-labelledby="demo-title">
+          <h3 id="demo-title">Demo</h3>
+          <p>{DEMO_ABOUT} Your account here is a demo account, separate from the real map.</p>
+        </section>
+      ) : null}
       <section className="settings-section" aria-labelledby="account-title">
         <h3 id="account-title">Account</h3>
         {username ? (
@@ -601,6 +609,7 @@ function DeleteAccount({ supabase, onNotice, onClose, onBack }: Props & { onBack
 
 function ClearDevice({ supabase, user, onBack }: Props & { onBack: () => void }) {
   const [busy, setBusy] = useState(false);
+  const demo = useDemo();
 
   async function clearDevice() {
     setBusy(true);
@@ -611,7 +620,7 @@ function ClearDevice({ supabase, user, onBack }: Props & { onBack: () => void })
     const { error } = await supabase.auth.signOut({ scope: "local" });
     // When signOut() can't remove the session (offline with an expired token),
     // delete it here, so the next person who agrees doesn't get this account.
-    if (error) forgetSession();
+    if (error) forgetSession(demo);
   }
 
   return (

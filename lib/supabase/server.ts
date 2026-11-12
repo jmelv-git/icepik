@@ -2,7 +2,7 @@ import "server-only";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import type { Database } from "@/database.types";
-import { supabaseKey, supabaseUrl } from "./config";
+import { projectFor } from "./config";
 
 /**
  * Supabase client for server code (server actions, route handlers).
@@ -10,11 +10,14 @@ import { supabaseKey, supabaseUrl } from "./config";
  *
  * Don't put this client in a global variable. Create a new one inside each
  * function that uses it.
+ *
+ * demo: the demo project at /demo (call only when isDemoConfigured).
  */
-export async function createClient() {
+export async function createClient(demo = false) {
   const cookieStore = await cookies();
+  const { url, key } = projectFor(demo);
 
-  return createServerClient<Database>(supabaseUrl!, supabaseKey!, {
+  return createServerClient<Database>(url!, key!, {
     cookies: {
       getAll() {
         return cookieStore.getAll();

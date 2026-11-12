@@ -20,8 +20,14 @@
 // Usage from a client component:
 //   const result = await voteOnSighting({ sightingId, vote: 'confirm', myLat, myLng })
 //   if (!result.ok) showMessage(result.message)
+//
+// The demo at /demo passes demo = true as the last argument. That only picks
+// the demo database (its own project, with looser rules); anything else
+// means the real one. The demo database decides what is allowed, as the real
+// one does, so a caller who sets the flag gains nothing on the real map.
 
 import type { PostgrestError } from '@supabase/supabase-js'
+import { isDemoConfigured } from '@/lib/supabase/config'
 import { createClient } from '@/lib/supabase/server'
 import type { Database } from '@/database.types'
 
@@ -45,12 +51,25 @@ const CATEGORIES: readonly Category[] = ['patrol', 'vehicle', 'checkpoint', 'rai
 const VOTES: readonly Vote[] = ['confirm', 'dispute']
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const TRY_AGAIN = 'Something went wrong. Please try again.'
+const NO_DEMO = "The demo isn't set up yet."
 
-export async function postSighting(input: NewSighting): Promise<ActionResult<Sighting>> {
+// true for the demo database, false for the real one, null if the demo was
+// asked for but isn't set up.
+function pickDemo(demo: unknown): boolean | null {
+  if (demo !== true) return false
+  return isDemoConfigured ? true : null
+}
+
+export async function postSighting(
+  input: NewSighting,
+  demo?: boolean,
+): Promise<ActionResult<Sighting>> {
+  const useDemo = pickDemo(demo)
+  if (useDemo === null) return { ok: false, message: NO_DEMO }
   const problem = checkNewSighting(input)
   if (problem) return { ok: false, message: problem }
 
-  const supabase = await createClient()
+  const supabase = await createClient(useDemo)
   const { data, error } = await supabase
     .from('sightings')
     .insert({
@@ -68,35 +87,48 @@ export async function postSighting(input: NewSighting): Promise<ActionResult<Sig
   return error ? failure(error) : { ok: true, data }
 }
 
-export async function voteOnSighting(input: {
-  sightingId: string
-  vote: Vote
-  myLat: number
-  myLng: number
-}): Promise<ActionResult<Sighting>> {
+export async function voteOnSighting(
+  input: {
+    sightingId: string
+    vote: Vote
+    // The demo votes from anywhere and sends no location.
+    myLat: number | null
+    myLng: number | null
+  },
+  demo?: boolean,
+): Promise<ActionResult<Sighting>> {
+  const useDemo = pickDemo(demo)
+  if (useDemo === null) return { ok: false, message: NO_DEMO }
   if (!isRecord(input)) return { ok: false, message: TRY_AGAIN }
-  if (!isInRange(input.myLat, -90, 90) || !isInRange(input.myLng, -180, 180)) {
+  const located = isInRange(input.myLat, -90, 90) && isInRange(input.myLng, -180, 180)
+  if (!located && !useDemo) {
     return { ok: false, message: 'Turn on location to confirm or dispute a sighting.' }
   }
   if (!UUID.test(String(input.sightingId)) || !VOTES.includes(input.vote)) {
     return { ok: false, message: TRY_AGAIN }
   }
 
-  const supabase = await createClient()
+  const supabase = await createClient(useDemo)
   const { data, error } = await supabase.rpc('vote_on_sighting', {
     target_sighting_id: input.sightingId,
     my_vote: input.vote,
-    my_lat: input.myLat,
-    my_lng: input.myLng,
+    // The demo database's vote_on_sighting() takes no location (null).
+    my_lat: (located ? input.myLat : null) as number,
+    my_lng: (located ? input.myLng : null) as number,
   })
 
   return error ? failure(error) : { ok: true, data }
 }
 
-export async function deleteSighting(sightingId: string): Promise<ActionResult<null>> {
+export async function deleteSighting(
+  sightingId: string,
+  demo?: boolean,
+): Promise<ActionResult<null>> {
+  const useDemo = pickDemo(demo)
+  if (useDemo === null) return { ok: false, message: NO_DEMO }
   if (!UUID.test(String(sightingId))) return { ok: false, message: TRY_AGAIN }
 
-  const supabase = await createClient()
+  const supabase = await createClient(useDemo)
   const { error } = await supabase.rpc('delete_my_sighting', { target_sighting_id: sightingId })
 
   return error ? failure(error) : { ok: true, data: null }

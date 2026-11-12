@@ -1,16 +1,19 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import { isSupabaseConfigured, supabaseKey, supabaseUrl } from "./config";
+import { projectFor } from "./config";
 
 // Refreshes the signed-in user's session before the page renders, so server
 // actions see valid auth cookies. The anonymous session is the user's account,
-// so keeping its cookie fresh keeps their account.
+// so keeping its cookie fresh keeps their account. On /demo it's the demo
+// project's session.
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
 
-  if (!isSupabaseConfigured) return response;
+  const demo = request.nextUrl.pathname === "/demo" || request.nextUrl.pathname.startsWith("/demo/");
+  const { url, key, configured } = projectFor(demo);
+  if (!configured) return response;
 
-  const supabase = createServerClient(supabaseUrl!, supabaseKey!, {
+  const supabase = createServerClient(url!, key!, {
     cookies: {
       getAll() {
         return request.cookies.getAll();

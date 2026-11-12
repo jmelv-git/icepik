@@ -15,6 +15,7 @@ import {
   type Sighting,
   type VoteType,
 } from "@/lib/sightings";
+import { useDemo } from "./demo-context";
 import { ChevronIcon, CloseIcon, PinIcon } from "./icons";
 
 // Messages from the database that mean the pin should leave the map.
@@ -165,6 +166,8 @@ function VoteControls({
   const [locating, setLocating] = useState(false);
   const [voting, setVoting] = useState<VoteType | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  // The demo votes from anywhere: no location is asked for or sent.
+  const demo = useDemo();
 
   async function locate() {
     setLocating(true);
@@ -185,6 +188,7 @@ function VoteControls({
   // If location is already allowed, check the distance right away, so the
   // buttons show only when a vote can succeed.
   useEffect(() => {
+    if (demo) return;
     let cancelled = false;
     navigator.permissions
       ?.query({ name: "geolocation" })
@@ -204,18 +208,24 @@ function VoteControls({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [demo]);
 
   async function vote(choice: VoteType) {
     setVoting(choice);
     setMessage(null);
-    const here = await locate();
-    if (!here || distanceMeters(here.lat, here.lng, sighting.lat, sighting.lng) > VOTE_RADIUS_M) {
+    const here = demo ? null : await locate();
+    if (
+      !demo &&
+      (!here || distanceMeters(here.lat, here.lng, sighting.lat, sighting.lng) > VOTE_RADIUS_M)
+    ) {
       setVoting(null);
       return;
     }
     const result = await runAction(() =>
-      voteOnSighting({ sightingId: sighting.id, vote: choice, myLat: here.lat, myLng: here.lng }),
+      voteOnSighting(
+        { sightingId: sighting.id, vote: choice, myLat: here?.lat ?? null, myLng: here?.lng ?? null },
+        demo,
+      ),
     );
     setVoting(null);
     if (result.ok) onVoted(result.data, choice);
@@ -226,7 +236,18 @@ function VoteControls({
   const distance = fix ? distanceMeters(fix.lat, fix.lng, sighting.lat, sighting.lng) : null;
 
   let body: React.ReactNode;
-  if (problem === "denied") {
+  if (demo) {
+    body = (
+      <>
+        <p className="vote-question">Are they still there?</p>
+        <VoteButtons myVote={myVote} voting={voting} onVote={vote} />
+        <p className="detail-hint">
+          Demo: you can confirm or dispute from anywhere, and one confirmation marks a sighting
+          Verified.
+        </p>
+      </>
+    );
+  } else if (problem === "denied") {
     body = (
       <>
         <p className="detail-note">Turn on location to confirm or dispute a sighting.</p>
@@ -264,28 +285,7 @@ function VoteControls({
     body = (
       <>
         <p className="vote-question">Are they still there?</p>
-        <div className="vote-row">
-          <button
-            type="button"
-            className="vote vote-up"
-            aria-pressed={myVote === "confirm"}
-            disabled={voting !== null}
-            onClick={() => vote("confirm")}
-          >
-            <ChevronIcon direction="up" />
-            {voting === "confirm" ? "Confirming…" : "Yes, confirm"}
-          </button>
-          <button
-            type="button"
-            className="vote vote-down"
-            aria-pressed={myVote === "dispute"}
-            disabled={voting !== null}
-            onClick={() => vote("dispute")}
-          >
-            <ChevronIcon direction="down" />
-            {voting === "dispute" ? "Disputing…" : "No, dispute"}
-          </button>
-        </div>
+        <VoteButtons myVote={myVote} voting={voting} onVote={vote} />
         {myVote ? <p className="detail-hint">You can switch your vote.</p> : null}
       </>
     );
@@ -303,6 +303,41 @@ function VoteControls({
   );
 }
 
+function VoteButtons({
+  myVote,
+  voting,
+  onVote,
+}: {
+  myVote: VoteType | undefined;
+  voting: VoteType | null;
+  onVote: (choice: VoteType) => void;
+}) {
+  return (
+    <div className="vote-row">
+      <button
+        type="button"
+        className="vote vote-up"
+        aria-pressed={myVote === "confirm"}
+        disabled={voting !== null}
+        onClick={() => onVote("confirm")}
+      >
+        <ChevronIcon direction="up" />
+        {voting === "confirm" ? "Confirming…" : "Yes, confirm"}
+      </button>
+      <button
+        type="button"
+        className="vote vote-down"
+        aria-pressed={myVote === "dispute"}
+        disabled={voting !== null}
+        onClick={() => onVote("dispute")}
+      >
+        <ChevronIcon direction="down" />
+        {voting === "dispute" ? "Disputing…" : "No, dispute"}
+      </button>
+    </div>
+  );
+}
+
 function OwnSighting({
   sighting,
   onDeleted,
@@ -310,11 +345,12 @@ function OwnSighting({
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const demo = useDemo();
 
   async function remove() {
     setBusy(true);
     setMessage(null);
-    const result = await runAction(() => deleteSighting(sighting.id));
+    const result = await runAction(() => deleteSighting(sighting.id, demo));
     setBusy(false);
     if (result.ok) onDeleted(sighting.id);
     else setMessage(result.message);

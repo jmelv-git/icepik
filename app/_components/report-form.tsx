@@ -14,6 +14,7 @@ import {
   type Category,
   type Sighting,
 } from "@/lib/sightings";
+import { useDemo } from "./demo-context";
 import { StatusIcon } from "./icons";
 import type { Point } from "./sightings-map";
 
@@ -58,6 +59,7 @@ export function ReportForm({
   // points at the message (null: the message is about the whole form).
   const [problem, setProblem] = useState<"category" | "counts" | null>(null);
   const id = useId();
+  const demo = useDemo();
   const errorId = `${id}-error`;
   const nearbyTitleId = `${id}-nearby-title`;
 
@@ -119,7 +121,7 @@ export function ReportForm({
         vehicleCount,
         locationLabel: label.trim() || null,
         description: description.trim() || null,
-      }),
+      }, demo),
     );
     setBusy(false);
 

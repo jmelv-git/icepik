@@ -1,15 +1,19 @@
 import type { NextRequest } from "next/server";
-import { supabaseUrl } from "@/lib/supabase/config";
+import { demoSupabaseUrl, supabaseUrl } from "@/lib/supabase/config";
 import { updateSession } from "@/lib/supabase/proxy";
 
 // Content-Security-Policy: scripts, data and frames may come only from this
 // site, the Supabase project, CARTO's tile servers and the CAPTCHA provider. No analytics, ads or other third-party code can load or send data
-// anywhere else.
-function contentSecurityPolicy(nonce: string) {
-  const supabase = supabaseUrl ? new URL(supabaseUrl) : null;
-  const supabaseSources = supabase
+// anywhere else. The demo's Supabase project is allowed on /demo only.
+function supabaseSourcesFor(url: string | undefined) {
+  const supabase = url ? new URL(url) : null;
+  return supabase
     ? `${supabase.origin} ${supabase.protocol === "https:" ? "wss:" : "ws:"}//${supabase.host}`
     : "";
+}
+
+function contentSecurityPolicy(nonce: string, demo: boolean) {
+  const supabaseSources = supabaseSourcesFor(demo ? demoSupabaseUrl : supabaseUrl);
   const captcha = "https://challenges.cloudflare.com";
   const isDev = process.env.NODE_ENV === "development";
 
@@ -33,7 +37,8 @@ function contentSecurityPolicy(nonce: string) {
 
 export async function proxy(request: NextRequest) {
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
-  const csp = contentSecurityPolicy(nonce);
+  const demo = request.nextUrl.pathname === "/demo" || request.nextUrl.pathname.startsWith("/demo/");
+  const csp = contentSecurityPolicy(nonce, demo);
 
   // Next.js reads the nonce from the request's policy and adds it to its own
   // scripts while rendering.

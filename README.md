@@ -36,6 +36,8 @@ The site needs these environment variables, in Vercel and in `.env.local` for `n
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | The project's publishable key. The older `NEXT_PUBLIC_SUPABASE_ANON_KEY` works too. Never use the secret or `service_role` key. |
 | `NEXT_PUBLIC_CARTO_KEY` | CARTO's free basemap key, from https://carto.com/basemaps/apikey. Without it, every map picture reads "API KEY REQUIRED". |
 | `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | Optional. The Cloudflare Turnstile site key, needed only when CAPTCHA is on in Supabase. |
+| `NEXT_PUBLIC_DEMO_SUPABASE_URL` | Optional. The URL of the separate Supabase project for the demo at `/demo`. |
+| `NEXT_PUBLIC_DEMO_SUPABASE_PUBLISHABLE_KEY` | Optional. That demo project's publishable key (or `NEXT_PUBLIC_DEMO_SUPABASE_ANON_KEY`). Without the demo variables, `/demo` shows the map as "not connected". |
 
 Vercel builds these values into the site, so after adding or changing one, redeploy (Deployments > ⋯ > Redeploy). A production build stops with an error if `NEXT_PUBLIC_CARTO_KEY` is missing, so the live map never shows "API KEY REQUIRED".
 
@@ -43,6 +45,12 @@ Anyone can copy the CARTO key from the page, and our free 5 million map tiles a 
 
 - **Vercel's Production environment:** a key restricted in CARTO's dashboard to `icepik.vercel.app`. It shows blank map pictures anywhere else.
 - **Vercel's Preview environment and `.env.local`:** a second key with no restriction, because preview addresses change with every branch and CARTO doesn't let one key list both `localhost` and public sites. Anyone who gets hold of it can use our tile quota, so we don't share it.
+
+### The demo at `/demo`
+
+`/demo` is the same app on a second Supabase project, with sample sightings and looser rules for verifying them: anyone can confirm or dispute a sighting from anywhere, and one confirmation marks it Verified. The real map and its database don't change, and a vote on `/demo` can't reach a real sighting. The page says it's a demo, and search engines are asked not to list it.
+
+To set it up: create a second Supabase project, run `database/icepik_schema.sql` and then `database/icepik_demo_changes.sql` in its SQL Editor, use the same Authentication settings as the real project, add the two demo variables above in Vercel, and redeploy. The end of `icepik_demo_changes.sql` has sample sightings to paste in before a demo (they expire after 4 hours, like any sighting).
 
 ## 3. How does a change get from Claude Code to the live site?
 
