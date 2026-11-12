@@ -123,6 +123,11 @@ button {
   flex: none;
 }
 
+/* The rail has both logos; the wide one only shows in the upright-tablet bar. */
+.brand-logo-wide {
+  display: none;
+}
+
 .brand-logo img,
 .consent-logo img {
   display: block;
@@ -3078,6 +3083,14 @@ textarea::placeholder {
   .brand-logo {
     flex: 1 1 0;
     width: auto;
+  }
+
+  .brand-logo-tall {
+    display: none;
+  }
+
+  .brand-logo-wide {
+    display: block;
   }
 
   .brand-logo img {

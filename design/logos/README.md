@@ -16,6 +16,8 @@ Each logo has these versions:
 | --- | --- |
 | `public/brand/icepik-logo.svg` | `icepik_01_stacked_text-right/icepik_01_stacked_text-right-faithful.svg` |
 | `public/brand/icepik-logo-dark-text.svg` | `icepik_01_stacked_text-right/icepik_01_stacked_text-right-faithful-dark-text.svg` |
+| `public/brand/icepik-logo-tall.svg` | `icepik_07_inline_text-bottom/icepik_07_inline_text-bottom-faithful.svg` |
+| `public/brand/icepik-logo-tall-dark-text.svg` | `icepik_07_inline_text-bottom/icepik_07_inline_text-bottom-faithful-dark-text.svg` |
 | `app/icon.svg` | `icepik_icon/icepik_icon-faithful.svg` |
 
 `app/_components/brand-logo.tsx` shows the dark-text logo only in high contrast mode with a light theme. Everywhere else the logo sits on a dark background.

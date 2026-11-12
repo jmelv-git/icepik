@@ -702,7 +702,8 @@ export function MapApp() {
   return (
     <div className="app" data-panel={panelState} data-modal={modal ?? undefined} data-tab={reportsTab}>
       <nav className="rail" aria-label="ICEPik">
-        <BrandLogo className="brand-logo" />
+        <BrandLogo className="brand-logo brand-logo-tall" variant="tall" loading="lazy" />
+        <BrandLogo className="brand-logo brand-logo-wide" loading="lazy" />
 
         {/* Phones and tablets only (hidden on desktop): back to just the map. */}
         <button
