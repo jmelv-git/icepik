@@ -273,8 +273,10 @@ export function MapApp() {
     const paused = !noticePausedRef.current;
     noticePausedRef.current = paused;
     setNoticePaused(paused);
-    // Played again: the 20 seconds start over once focus or the pointer leaves.
+    // Played again: the 20 seconds start over at once, even if focus stays on
+    // the button (a tap on a touch screen leaves it there).
     if (paused) holdNotice();
+    else startNoticeTimer();
   };
 
   const cancelReport = useCallback(() => {
