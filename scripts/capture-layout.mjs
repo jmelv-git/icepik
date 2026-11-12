@@ -126,7 +126,15 @@ async function guard(page) {
   // "On the map until 11:30 PM": the same text, so the same width, at any hour.
   await page.route("**/rest/v1/sightings**", async (route) => {
     if (route.request().method() !== "GET") return route.continue();
-    const response = await route.fetch();
+    let response;
+    try {
+      response = await route.fetch();
+    } catch (error) {
+      // Only the first line: the rest of Playwright's message lists the
+      // request's headers, which are never to be printed.
+      console.error(`  stand-in database: ${error.message.split("\n")[0]}`);
+      return route.abort();
+    }
     const until = new Date();
     until.setUTCHours(23, 30, 0, 0);
     if (until <= new Date()) until.setUTCDate(until.getUTCDate() + 1);
@@ -396,6 +404,25 @@ function diff(before, after) {
     }
   }
   return lines;
+}
+
+// Errors print their first line only: Playwright's call logs can hold
+// request headers.
+process.on("unhandledRejection", (error) => {
+  console.error(String(error?.message ?? error).split("\n")[0]);
+  process.exit(2);
+});
+
+for (const [name, target] of [
+  ["app", url],
+  ["stand-in database", "http://127.0.0.1:54321/rest/v1/sightings"],
+]) {
+  try {
+    await fetch(target);
+  } catch {
+    console.error(`The ${name} isn't running on ${target}. See the top of this file.`);
+    process.exit(2);
+  }
 }
 
 const browser = await chromium.launch();

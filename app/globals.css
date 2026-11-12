@@ -54,8 +54,10 @@
   --glass-hover: color-mix(in srgb, black 18%, transparent);
   --glass-pressed: color-mix(in srgb, black 32%, transparent);
   /* Overlay glass: the layer behind dialogs. No text sits on it, and the
-     dialog on it is opaque, so it has no contrast role. */
-  --overlay-tint: rgb(5 7 10 / 0.6);
+     dialog on it is opaque, so it has no contrast role. Over the light map
+     it is nearly opaque, so it looks as dark as it does over the dark map
+     (0.6, set in the Glass section): a hint of what is behind, no more. */
+  --overlay-tint: rgb(5 7 10 / 0.92);
   --overlay-filter: blur(0.75rem) saturate(1.3);
   /* Edge of text boxes and choice cards: 4.56:1 on --surface, 3.6:1 on
      card glass, 3.68:1 where the search field sits on a white map. */
@@ -3116,10 +3118,17 @@ textarea::placeholder {
    :root and scripts/glass-contrast.mjs). Overlay glass is the clearer layer
    behind dialogs, which holds no text. Never glass on glass.
 
-   The lines and the shadow are drawn with box-shadow, so nothing changes
-   size. The tint and the blur come only where backdrop-filter works;
-   elsewhere the cards keep their solid --surface. The reduced-transparency
-   and forced-colors blocks at the end of the file turn the glass off.
+   Where each surface gets it:
+   - desktop: the search block, the cards under it and the alert card;
+   - phones: the alert card docked over the map;
+   - every size: the pick banner (choose a spot, name a place) and the
+     account set-up message;
+   - desktop and tablets: overlay glass behind dialogs.
+
+   Lines and shadows are drawn with box-shadow, so nothing changes size.
+   The tint and the blur come only where backdrop-filter works; elsewhere
+   the cards keep their solid --surface. The last two blocks of the file
+   turn the glass off for reduced transparency and forced colours.
    --------------------------------------------------------------------------- */
 
 @media (width < 1280px) {
@@ -3128,7 +3137,23 @@ textarea::placeholder {
   }
 }
 
-/* Desktop: the search block, the cards under it and the alert card. */
+/* Over the dark map the layer behind dialogs can be clearer and still look
+   as dark as over the light map. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --overlay-tint: rgb(5 7 10 / 0.6);
+  }
+}
+
+/* The highlight and the shadow of card glass. */
+.pick-banner,
+.starter {
+  box-shadow:
+    inset 0 0.0625rem 0 var(--glass-shine),
+    inset 0 0 0 0.0625rem var(--glass-line),
+    var(--glass-shadow);
+}
+
 @media (width >= 1280px) {
   .search,
   .card,
@@ -3157,8 +3182,8 @@ textarea::placeholder {
   }
 }
 
-/* Phones: the alert card docked over the map. It keeps its status border,
-   which takes the place of the faint line all round. */
+/* Phones: the alert card keeps its status border, which takes the place of
+   the faint line all round. */
 @media (width < 768px), (width < 1280px) and (height < 500px) {
   .detail-card {
     box-shadow:
@@ -3168,6 +3193,21 @@ textarea::placeholder {
 }
 
 @supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
+  .pick-banner,
+  .starter {
+    background: var(--glass-glow), var(--glass-tint);
+    -webkit-backdrop-filter: var(--glass-filter);
+    backdrop-filter: var(--glass-filter);
+  }
+
+  /* Never glass on glass: over a dialog's layer, or over the phone's alert
+     card, the set-up message is solid. */
+  .app:has(.modal-layer:not([hidden])) .starter {
+    background: var(--surface);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
   @media (width >= 1280px) {
     .search,
     .card,
@@ -3193,6 +3233,19 @@ textarea::placeholder {
     .card .report-row[aria-pressed="true"] {
       background: var(--glass-pressed);
     }
+
+    /* A parent fading with opacity hides the map from the cards' blur until
+       the fade ends, so the blur would snap in. The cards only slide; the
+       slide and visibility still hide them. */
+    .panel-cards {
+      transition:
+        transform 0.25s ease,
+        visibility 0.25s;
+    }
+
+    .app[data-panel="closed"] .panel-cards {
+      opacity: 1;
+    }
   }
 
   @media (width < 768px), (width < 1280px) and (height < 500px) {
@@ -3205,6 +3258,12 @@ textarea::placeholder {
     .detail-card .report-row:hover {
       background: var(--glass-hover);
     }
+
+    .app:has(.detail-card) .starter {
+      background: var(--surface);
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
+    }
   }
 
   /* Behind dialogs on desktop and tablets. On phones a dialog is a page. */
@@ -3214,5 +3273,245 @@ textarea::placeholder {
       -webkit-backdrop-filter: var(--overlay-filter);
       backdrop-filter: var(--overlay-filter);
     }
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Solid finish
+
+   The highlight and shadow of the glass on an opaque background, for
+   surfaces whose fixed bars must hide the text that scrolls under them, or
+   that sit beside the map rather than over it: dialogs on desktop and
+   tablets, and the tablet's alert card.
+   --------------------------------------------------------------------------- */
+
+@media (width >= 1280px), (768px <= width < 1280px) and (height >= 500px) {
+  .modal {
+    box-shadow:
+      inset 0 0.0625rem 0 var(--glass-shine),
+      inset 0 0 0 0.0625rem var(--glass-line),
+      var(--glass-shadow);
+  }
+}
+
+@media (768px <= width < 1280px) and (height >= 500px) {
+  .detail-card {
+    box-shadow:
+      inset 0 0.0625rem 0 var(--glass-shine),
+      inset 0 0 0 0.0625rem var(--glass-line),
+      var(--glass-shadow);
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Field edges
+
+   Text boxes and choice cards get a 1px edge of at least 3:1 (--control-line)
+   against the surface around them, drawn inside, so no size changes. Focus
+   keeps its blue ring and turns the edge blue too.
+   --------------------------------------------------------------------------- */
+
+.form input,
+.report-form input:not([type="radio"]),
+.report-form textarea,
+.place-form-field input,
+.report-form .choice {
+  box-shadow: inset 0 0 0 0.0625rem var(--control-line);
+}
+
+.form input:focus,
+.report-form input:not([type="radio"]):focus,
+.report-form textarea:focus,
+.place-form-field input:focus {
+  box-shadow:
+    inset 0 0 0 0.0625rem var(--blue),
+    0 0 0 0.125rem var(--blue);
+}
+
+.search-field {
+  border-color: var(--control-line);
+}
+
+/* Phones: the selected Reports tab has a white ring as well as its colour. */
+.panel-tabs button[aria-pressed="true"] {
+  box-shadow: inset 0 0 0 0.125rem var(--text);
+}
+
+/* ---------------------------------------------------------------------------
+   Motion
+
+   Small and quick, on opacity and the translate and scale properties only
+   (not transform, which .pick-banner, .starter and .notice use to centre
+   themselves). Only when motion is welcome.
+   --------------------------------------------------------------------------- */
+
+@keyframes surface-enter {
+  from {
+    opacity: 0;
+    translate: 0 0.5rem;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .primary-button,
+  .secondary-button,
+  .danger-button,
+  .rail-icon {
+    transition:
+      background 0.15s,
+      scale 0.15s;
+  }
+
+  .panel-tabs button {
+    transition: scale 0.15s;
+  }
+
+  .primary-button:active:not(:disabled, [aria-disabled="true"]),
+  .secondary-button:active:not(:disabled),
+  .danger-button:active:not(:disabled),
+  .rail-item:active .rail-icon,
+  .panel-tabs button:active {
+    scale: 0.98;
+  }
+
+  .modal,
+  .detail-card,
+  .pick-banner,
+  .starter {
+    animation: surface-enter 0.18s ease-out;
+  }
+}
+
+/* No motion: the app's own transitions are off. Listed by their own
+   selectors, not "*", because Leaflet ends a zoom on the transitionend of
+   its own classes. */
+@media (prefers-reduced-motion: reduce) {
+  .rail-icon,
+  .search,
+  .panel-cards,
+  .link-button .arrow,
+  .report-row,
+  .place-link,
+  .map-control,
+  .pin,
+  .report-button,
+  .primary-button,
+  .secondary-button,
+  .danger-button,
+  .vote {
+    transition: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Reduced transparency: card glass turns back into solid --surface, and the
+   layer behind dialogs loses its blur and hides what's behind.
+   --------------------------------------------------------------------------- */
+
+@media (prefers-reduced-transparency: reduce) {
+  .pick-banner,
+  .starter {
+    background: var(--surface);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  @media (width >= 1280px) {
+    .search,
+    .card,
+    .detail-card {
+      background: var(--surface);
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
+    }
+  }
+
+  @media (width < 768px), (width < 1280px) and (height < 500px) {
+    .detail-card {
+      background: var(--surface);
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
+    }
+  }
+
+  @media (width >= 1280px), (768px <= width < 1280px) and (height >= 500px) {
+    .modal-layer {
+      background: rgb(5 7 10 / 0.92);
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
+    }
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Forced colours: the browser keeps a background's alpha and paints no
+   box-shadow. So glass becomes solid with no filter, and text boxes and
+   choice cards get their edge from an outline in a system colour.
+   --------------------------------------------------------------------------- */
+
+@media (forced-colors: active) {
+  .pick-banner,
+  .starter {
+    background: Canvas;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  @media (width >= 1280px) {
+    .search,
+    .card,
+    .detail-card {
+      background: Canvas;
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
+    }
+  }
+
+  @media (width < 768px), (width < 1280px) and (height < 500px) {
+    .detail-card {
+      background: Canvas;
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
+    }
+  }
+
+  @media (width >= 1280px), (768px <= width < 1280px) and (height >= 500px) {
+    .modal-layer {
+      background: Canvas;
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
+    }
+  }
+
+  .form input,
+  .report-form input:not([type="radio"]),
+  .report-form textarea,
+  .place-form-field input,
+  .report-form .choice {
+    outline: 0.0625rem solid CanvasText;
+    outline-offset: -0.0625rem;
+  }
+
+  .form input:focus,
+  .report-form input:not([type="radio"]):focus,
+  .report-form textarea:focus,
+  .place-form-field input:focus,
+  .report-form .choice:has(input:checked) {
+    outline: 0.1875rem solid Highlight;
+    outline-offset: -0.1875rem;
+  }
+
+  /* The keyboard focus ring of a choice card stays outside it. */
+  .report-form .choice:has(input:focus-visible) {
+    outline: 0.1875rem solid Highlight;
+    outline-offset: 0.125rem;
+  }
+
+  /* The selected Reports tab: its ring stays, in the system's colours. */
+  .panel-tabs button[aria-pressed="true"] {
+    forced-color-adjust: none;
+    background: Highlight;
+    color: HighlightText;
+    box-shadow: inset 0 0 0 0.125rem HighlightText;
   }
 }
