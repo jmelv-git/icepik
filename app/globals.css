@@ -4103,3 +4103,100 @@ textarea::placeholder {
     outline-color: Highlight;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   Forced colours: edges for what had only a fill
+
+   High contrast mode removes background colours and box-shadows, so filled
+   buttons read as plain text, cards melt into the page and selected states
+   vanish. Everything here is an outline (drawn inside where it could touch
+   a neighbour), so nothing moves or changes size.
+   --------------------------------------------------------------------------- */
+
+@media (forced-colors: active) {
+  /* Buttons and button-like links. While focused, the focus ring takes the
+     edge's place. */
+  :is(
+      .primary-button,
+      .secondary-button,
+      .danger-button,
+      .report-button,
+      .vote,
+      .panel-tabs button,
+      .panel-settings,
+      .map-controls > .map-control,
+      .resource-list a
+    ):not(:focus-visible),
+  .map-control-group {
+    outline: 0.0625rem solid ButtonText;
+    outline-offset: -0.0625rem;
+  }
+
+  .primary-button:is(:disabled, [aria-disabled="true"]),
+  .secondary-button:disabled,
+  .danger-button:disabled,
+  .vote:disabled {
+    color: GrayText;
+    outline-color: GrayText;
+  }
+
+  /* Selected states: the system highlight, as on the selected Reports tab. */
+  .rail-item:is([aria-current="page"], [aria-expanded="true"]) .rail-icon,
+  .vote[aria-pressed="true"] {
+    forced-color-adjust: none;
+    background: Highlight;
+    color: HighlightText;
+  }
+
+  .report-row[aria-pressed="true"]:not(:focus-visible) {
+    outline: 0.1875rem solid Highlight;
+    outline-offset: -0.1875rem;
+  }
+
+  /* Cards, boxes and messages (the terms box can take focus). */
+  .consent-card,
+  .consent-text:not(:focus-visible),
+  .detail-card,
+  .pick-banner,
+  .starter,
+  .notice,
+  .search-results,
+  .nearby,
+  .totals div,
+  .place-row,
+  .warning-list,
+  .form-error,
+  .badge:not(.badge-disputed) {
+    outline: 0.0625rem solid CanvasText;
+    outline-offset: -0.0625rem;
+  }
+
+  /* The phone's alert card keeps its status border instead. */
+  @media (width < 768px), (width < 1280px) and (height < 500px) {
+    .detail-card {
+      outline: none;
+    }
+
+    .app[data-panel="open"] .search-results button:not(:focus-visible) {
+      outline: 0.0625rem solid ButtonText;
+      outline-offset: -0.0625rem;
+    }
+  }
+
+  /* Desktop: the search block and the cards under it float over the map. */
+  @media (width >= 1280px) {
+    .search,
+    .card {
+      outline: 0.0625rem solid CanvasText;
+      outline-offset: -0.0625rem;
+    }
+  }
+
+  /* Dialogs on tablets and desktop sit on a page of the same colour. */
+  @media (width >= 1280px), (768px <= width < 1280px) and (height >= 500px) {
+    .modal {
+      outline: 0.0625rem solid CanvasText;
+      outline-offset: -0.0625rem;
+    }
+  }
+}
