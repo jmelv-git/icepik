@@ -9,6 +9,8 @@ const LOCATION_KEY = "icepik.location";
 // Places people add and name themselves. Names can say a lot ("Mom's
 // house"), so like home and work they never leave this browser.
 const CUSTOM_PLACES_KEY = "icepik.custom-places";
+// "on" or "off": the moving background (Settings, "Moving background").
+const BACKGROUND_MOTION_KEY = "icepik.background-motion";
 
 export const PLACE_NAME_MAX = 40;
 export const CUSTOM_PLACES_MAX = 25;
@@ -98,6 +100,16 @@ export function rememberLocationAnswer(answer: LocationAnswer) {
   if (read(LOCATION_KEY) !== answer) write(LOCATION_KEY, answer);
 }
 
+// On unless it was turned off on this device. Only read before the terms
+// are accepted; written only from Settings.
+export function useBackgroundMotion(): boolean {
+  return useStored(BACKGROUND_MOTION_KEY) !== "off";
+}
+
+export function rememberBackgroundMotion(on: boolean) {
+  return write(BACKGROUND_MOTION_KEY, on ? "on" : "off");
+}
+
 export function useCustomPlaces(): CustomPlace[] {
   const raw = useStored(CUSTOM_PLACES_KEY);
   return useMemo(() => parseCustomPlaces(raw), [raw]);
@@ -152,6 +164,7 @@ export function clearDeviceStorage() {
   write(PLACES_KEY, null);
   write(CUSTOM_PLACES_KEY, null);
   write(LOCATION_KEY, null);
+  write(BACKGROUND_MOTION_KEY, null);
   write(POLICY_KEY, null);
 }
 

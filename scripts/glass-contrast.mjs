@@ -3,6 +3,9 @@
 //   node scripts/glass-contrast.mjs               check; exit 1 if anything fails
 //   node scripts/glass-contrast.mjs --find-tint   also find the lowest --glass-tint
 //                                                 percentage that passes with 0.1 to spare
+//   node scripts/glass-contrast.mjs --find-lamp   also find the lowest --glass-tint-lamp
+//                                                 percentage and the highest phone lamp
+//                                                 strength that pass with 0.1 to spare
 //
 // The method (per colour channel, sRGB from 0 to 1):
 //   1. Start from the backdrop: pure white (an almost-white map) and, for
@@ -14,6 +17,15 @@
 //   4. For a hovered or pressed row, lay --glass-hover or --glass-pressed
 //      over the result. For a status icon or an error message, lay its chip.
 //   5. Compute the WCAG contrast ratio of the foreground against the result.
+//
+// The lava lamp (consent, Log in and Save account) has its own backdrop:
+//   - the lamp bound: per channel, the highest of --lava-base and the four
+//     blob colours (on phones each blob is first mixed with --lava-base by
+//     --lava-strength-phone);
+//   - the top of the account views' fade: white (an almost-white map)
+//     through the brightness() at the end of --lava-backdrop, under the most
+//     see-through stop of --lava-fade.
+// --glass-tint-lamp goes over that; the blur is not counted.
 //
 // Every value comes from the :root block of app/globals.css; the script
 // fails if a token it needs is missing. Foregrounds that are not tokens are
@@ -47,6 +59,17 @@ const NEEDED = [
   "--overlay-tint",
   "--overlay-filter",
   "--control-line",
+  "--card",
+  "--blue-strong",
+  "--lava-base",
+  "--lava-1",
+  "--lava-2",
+  "--lava-3",
+  "--lava-4",
+  "--lava-strength-phone",
+  "--lava-fade",
+  "--lava-backdrop",
+  "--glass-tint-lamp",
 ];
 
 // --- Reading the tokens --------------------------------------------------
@@ -197,6 +220,7 @@ const CHIPS = {
   disputed: "rgb(141 144 153 / 0.18)",
   place: "rgb(79 147 200 / 0.2)",
   error: "rgb(244 59 59 / 0.15)",
+  warning: "rgb(255 200 0 / 0.1)",
 };
 
 const ROW_TEXT = [
@@ -317,10 +341,126 @@ const SOLID = [
   },
 ];
 
+// --- The lava lamp ---------------------------------------------------------
+
+// The fill of the words in public/brand/icepik-logo.svg (id="ice").
+const LOGO_WORDS = "#eff1f5";
+
+// What sits on the glass over the lamp: the consent card, the account
+// dialog (tablets, desktop) and the account card (phones).
+const LAMP_GLASS_ITEMS = [
+  ["--text: headings, labels, .policy strong", "var(--text)", TEXT],
+  ["--text: title bar icons (Close)", "var(--text)", GRAPHIC],
+  ["#c6c8ce: .consent-intro, .consent-why", "#c6c8ce", TEXT],
+  ["--muted: .form small", "var(--muted)", TEXT],
+  ["#b5b8bf: .modal p", "#b5b8bf", TEXT],
+  ["#ffe08a on chip: .warning-list", "#ffe08a", TEXT, CHIPS.warning],
+  ["#ffb4b4 on chip: .form-error", "#ffb4b4", TEXT, CHIPS.error],
+  ["--control-line: text box edge", "var(--control-line)", GRAPHIC],
+  ["--blue: focus ring", "var(--blue)", GRAPHIC],
+];
+
+// Per channel, the highest value in a list of opaque colours.
+function highest(list) {
+  const ch = (c) => Math.max(...list.map((x) => x[c]));
+  return { r: ch("r"), g: ch("g"), b: ch("b"), a: 1 };
+}
+
+function lampBackdrops(color) {
+  const base = color("var(--lava-base)");
+  const blobs = ["--lava-1", "--lava-2", "--lava-3", "--lava-4"].map((n) => color(`var(${n})`));
+  const strength = parseFloat(color.raw("--lava-strength-phone"));
+  if (!(strength >= 0 && strength <= 1)) throw new Error("--lava-strength-phone must be 0 to 1");
+  const full = highest([base, ...blobs]);
+  const phone = highest([base, ...blobs.map((b) => over({ ...b, a: b.a * strength }, base))]);
+
+  // brightness() must be the last function: then nothing after it can
+  // lighten the map again.
+  const filters = split(color.raw("--lava-backdrop"), " ");
+  const last = inner(filters.at(-1), "brightness");
+  if (last === null) throw new Error("--lava-backdrop must end with brightness()");
+  const k = Math.min(1, last.endsWith("%") ? parseFloat(last) / 100 : parseFloat(last));
+  const map = { r: k, g: k, b: k, a: 1 };
+  const fade = inner(color.raw("--lava-fade"), "linear-gradient");
+  if (fade === null) throw new Error("--lava-fade must be a linear-gradient()");
+  const stops = split(fade, ",")
+    .slice(1)
+    .map((stop) => color(split(stop, " ")[0]));
+  const clearest = stops.reduce((m, c) => (c.a < m.a ? c : m));
+  const fadeTop = over(clearest, map);
+  return { full, phone, fadeTop };
+}
+
+function lampRows(color) {
+  const tint = color("var(--glass-tint-lamp)");
+  const { full, phone, fadeTop } = lampBackdrops(color);
+  const rows = [];
+  const surfaces = [
+    { name: "Consent card (lamp)", backdrops: { lamp: full } },
+    {
+      name: "Account dialog (tablet, desktop)",
+      backdrops: { "lamp or fade top": highest([full, fadeTop]) },
+    },
+    { name: "Account card (phone)", backdrops: { "phone lamp": phone, "fade top": fadeTop } },
+  ];
+  for (const surface of surfaces) {
+    for (const [state, under] of Object.entries(surface.backdrops)) {
+      for (const [label, fg, rule, chip] of LAMP_GLASS_ITEMS) {
+        let bg = over(tint, under);
+        if (chip) bg = over(color(chip), bg);
+        rows.push({ surface: surface.name, state, label, value: ratio(color(fg), bg), rule, bg: hex(bg) });
+      }
+    }
+  }
+  // The logo sits over the end of the fade (phones) or above the dialog.
+  for (const [state, bg] of Object.entries({ "fade top": fadeTop, lamp: full })) {
+    rows.push({
+      surface: "Logo over the lamp",
+      state,
+      label: `${LOGO_WORDS}: the logo's words`,
+      value: ratio(color(LOGO_WORDS), bg),
+      rule: GRAPHIC,
+      bg: hex(bg),
+    });
+  }
+  // The pause button: solid --surface, on the lamp.
+  const surface = color("var(--surface)");
+  for (const [label, fg, rule, bg] of [
+    ["--text: pause and play icon", "var(--text)", GRAPHIC, surface],
+    ["--surface: pause button edge", "var(--surface)", GRAPHIC, full],
+    ["--text: pause button focus ring", "var(--text)", GRAPHIC, full],
+  ]) {
+    rows.push({ surface: "Pause button", state: "lamp", label, value: ratio(color(fg), bg), rule, bg: hex(bg) });
+  }
+  // The Moving background switch, in Settings on --surface.
+  const card = color("var(--card)");
+  const blueStrong = color("var(--blue-strong)");
+  for (const [label, fg, bg] of [
+    ["--control-line: switch edge (off)", "var(--control-line)", surface],
+    ["--blue-strong: switch track (on)", "var(--blue-strong)", surface],
+    ["#c6c8ce: switch knob (off)", "#c6c8ce", card],
+    ["#ffffff: switch knob (on)", "#ffffff", blueStrong],
+    ["--blue: switch focus ring", "var(--blue)", surface],
+  ]) {
+    rows.push({ surface: "Moving background switch", state: "--surface", label, value: ratio(color(fg), bg), rule: GRAPHIC, bg: hex(bg) });
+  }
+  return rows;
+}
+
+const LAMP_SURFACES = [
+  "Consent card (lamp)",
+  "Account dialog (tablet, desktop)",
+  "Account card (phone)",
+  "Logo over the lamp",
+  "Pause button",
+  "Moving background switch",
+];
+
 // --- Running the checks --------------------------------------------------
 
 function check(overrides = {}, print = true) {
   const color = (text) => parseColor(text, overrides);
+  color.raw = (name) => overrides[name] ?? tokens[name];
   const tint = color("var(--glass-tint)");
   const glow = glowColor(overrides);
   const layers = {
@@ -365,6 +505,8 @@ function check(overrides = {}, print = true) {
     }
   }
 
+  rows.push(...lampRows(color));
+
   const failures = rows.filter((r) => r.value < r.rule);
   if (print) {
     console.log(
@@ -391,6 +533,13 @@ function check(overrides = {}, print = true) {
     console.log(`  on pressed rows:              ${worst((r) => r.state.startsWith("pressed"))}`);
     console.log(`  --control-line edges:         ${worst((r) => r.label.startsWith("--control-line"))}`);
     console.log(`  focus ring:                   ${worst((r) => r.label.includes("focus"))}`);
+    const lamp = (name) => (r) => r.surface === name;
+    console.log("\nWorst cases over the lava lamp");
+    for (const name of LAMP_SURFACES.slice(0, 3)) {
+      console.log(`  ${name}, text: ${worst((r) => lamp(name)(r) && r.rule === TEXT)}`);
+      console.log(`  ${name}, edges, icons, ring: ${worst((r) => lamp(name)(r) && r.rule === GRAPHIC)}`);
+    }
+    for (const name of LAMP_SURFACES.slice(3)) console.log(`  ${name}: ${worst(lamp(name))}`);
     console.log(`\n${rows.length - failures.length} of ${rows.length} pass.`);
   }
   return { rows, failures, margin: Math.min(...rows.map((r) => r.value - r.rule)) };
@@ -408,6 +557,29 @@ if (process.argv.includes("--find-tint")) {
     else break;
   }
   console.log(`\nLowest tint that passes everything with 0.1 to spare: ${lowest ?? "none"}%`);
+}
+
+if (process.argv.includes("--find-lamp")) {
+  const mix = tokens["--glass-tint-lamp"].match(/^color-mix\(in srgb, (var\(--[\w-]+\)) ([\d.]+)%, transparent\)$/);
+  if (!mix) throw new Error("--find-lamp expects --glass-tint-lamp: color-mix(in srgb, var(...) N%, transparent)");
+  const margin = (overrides) =>
+    Math.min(
+      ...check(overrides, false)
+        .rows.filter((r) => LAMP_SURFACES.includes(r.surface))
+        .map((r) => r.value - r.rule),
+    );
+  let lowest = null;
+  for (let pct = 100; pct >= 0; pct--) {
+    if (margin({ "--glass-tint-lamp": `color-mix(in srgb, ${mix[1]} ${pct}%, transparent)` }) >= 0.1) lowest = pct;
+    else break;
+  }
+  let strongest = null;
+  for (let s = 0; s <= 100; s += 5) {
+    if (margin({ "--lava-strength-phone": String(s / 100) }) >= 0.1) strongest = s / 100;
+    else break;
+  }
+  console.log(`\nLowest --glass-tint-lamp that passes with 0.1 to spare: ${lowest ?? "none"}%`);
+  console.log(`Highest --lava-strength-phone that passes with 0.1 to spare: ${strongest ?? "none"}`);
 }
 
 process.exit(failures.length ? 1 : 0);

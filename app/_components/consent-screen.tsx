@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { acceptPolicy } from "@/lib/device-storage";
+import { acceptPolicy, useBackgroundMotion } from "@/lib/device-storage";
 import { BrandLogo } from "./brand-logo";
+import { LavaLamp, LavaToggle } from "./lava-lamp";
 import { POLICY_VERSION, PolicyText } from "./policy";
 
 // Shown before anything else loads: no sign-in, map tiles or CAPTCHA until
@@ -15,6 +16,10 @@ export function ConsentScreen({ updated }: { updated: boolean }) {
   const [readToEnd, setReadToEnd] = useState(false);
   const textBox = useRef<HTMLDivElement>(null);
   const textEnd = useRef<HTMLSpanElement>(null);
+  // Reads the choice saved in Settings, if any; writes nothing before the
+  // person agrees. Pausing lasts until the page is left.
+  const motion = useBackgroundMotion();
+  const [paused, setPaused] = useState(false);
 
   useEffect(() => {
     const box = textBox.current;
@@ -76,6 +81,8 @@ export function ConsentScreen({ updated }: { updated: boolean }) {
           )}
         </div>
       </section>
+      <LavaLamp paused={!motion || paused} />
+      {motion ? <LavaToggle paused={paused} onToggle={() => setPaused(!paused)} /> : null}
     </main>
   );
 }

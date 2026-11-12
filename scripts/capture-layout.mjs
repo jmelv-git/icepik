@@ -158,7 +158,11 @@ async function settle(page) {
   });
   await page.waitForTimeout(350);
   await page.evaluate(async () => {
-    await Promise.all(document.getAnimations().map((a) => a.finished.catch(() => {})));
+    // Endless animations (the lava lamp) never finish: skip them here too.
+    const finite = document
+      .getAnimations()
+      .filter((a) => a.effect?.getTiming().iterations !== Infinity);
+    await Promise.all(finite.map((a) => a.finished.catch(() => {})));
   });
 }
 

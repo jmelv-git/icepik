@@ -62,6 +62,43 @@
   /* Edge of text boxes and choice cards: 4.56:1 on --surface, 3.6:1 on
      card glass, 3.68:1 where the search field sits on a white map. */
   --control-line: color-mix(in srgb, var(--text) 46%, var(--surface));
+  /* Lava lamp: the moving background of the consent screen and of Log in
+     and Save account. Blues only: red, yellow and green carry status
+     meaning. scripts/glass-contrast.mjs reads all of these. */
+  /* #1f303e. The lamp's base, and where the fade on the account views ends. */
+  --lava-base: color-mix(in srgb, var(--blue-strong) 22%, var(--surface));
+  --lava-1: color-mix(in srgb, var(--blue-strong) 70%, var(--surface));
+  --lava-2: var(--blue-strong);
+  --lava-3: color-mix(in srgb, var(--blue) 55%, var(--surface));
+  --lava-4: color-mix(in srgb, var(--link) 35%, var(--surface));
+  /* How strongly the blobs show over the base: 1 on tablets and desktop,
+     --lava-strength-phone on phones (set in the Lava lamp section). The
+     lamp's brightest point is #376f9f: the logo's words 4.72:1 on it, the
+     pause button's edge 3.14:1, its white focus ring 5.33:1. */
+  --lava-strength: 1;
+  /* The owner's choice, not a contrast limit: up to 1 passes, since the top
+     of the fade is the harder case for the phone card. */
+  --lava-strength-phone: 0.6;
+  /* Account views: the map shows at the top and fades into the base. The
+     contrast proof counts the brightness() (it must come last) and the most
+     see-through stop of the fade. */
+  --lava-fade: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--lava-base) 45%, transparent) 0,
+    color-mix(in srgb, var(--lava-base) 62%, transparent) 7%,
+    color-mix(in srgb, var(--lava-base) 80%, transparent) 14%,
+    color-mix(in srgb, var(--lava-base) 92%, transparent) 22%,
+    var(--lava-base) 30%
+  );
+  /* The top of the fade over a white map is #626a70: the logo's words 4.89:1. */
+  --lava-backdrop: blur(0.75rem) saturate(1.2) brightness(0.6);
+  /* Glass over the lamp: the consent card, the account dialog (tablets,
+     desktop) and the account card (phones). No backdrop-filter: what is
+     behind it is ours. 66% is the lowest that passes with 0.1 to spare.
+     Worst cases: consent card text 5.08:1 (--muted), edges 3.36:1
+     (--control-line); account dialog text 4.93:1, edges 3.26:1, focus ring
+     3.62:1; phone card text 5.11:1, edges 3.38:1 (over the fade's top). */
+  --glass-tint-lamp: color-mix(in srgb, var(--surface) 70%, transparent);
   --rail-width: 7.375rem;
   --panel-width: min(26.75rem, calc(100vw - var(--rail-width) - 26rem));
   --font-sans: var(--font-outfit), "Glacial Indifference", Arial, sans-serif;
@@ -3526,5 +3563,543 @@ textarea::placeholder {
     background: Highlight;
     color: HighlightText;
     box-shadow: inset 0 0 0 0.125rem HighlightText;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Lava lamp
+
+   A slow field of soft blue behind the consent screen and behind Log in and
+   Save account, and nowhere else. Four blobs larger than the screen overlap
+   on a blue base; each turns and drifts over 37 to 53 seconds. The soft
+   edge is a radial gradient in each blob: no filter, no blend mode, and
+   only transform moves. The pause button (bottom left) stops it for now;
+   "Moving background" in Settings stops it on this device.
+   --------------------------------------------------------------------------- */
+
+.lava {
+  position: absolute;
+  inset: 0;
+  overflow: clip;
+  pointer-events: none;
+}
+
+.lava__blob {
+  position: absolute;
+  width: 110vmax;
+  height: 110vmax;
+  border-radius: 50%;
+  /* A wide solid core, then a long soft edge in small steps (no bands).
+     The core is off centre, so turning the blob moves its colour. */
+  background: radial-gradient(
+    closest-side at 42% 46%,
+    var(--blob-color) 0%,
+    var(--blob-color) 30%,
+    color-mix(in srgb, var(--blob-color) 82%, transparent) 40%,
+    color-mix(in srgb, var(--blob-color) 62%, transparent) 50%,
+    color-mix(in srgb, var(--blob-color) 42%, transparent) 60%,
+    color-mix(in srgb, var(--blob-color) 25%, transparent) 70%,
+    color-mix(in srgb, var(--blob-color) 12%, transparent) 80%,
+    color-mix(in srgb, var(--blob-color) 4%, transparent) 90%,
+    transparent 100%
+  );
+  opacity: var(--lava-strength);
+  will-change: transform;
+}
+
+.lava__blob--a {
+  --blob-color: var(--lava-1);
+  top: -30vmax;
+  left: -45vmax;
+}
+
+.lava__blob--b {
+  --blob-color: var(--lava-2);
+  top: -10vmax;
+  right: -50vmax;
+}
+
+.lava__blob--c {
+  --blob-color: var(--lava-3);
+  bottom: -55vmax;
+  left: -35vmax;
+}
+
+.lava__blob--d {
+  --blob-color: var(--lava-4);
+  right: -40vmax;
+  bottom: -45vmax;
+}
+
+/* Every path only drifts sideways and down (y >= 0), so on the account
+   views no blob's core climbs into the map at the top (see below). */
+@keyframes lava-a {
+  from {
+    transform: translate3d(0, 0, 0) rotate(0deg) scale(1);
+  }
+  to {
+    transform: translate3d(14vmax, 10vmax, 0) rotate(160deg) scale(1.25);
+  }
+}
+
+@keyframes lava-b {
+  from {
+    transform: translate3d(0, 0, 0) rotate(0deg) scale(1.1);
+  }
+  to {
+    transform: translate3d(-16vmax, 8vmax, 0) rotate(-140deg) scale(0.95);
+  }
+}
+
+@keyframes lava-c {
+  from {
+    transform: translate3d(0, 0, 0) rotate(20deg) scale(1.2);
+  }
+  to {
+    transform: translate3d(12vmax, 4vmax, 0) rotate(200deg) scale(1);
+  }
+}
+
+@keyframes lava-d {
+  from {
+    transform: translate3d(0, 6vmax, 0) rotate(0deg) scale(1);
+  }
+  to {
+    transform: translate3d(-12vmax, 0, 0) rotate(-180deg) scale(1.2);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .lava__blob--a {
+    animation: lava-a 41s ease-in-out infinite alternate;
+  }
+
+  .lava__blob--b {
+    animation: lava-b 53s ease-in-out infinite alternate-reverse;
+  }
+
+  .lava__blob--c {
+    animation: lava-c 37s ease-in-out infinite alternate;
+  }
+
+  .lava__blob--d {
+    animation: lava-d 47s ease-in-out infinite alternate-reverse;
+  }
+
+  .lava[data-paused] .lava__blob {
+    animation-play-state: paused;
+  }
+}
+
+/* Phones: a dimmer lamp. */
+@media (width < 768px), (width < 1280px) and (height < 500px) {
+  :root {
+    --lava-strength: var(--lava-strength-phone);
+  }
+}
+
+/* Consent: the lamp fills the page, under the card. */
+.consent {
+  position: relative;
+  isolation: isolate;
+  background: var(--lava-base);
+}
+
+.consent > .lava {
+  position: fixed;
+  z-index: -1;
+}
+
+/* Solid where there's no backdrop-filter, or with reduced transparency (at
+   the end of this section). */
+.consent-card {
+  box-shadow:
+    inset 0 0.0625rem 0 var(--glass-shine),
+    inset 0 0 0 0.0625rem var(--glass-line),
+    0 1.875rem 5rem rgb(0 0 0 / 0.35);
+}
+
+/* ---------------------------------------------------------------------------
+   Log in and Save account
+
+   They stay views inside Settings. While one shows, the Settings layer holds
+   (bottom to top) the live map, the lamp, which blurs and darkens the map
+   and fades from see-through at the top to --lava-base, its blobs (kept out
+   of the top 30%), then the logo and the form. :has() picks these two views
+   only; where it isn't supported they keep their old look.
+   --------------------------------------------------------------------------- */
+
+.modal-layer > .lava,
+.modal-layer > .lava-toggle,
+.account-logo {
+  display: none;
+}
+
+.modal-layer:has(.account-form) {
+  background: transparent;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+.modal-layer:has(.account-form) > .lava {
+  position: fixed;
+  z-index: 0;
+  display: block;
+  /* Solid where there's no backdrop-filter: the contrast proof counts the
+     brightness() under the see-through part of the fade. */
+  background: var(--lava-base);
+}
+
+.modal-layer:has(.account-form) > .modal,
+.modal-layer:has(.account-form) > .account-logo {
+  position: relative;
+  z-index: 1;
+}
+
+.modal-layer:has(.account-form) > .lava-toggle {
+  display: grid;
+}
+
+/* The blobs sit low: a core reaches at most 29.6vmax above its blob's
+   centre (offset 9.84vmax plus radius 13.86vmax, both at scale 1.25), and
+   each centre is at least 30% + 30vmax down. */
+.modal-layer > .lava .lava__blob {
+  bottom: auto;
+}
+
+.modal-layer > .lava .lava__blob--a {
+  top: calc(30% - 25vmax);
+  left: -40vmax;
+}
+
+.modal-layer > .lava .lava__blob--b {
+  top: calc(30% - 18vmax);
+  right: -48vmax;
+}
+
+.modal-layer > .lava .lava__blob--c {
+  top: calc(30% - 4vmax);
+  left: -30vmax;
+}
+
+.modal-layer > .lava .lava__blob--d {
+  top: calc(30% + 2vmax);
+  right: -38vmax;
+}
+
+/* The card: the form itself on phones, the dialog on tablets and desktop.
+   Elsewhere its box doesn't exist. */
+.account-card {
+  display: contents;
+}
+
+/* Tablets and desktop: the dialog is the glass card; the logo sits above
+   it, outside it. */
+@media (width >= 1280px), (768px <= width < 1280px) and (height >= 500px) {
+  .modal-layer:has(.account-form) {
+    align-content: center;
+    row-gap: 1.25rem;
+  }
+
+  .modal-layer:has(.account-form) > .account-logo {
+    display: block;
+    width: 12rem;
+  }
+
+  .account-logo img {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+
+  /* The logo's height (12rem at 1186/2445.66, rounded up) and the gap. */
+  .modal-layer:has(.account-form) > .modal {
+    max-height: calc(100dvh - 2.5rem - 5.875rem - 1.25rem);
+  }
+
+  .modal-layer:has(.account-form) .auth-logo {
+    display: none;
+  }
+}
+
+/* Phones: a see-through page with the logo over the end of the fade and a
+   glass card with real padding below it, as in the Figma design. The
+   layer scrolls, so the pause button can sit after the form. */
+@media (width < 768px), (width < 1280px) and (height < 500px) {
+  .modal-layer:has(.account-form) {
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .modal-layer:has(.account-form) > .modal {
+    flex: 1 0 auto;
+    height: auto;
+    overflow: visible;
+    /* Room for the pause button under the form: the form's last button
+       clears it by 1rem. */
+    padding: 0 calc(0.75rem + var(--safe-right))
+      calc(1rem + 2.75rem + 1rem + var(--safe-bottom)) calc(0.75rem + var(--safe-left));
+    background: transparent;
+  }
+
+  .modal-layer:has(.account-form) .modal-head {
+    margin-right: calc(-0.75rem - var(--safe-right));
+    margin-left: calc(-0.75rem - var(--safe-left));
+  }
+
+  .modal-layer:has(.account-form) .auth-logo {
+    width: min(15rem, 62vw);
+    /* Lower on taller phones, so the logo straddles the end of the fade. */
+    margin: clamp(0rem, 30dvh - 13rem, 5rem) 0 0.5rem;
+  }
+
+  .modal-layer:has(.account-form) .account-card {
+    display: grid;
+    gap: 1rem;
+    padding: 1.5rem clamp(1rem, 5vw, 1.5rem);
+    border-radius: 1.75rem;
+    background: var(--surface);
+    box-shadow:
+      inset 0 0.0625rem 0 var(--glass-shine),
+      inset 0 0 0 0.0625rem var(--glass-line),
+      var(--glass-shadow);
+  }
+
+  /* In the page's flow, over the room left under the form. */
+  .modal-layer:has(.account-form) > .lava-toggle {
+    position: relative;
+    z-index: 2;
+    inset: auto;
+    flex: none;
+    align-self: flex-start;
+    margin: calc(-2.75rem - 1rem - var(--safe-bottom)) 0 calc(1rem + var(--safe-bottom))
+      calc(0.75rem + var(--safe-left));
+  }
+}
+
+/* Phones on their side: today's centred column, in the same card, with a
+   smaller logo (there's little height). */
+@media (width < 1280px) and (height < 500px) {
+  .modal-layer:has(.account-form) .auth-logo {
+    width: 8rem;
+    margin-top: 0;
+  }
+}
+
+@supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
+  .consent-card {
+    background: var(--glass-tint-lamp);
+  }
+
+  .modal-layer:has(.account-form) > .lava {
+    background: var(--lava-fade);
+    -webkit-backdrop-filter: var(--lava-backdrop);
+    backdrop-filter: var(--lava-backdrop);
+  }
+
+  .modal-layer:has(.account-form) .account-card {
+    background: var(--glass-tint-lamp);
+  }
+
+  @media (width >= 1280px), (768px <= width < 1280px) and (height >= 500px) {
+    .modal-layer:has(.account-form) > .modal {
+      background: var(--glass-tint-lamp);
+    }
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Pause button: bottom left, with a solid round background that reads on
+   any backdrop. On phones it sits at the end of the page instead of over
+   it, so it never covers the form or the terms.
+   --------------------------------------------------------------------------- */
+
+.lava-toggle {
+  position: fixed;
+  inset-block-end: calc(1rem + var(--safe-bottom, 0px));
+  inset-inline-start: calc(1rem + var(--safe-left, 0px));
+  z-index: 2;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow:
+    inset 0 0 0 0.0625rem var(--glass-line),
+    var(--glass-shadow);
+}
+
+.lava-toggle:hover {
+  background: color-mix(in srgb, var(--text) 8%, var(--surface));
+}
+
+/* White on the lamp: --blue is too close to its blues. */
+.lava-toggle:focus-visible {
+  outline-color: var(--text);
+}
+
+@media (width < 768px), (width < 1280px) and (height < 500px) {
+  .consent {
+    padding-bottom: calc(1rem + 2.75rem + 1rem + var(--safe-bottom));
+  }
+
+  .consent > .lava-toggle {
+    position: absolute;
+    inset-inline-start: calc(0.75rem + var(--safe-left));
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Moving background switch (Settings)
+   --------------------------------------------------------------------------- */
+
+.switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-height: 3rem;
+  cursor: pointer;
+}
+
+.switch-text {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.switch-label {
+  font-weight: 600;
+}
+
+.switch {
+  position: relative;
+  flex: none;
+  width: 3rem;
+  height: 1.75rem;
+}
+
+.switch input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.switch-track {
+  display: block;
+  height: 100%;
+  border-radius: 62.4375rem;
+  background: var(--card);
+  box-shadow: inset 0 0 0 0.0625rem var(--control-line);
+}
+
+.switch-track::before {
+  content: "";
+  display: block;
+  width: 1.25rem;
+  height: 1.25rem;
+  margin: 0.25rem;
+  border-radius: 50%;
+  background: #c6c8ce;
+}
+
+.switch input:checked + .switch-track {
+  background: var(--blue-strong);
+  box-shadow: none;
+}
+
+.switch input:checked + .switch-track::before {
+  background: #fff;
+  translate: 1.25rem 0;
+}
+
+.switch input:focus-visible + .switch-track {
+  outline: 0.1875rem solid var(--blue);
+  outline-offset: 0.125rem;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .switch-track::before {
+    transition: translate 0.15s;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Lava lamp fallbacks
+   --------------------------------------------------------------------------- */
+
+/* Still and visible; no pause button, since nothing moves. */
+@media (prefers-reduced-motion: reduce) {
+  .lava-toggle,
+  .modal-layer:has(.account-form) > .lava-toggle {
+    display: none;
+  }
+}
+
+/* Solid cards and a solid backdrop: the map doesn't show. */
+@media (prefers-reduced-transparency: reduce) {
+  .consent-card {
+    background: #262830;
+  }
+
+  .modal-layer:has(.account-form) > .lava {
+    background: var(--lava-base);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  .modal-layer:has(.account-form) .account-card {
+    background: var(--surface);
+  }
+
+  @media (width >= 1280px), (768px <= width < 1280px) and (height >= 500px) {
+    .modal-layer:has(.account-form) > .modal {
+      background: var(--surface);
+    }
+  }
+}
+
+/* No lamp and no pause button; the layer and the cards are solid. */
+@media (forced-colors: active) {
+  .lava,
+  .lava-toggle,
+  .modal-layer:has(.account-form) > .lava,
+  .modal-layer:has(.account-form) > .lava-toggle {
+    display: none;
+  }
+
+  .consent-card,
+  .modal-layer:has(.account-form),
+  .modal-layer:has(.account-form) > .modal,
+  .modal-layer:has(.account-form) .account-card {
+    background: Canvas;
+  }
+
+  .modal-layer:has(.account-form) .account-card {
+    outline: 0.0625rem solid CanvasText;
+  }
+
+  .switch-track {
+    forced-color-adjust: none;
+    background: Canvas;
+    box-shadow: inset 0 0 0 0.0625rem CanvasText;
+  }
+
+  .switch-track::before {
+    background: CanvasText;
+  }
+
+  .switch input:checked + .switch-track {
+    background: Highlight;
+  }
+
+  .switch input:checked + .switch-track::before {
+    background: HighlightText;
+  }
+
+  .switch input:focus-visible + .switch-track {
+    outline-color: Highlight;
   }
 }

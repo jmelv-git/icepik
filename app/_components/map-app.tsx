@@ -8,6 +8,7 @@ import {
   addCustomPlace,
   shorten,
   savePlace,
+  useBackgroundMotion,
   useCustomPlaces,
   useSavedPlaces,
   type PlaceName,
@@ -31,6 +32,7 @@ import { useMyActivity } from "@/lib/use-my-activity";
 import { useMyPosition } from "@/lib/use-my-position";
 import { AccountStarter } from "./account-starter";
 import { BrandLogo } from "./brand-logo";
+import { LavaLamp, LavaToggle } from "./lava-lamp";
 import {
   ArrowIcon,
   ChevronIcon,
@@ -176,6 +178,10 @@ export function MapApp() {
   const [revealCount, setRevealCount] = useState(0);
   const [groupIds, setGroupIds] = useState<string[] | null>(null);
   const [modal, setModal] = useState<"rights" | "settings" | null>(null);
+  // The moving background behind Log in and Save account: off for good from
+  // Settings, or paused for now with its button.
+  const backgroundMotion = useBackgroundMotion();
+  const [lavaPaused, setLavaPaused] = useState(false);
   const [picking, setPicking] = useState<Picking>(null);
   const [draft, setDraft] = useState<Point | null>(null);
   const [reportFormOpen, setReportFormOpen] = useState(false);
@@ -1162,6 +1168,13 @@ export function MapApp() {
           onClick={() => setModal(null)}
           role="presentation"
         >
+          {/* Log in and Save account only (CSS :has): the logo above the
+              dialog on tablets and desktop. */}
+          {modal === "settings" ? (
+            <div className="account-logo" aria-hidden="true">
+              <BrandLogo className="account-logo-image" />
+            </div>
+          ) : null}
           <section
             className="modal"
             role="dialog"
@@ -1235,6 +1248,15 @@ export function MapApp() {
               <p>ICEPik isn&apos;t connected to its database yet.</p>
             )}
           </section>
+          {/* Shown only with Log in or Save account (CSS :has). */}
+          {modal === "settings" ? (
+            <>
+              <LavaLamp paused={!backgroundMotion || lavaPaused} />
+              {backgroundMotion ? (
+                <LavaToggle paused={lavaPaused} onToggle={() => setLavaPaused(!lavaPaused)} />
+              ) : null}
+            </>
+          ) : null}
         </div>
       ) : null}
 
