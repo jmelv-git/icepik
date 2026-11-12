@@ -2,7 +2,7 @@
 
 Each page has a before/after image at desktop size (1280×800), tablet size (820×1180) and phone size (390×844), in light mode. Home, the alert card and Log in also have dark-mode pairs. "Before" is commit b6297c7 (the commit in `scripts/layout-baseline.json`, before the style pass); "after" is this branch: the style pass (glass cards, the lava lamp, field edges) and the accessibility fixes in `docs/accessibility-checklist.md`.
 
-Both builds were captured with the same script, the same test data and the same browser, at device scale factor 2. The sightings are test fixtures from a local stand-in for the database, not real reports. Map tiles are real. The lava lamp is shown at the first frame of its animation, so both pictures of a page are taken at the same moment.
+Both builds were captured with the same script, the same test data and the same browser, at device scale factor 2. To keep this folder under 15 MB, the desktop and tablet images were then scaled down to 1x and every image was saved with at most 192 colours (error-diffusion dithering, no visible banding). The phone images stay at 2x. The sightings are test fixtures from a local stand-in for the database, not real reports. Map tiles are real. The lava lamp is shown at the first frame of its animation, so both pictures of a page are taken at the same moment.
 
 The accessibility fixes add nothing to these pictures except where a person would see them: none of these states shows a notice, the keyboard hint or a search with no results. The layout check (`node scripts/capture-layout.mjs --compare`) reports no element moved by more than 1 px.
 
