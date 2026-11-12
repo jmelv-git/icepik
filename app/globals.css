@@ -4396,6 +4396,11 @@ textarea::placeholder {
   cursor: pointer;
 }
 
+/* Expanded, the pin and the buttons line up with its first line. */
+.detail-head:has(> h2.detail-title-open) {
+  align-items: flex-start;
+}
+
 .detail-head h2.detail-title-open {
   display: block;
   overflow: visible;
