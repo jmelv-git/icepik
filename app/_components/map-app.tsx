@@ -219,6 +219,8 @@ export function MapApp() {
   // Upright phones: the Reports sheet covers the whole map. The map, its pins
   // and buttons are then out of the Tab order, since nobody can see them.
   const [sheetCovers, setSheetCovers] = useState(false);
+  // Whether the map has keyboard focus (the banner then says to press Enter).
+  const [mapKeyboardFocus, setMapKeyboardFocus] = useState(false);
 
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -230,7 +232,7 @@ export function MapApp() {
   const searchForm = useRef<HTMLFormElement>(null);
   const searchInput = useRef<HTMLInputElement>(null);
   const searchAbort = useRef<AbortController | null>(null);
-  const resultsOpen = results.length > 0 || searchError;
+  const resultsOpen = results.length > 0 || searchError || noResults;
 
   // The saved session is this device's account. Keep up with sign-ins,
   // sign-outs and token refreshes.
@@ -242,11 +244,19 @@ export function MapApp() {
     return () => data.subscription.unsubscribe();
   }, [supabase]);
 
+  // A notice stays 20 seconds (it was 6: too short to read for many people),
+  // and while the pointer is over it the time stops and starts again.
+  const NOTICE_MS = 20000;
   const showNotice = useCallback((message: string) => {
     window.clearTimeout(noticeTimer.current);
     setNotice(message);
-    noticeTimer.current = window.setTimeout(() => setNotice(""), 6000);
+    noticeTimer.current = window.setTimeout(() => setNotice(""), NOTICE_MS);
   }, []);
+  const holdNotice = () => window.clearTimeout(noticeTimer.current);
+  const releaseNotice = () => {
+    window.clearTimeout(noticeTimer.current);
+    noticeTimer.current = window.setTimeout(() => setNotice(""), NOTICE_MS);
+  };
 
   const cancelReport = useCallback(() => {
     setPicking(null);
@@ -1016,6 +1026,15 @@ export function MapApp() {
         tabIndex={-1}
         inert={dialog !== null}
         onKeyDown={onMapKeyDown}
+        onFocus={(event) => {
+          const target = event.target as HTMLElement;
+          if (target.classList.contains("leaflet-container"))
+            setMapKeyboardFocus(target.matches(":focus-visible"));
+        }}
+        onBlur={(event) => {
+          if ((event.target as HTMLElement).classList.contains("leaflet-container"))
+            setMapKeyboardFocus(false);
+        }}
       >
         <h1 className="visually-hidden">ICEPik map</h1>
         <SightingsMap
@@ -1115,6 +1134,8 @@ export function MapApp() {
                 <ul className="search-results">
                   {searchError ? (
                     <li className="search-empty">Search is unavailable right now.</li>
+                  ) : noResults ? (
+                    <li className="search-empty">No places found.</li>
                   ) : (
                     results.map((item) => (
                       <li key={`${item.lat},${item.lon}`}>
@@ -1351,6 +1372,13 @@ export function MapApp() {
                 choose its center.
               </span>
             </p>
+            {mapKeyboardFocus ? (
+              <p className="pick-key-hint" aria-hidden="true">
+                {picking === "report"
+                  ? "Press Enter to put the pin at the center of the map."
+                  : "Press Enter to choose the center of the map."}
+              </p>
+            ) : null}
             <div className="form-actions">
               <button type="button" className="secondary-button" onClick={leavePicking}>
                 {picking === "report" && reportFormOpen ? "Back to the form" : "Cancel"}
@@ -1414,7 +1442,9 @@ export function MapApp() {
 
         {/* Screen readers hear this from the copy after the dialogs, which
             stays live while a dialog makes the map inert. */}
-        <p className="notice">{noticeText}</p>
+        <p className="notice" onPointerEnter={holdNotice} onPointerLeave={releaseNotice}>
+          {noticeText}
+        </p>
 
         {/* Tells screen readers the searched place is on the map. */}
         <p className="visually-hidden" role="status">

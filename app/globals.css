@@ -114,7 +114,10 @@ body {
    value. It is 16px on a 1920x1080 window (the mockup's size), shrinks on
    smaller or shorter windows and grows on larger ones. */
 html {
-  font-size: clamp(12px, min(calc(6px + 0.52vw), calc(4px + 1.1vh)), 22px);
+  /* In rem (the browser's default font size, 16px unless the person changed
+     it), so the browser's font size setting works. At 16px this is the same
+     as clamp(12px, min(6px + 0.52vw, 4px + 1.1vh), 22px). */
+  font-size: clamp(0.75rem, min(calc(0.375rem + 0.52vw), calc(0.25rem + 1.1vh)), 1.375rem);
 }
 
 body {
@@ -1991,7 +1994,7 @@ textarea::placeholder {
   /* One fixed size instead of desktop's scaling one: text stays readable,
      and text boxes are 16px, below which iOS zooms in when one is tapped. */
   html {
-    font-size: 16px;
+    font-size: 1rem;
   }
 
   /* Navigation: Home joins Reports and Know Your Rights. */
@@ -4303,4 +4306,58 @@ textarea::placeholder {
   .leaflet-container .leaflet-control-attribution a {
     color: #00567a;
   }
+}
+
+/* ---------------------------------------------------------------------------
+   Approved by the owner after the accessibility check (docs/accessibility-
+   checklist.md, "Ask-first findings")
+   --------------------------------------------------------------------------- */
+
+/* A. Every notice shows on top of the dialogs, in the same place as before.
+   One exception: the account set-up message stays above notices, because a
+   notice in the same spot would hide its "Try again" and "Just view the map"
+   buttons (and the keyboard focus on them, WCAG 2.4.11). The skip link,
+   shown only while focused, stays above both. */
+.app .notice {
+  z-index: 2200;
+}
+
+.app .starter {
+  z-index: 2250;
+}
+
+/* D. Desktop: the alert card's heading wraps to a second line before it is
+   cut short, as on phones and tablets. */
+.detail-head h2 {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+/* E. A report row's summary and status line wrap instead of being cut short:
+   the row grows only when the text doesn't fit (long text, large text, or
+   more spacing between letters and lines). */
+.row-title,
+.row-meta {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+/* F. Windows under 260px tall (1280x800 at 400% zoom): the + and - buttons
+   would sit under "Submit a report". They go, and so leave the Tab order;
+   a pinch, the scroll wheel or + and - on the focused map still zoom. */
+@media (height < 260px) {
+  .map-control-group {
+    display: none;
+  }
+}
+
+/* H. Choosing a spot with the keyboard: a line in the banner while the map
+   has keyboard focus. --muted on --surface: 6.8:1. */
+.pick-key-hint {
+  color: var(--muted);
+  font-size: 0.875rem;
+  line-height: 1.4;
 }
