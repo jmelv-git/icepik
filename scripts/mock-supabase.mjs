@@ -10,7 +10,7 @@
 //     NEXT_PUBLIC_DEMO_SUPABASE_ANON_KEY=test-anon-key
 //
 // Build and start the app against it with
-//   NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321 NEXT_PUBLIC_SUPABASE_ANON_KEY=test-anon-key
+//   NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321 NEXT_PUBLIC_SUPABASE_ANON_KEY=test-anon-key NEXT_PUBLIC_TURNSTILE_SITE_KEY=
 import http from "node:http";
 
 const PORT = Number(process.env.MOCK_PORT || 54321);

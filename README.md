@@ -35,7 +35,7 @@ The site needs these environment variables, in Vercel and in `.env.local` for `n
 | `NEXT_PUBLIC_SUPABASE_URL` | The Supabase project's URL. |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | The project's publishable key. The older `NEXT_PUBLIC_SUPABASE_ANON_KEY` works too. Never use the secret or `service_role` key. |
 | `NEXT_PUBLIC_CARTO_KEY` | CARTO's free basemap key, from https://carto.com/basemaps/apikey. Without it, every map picture reads "API KEY REQUIRED". |
-| `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | Optional. The Cloudflare Turnstile site key, needed only when CAPTCHA is on in Supabase. |
+| `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | Optional. ICEPik's Cloudflare Turnstile site key (`0x4AAAAAAGD9-RGFXV2Fys3x`) is built into `app/_components/captcha.tsx`, so leave this unset. Set it only to use a different widget, or set it to an empty value to turn the check off (for local checks against `scripts/mock-supabase.mjs`). |
 | `NEXT_PUBLIC_DEMO_SUPABASE_URL` | Optional. The URL of the separate Supabase project for the demo at `/demo`. |
 | `NEXT_PUBLIC_DEMO_SUPABASE_PUBLISHABLE_KEY` | Optional. That demo project's publishable key (or `NEXT_PUBLIC_DEMO_SUPABASE_ANON_KEY`). Without the demo variables, `/demo` shows the map as "not connected". |
 
@@ -45,6 +45,16 @@ Anyone can copy the CARTO key from the page, and our free 5 million map tiles a 
 
 - **Vercel's Production environment:** a key restricted in CARTO's dashboard to `icepik.vercel.app`. It shows blank map pictures anywhere else.
 - **Vercel's Preview environment and `.env.local`:** a second key with no restriction, because preview addresses change with every branch and CARTO doesn't let one key list both `localhost` and public sites. Anyone who gets hold of it can use our tile quota, so we don't share it.
+
+### The security check (CAPTCHA)
+
+Creating an account and logging in show Cloudflare Turnstile's check, after the terms are agreed. The app sends its one-time token to Supabase, and Supabase checks it with Cloudflare. To turn it on:
+
+1. In the Cloudflare dashboard (Turnstile → the ICEPik widget → Settings), make sure the hostnames include `icepik.vercel.app`, plus `localhost` if you test with `npm run dev`. Copy the widget's **secret key**. Never paste it into the code, a chat or a pull request.
+2. In Supabase (Authentication → Attack Protection), turn on **Enable CAPTCHA protection**, choose **Turnstile by Cloudflare** and paste the secret key. Do the same in the demo project if `/demo` is set up.
+3. Redeploy in Vercel so the live site has the site key.
+
+Until step 2 is done, the check still shows, but Supabase ignores the token. Once it's done, signing in without a token fails, so do step 3 at the same time. Vercel's preview addresses aren't in the widget's hostnames, so the check shows an error there unless you add them.
 
 ### The demo at `/demo`
 

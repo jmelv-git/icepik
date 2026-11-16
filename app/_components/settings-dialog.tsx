@@ -33,6 +33,9 @@ import { Captcha, captchaEnabled } from "./captcha";
 import { PlaceIcon } from "./icons";
 import { PolicyText } from "./policy";
 
+const CAPTCHA_FAILED =
+  "The security check couldn't load. Check your connection, then go back and try again.";
+
 type View = "main" | "save" | "login" | "delete" | "clear" | "policy";
 
 type Props = {
@@ -534,10 +537,13 @@ function LogIn({ supabase, user, activePosts, onNotice, onClose, onBack }: Props
         </label>
         {captchaEnabled ? (
           <Captcha
-            onToken={setToken}
-            onError={() =>
-              setMessage("The security check couldn't load. Check your connection, then go back and try again.")
-            }
+            action="login"
+            onToken={(next) => {
+              setToken(next);
+              // The widget retries on its own after some errors.
+              if (next) setMessage((current) => (current === CAPTCHA_FAILED ? null : current));
+            }}
+            onError={() => setMessage(CAPTCHA_FAILED)}
             resetKey={captchaReset}
           />
         ) : null}
