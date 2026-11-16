@@ -2,7 +2,9 @@
 
 // Posting, voting and deleting run here, on Vercel, instead of in the browser.
 // Supabase then logs Vercel's IP address for these requests instead of the
-// user's, so its logs can't tie a person's IP to a pin, a vote or a deletion.
+// user's. Its logs still record the user id from the session token, so while
+// it keeps them they can match these requests to the same user's browser
+// requests, which do carry their IP. See the known gaps in the handoff doc.
 //
 // Rules for this file:
 // - Anyone can call these actions directly with any input, not just through
@@ -137,7 +139,8 @@ function isCount(value: unknown): boolean {
 function failure(error: PostgrestError): ActionResult<never> {
   // P0001 = a message from ICEPik's own database checks, written for users.
   if (error.code === 'P0001') return { ok: false, message: error.message }
-  // 42501 = row-level security refused it, usually an expired session.
+  // 42501 = no session: the function's permission check or row-level
+  // security refused it, usually because the session cookie expired.
   if (error.code === '42501') {
     return { ok: false, message: 'Your session has expired. Reload the page and try again.' }
   }

@@ -1,6 +1,6 @@
 // Change the version whenever the text below changes: everyone is asked to
 // agree again. The accepted version is kept in localStorage only.
-export const POLICY_VERSION = "2026-11-12-draft";
+export const POLICY_VERSION = "2026-11-16-draft";
 
 // Plain-language terms and privacy notice, shown before anything else loads.
 // DRAFT: the team must review this text before launch.
@@ -23,6 +23,10 @@ export function PolicyText() {
           with, threaten or hurt another person, including officers.
         </li>
         <li>
+          If you save your account, keep your password and recovery key to yourself. Anyone who
+          has them can use or reset your account.
+        </li>
+        <li>
           The Know Your Rights links are general information, not legal advice. ICEPik is
           provided as is and may change or stop at any time.
         </li>
@@ -33,6 +37,15 @@ export function PolicyText() {
         <li>
           <strong>No name, email or phone number.</strong> ICEPik creates an anonymous account on
           this device. If you save it, you choose a username and password.
+        </li>
+        <li>
+          <strong>Recovery key.</strong> When you save your account, ICEPik shows you a recovery key
+          once. With no email, it&apos;s the only way to reset a forgotten password: anyone who has
+          your username and key can set a new password, which signs your other devices out within
+          about an hour. Each key works once, and a reset gives you a new one. We keep only a
+          scrambled form of the key (a hash), so we can&apos;t show it to you again. Write it down or
+          keep it in a password manager, not on this device. If you lose both your password and
+          your key, the account can&apos;t be recovered.
         </li>
         <li>
           <strong>Sightings are public</strong> while they’re on the map: at least 4 hours, more
@@ -61,7 +74,9 @@ export function PolicyText() {
           Fastly, see your IP address and which area of the map you view. Fastly keeps full IP
           addresses for up to 2 business days, or longer for errors or traffic it flags as
           suspicious. CARTO shortens IP addresses before saving them and keeps those logs for
-          30 days. A security check by Cloudflare may also see your IP address.
+          30 days. A security check by Cloudflare may also see your IP address. Supabase also
+          keeps the IP address and browser of each device&apos;s latest sign-in with your account,
+          until that device signs out or the account is deleted.
         </li>
         <li>
           <strong>We can’t promise complete anonymity.</strong> A subpoena or warrant can
@@ -75,8 +90,8 @@ export function PolicyText() {
           us.
         </li>
         <li>
-          You can delete your account in Settings. Your sightings stay on the map until they
-          expire, with no link to you. &ldquo;Clear this device&rdquo; removes saved places and
+          You can delete your account in Settings; a saved account asks for its password first.
+          Your sightings stay on the map until they expire, with no link to you. &ldquo;Clear this device&rdquo; removes saved places and
           the background choice, and signs this device out.
         </li>
       </ul>

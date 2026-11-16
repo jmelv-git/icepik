@@ -7,8 +7,13 @@ import type { User } from "@supabase/supabase-js";
 const LOGIN_DOMAIN = "@icepik.invalid";
 
 export const USERNAME_RULES = "3 to 20 lowercase letters, numbers or underscores";
-export const PASSWORD_RULES = "At least 8 characters";
-const MIN_PASSWORD_LENGTH = 8;
+export const PASSWORD_RULES = "15 to 72 characters. A few random words work well";
+// NIST's minimum when a password is an account's only protection. Supabase
+// enforces the same minimum (Authentication -> Minimum password length).
+const MIN_PASSWORD_LENGTH = 15;
+// Supabase stores passwords with bcrypt, which reads only the first 72 bytes.
+// Letters with accents and emoji take 2 to 4 bytes each.
+const MAX_PASSWORD_BYTES = 72;
 
 export function normalizeUsername(input: string) {
   return input.trim().toLowerCase();
@@ -31,7 +36,10 @@ export function checkUsername(username: string) {
 }
 
 export function checkPassword(password: string) {
-  return password.length >= MIN_PASSWORD_LENGTH ? null : "Use a password with at least 8 characters.";
+  return password.length >= MIN_PASSWORD_LENGTH &&
+    new TextEncoder().encode(password).length <= MAX_PASSWORD_BYTES
+    ? null
+    : `Use a password of ${PASSWORD_RULES}.`;
 }
 
 // Supabase Auth errors carry a stable `code`; never match on the message.
@@ -42,6 +50,12 @@ export function authErrorMessage(error: { code?: string; message?: string } | nu
       return "That username is taken. Try another one.";
     case "invalid_credentials":
       return "Username or password is wrong.";
+    // "Require current password when changing password" is on in Supabase.
+    case "current_password_required":
+    case "current_password_invalid":
+      return "Your current password is wrong.";
+    case "same_password":
+      return "Choose a password that's different from your current one.";
     case "weak_password":
       return `That password is too weak. ${PASSWORD_RULES}. ${error.message ?? ""}`.trim();
     case "email_address_invalid":
@@ -52,6 +66,9 @@ export function authErrorMessage(error: { code?: string; message?: string } | nu
       return "Too many tries from this network. Wait a few minutes and try again.";
     case "anonymous_provider_disabled":
       return "ICEPik can't create accounts right now: anonymous sign-ins are turned off in Supabase.";
+    // Also what Supabase returns when the database refuses a login ID (the
+    // username rule, or renaming a saved username). Check the username first.
+    case "unexpected_failure":
     default:
       return "Something went wrong. Please try again.";
   }

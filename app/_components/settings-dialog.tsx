@@ -555,13 +555,48 @@ function LogIn({ supabase, user, activePosts, onNotice, onClose, onBack }: Props
   );
 }
 
-function DeleteAccount({ supabase, onNotice, onClose, onBack }: Props & { onBack: () => void }) {
+function DeleteAccount({ supabase, user, onNotice, onClose, onBack }: Props & { onBack: () => void }) {
+  // A saved account must sign in with its password first: the database
+  // deletes one only within 10 minutes of a password sign-in, so someone
+  // holding an unlocked phone can't delete it. Anonymous accounts have no
+  // password.
+  const username = usernameOf(user);
+  const [password, setPassword] = useState("");
+  const [token, setToken] = useState<string | null>(null);
+  const [captchaReset, setCaptchaReset] = useState(0);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [wrongPassword, setWrongPassword] = useState(false);
+  const errorId = `${useId()}-error`;
+  const invalid = wrongPassword ? { "aria-invalid": true, "aria-describedby": errorId } : {};
 
-  async function deleteAccount() {
+  async function deleteAccount(event: React.FormEvent) {
+    event.preventDefault();
+    if (username !== null && !password) {
+      setWrongPassword(true);
+      return setMessage("Enter your password to delete this account.");
+    }
+
     setBusy(true);
     setMessage(null);
+    setWrongPassword(false);
+    if (username !== null) {
+      const { error } = await supabase.auth.signInWithPassword({
+        email: loginIdFor(username),
+        password,
+        options: token ? { captchaToken: token } : undefined,
+      });
+      // A CAPTCHA token works once.
+      if (captchaEnabled) setCaptchaReset((count) => count + 1);
+      if (error) {
+        setBusy(false);
+        setWrongPassword(error.code === "invalid_credentials");
+        return setMessage(
+          error.code === "invalid_credentials" ? "That password is wrong." : authErrorMessage(error),
+        );
+      }
+    }
+
     const { error } = await supabase.rpc("delete_my_account");
     if (error) {
       setBusy(false);
@@ -575,15 +610,39 @@ function DeleteAccount({ supabase, onNotice, onClose, onBack }: Props & { onBack
   }
 
   return (
-    <div className="form">
+    <form className="form" onSubmit={deleteAccount} noValidate>
       <h3>Delete my account</h3>
       <p>
         This permanently deletes your account, your username if you saved one, and the private
         record of what you posted and voted on. Your sightings stay on the map until they expire,
         with no link to you. This can&apos;t be undone.
       </p>
+      {username !== null ? (
+        <>
+          <label>
+            Password for {username}
+            <input
+              type="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              {...invalid}
+            />
+            <small>Needed to delete a saved account.</small>
+          </label>
+          {captchaEnabled ? (
+            <Captcha
+              onToken={setToken}
+              onError={() =>
+                setMessage("The security check couldn't load. Check your connection, then go back and try again.")
+              }
+              resetKey={captchaReset}
+            />
+          ) : null}
+        </>
+      ) : null}
       {message ? (
-        <p className="form-error" role="alert">
+        <p id={errorId} className="form-error" role="alert">
           {message}
         </p>
       ) : null}
@@ -591,11 +650,15 @@ function DeleteAccount({ supabase, onNotice, onClose, onBack }: Props & { onBack
         <button type="button" className="secondary-button" onClick={onBack} disabled={busy}>
           Cancel
         </button>
-        <button type="button" className="danger-button" onClick={deleteAccount} disabled={busy}>
+        <button
+          type="submit"
+          className="danger-button"
+          disabled={busy || (username !== null && captchaEnabled && !token)}
+        >
           {busy ? "Deleting…" : "Delete my account"}
         </button>
       </div>
-    </div>
+    </form>
   );
 }
 

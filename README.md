@@ -33,9 +33,10 @@ The site needs these environment variables, in Vercel and in `.env.local` for `n
 | Variable | What it is |
 | --- | --- |
 | `NEXT_PUBLIC_SUPABASE_URL` | The Supabase project's URL. |
-| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | The project's publishable key. The older `NEXT_PUBLIC_SUPABASE_ANON_KEY` works too. Never use the secret or `service_role` key. |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | The project's publishable key. The older `NEXT_PUBLIC_SUPABASE_ANON_KEY` works too. Never put the secret or `service_role` key here. |
 | `NEXT_PUBLIC_CARTO_KEY` | CARTO's free basemap key, from https://carto.com/basemaps/apikey. Without it, every map picture reads "API KEY REQUIRED". |
-| `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | Optional. The Cloudflare Turnstile site key, needed only when CAPTCHA is on in Supabase. |
+| `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | The Cloudflare Turnstile site key. CAPTCHA must be on in Supabase before launch, with the matching secret key there. |
+| `SUPABASE_SECRET_KEY` | Supabase's secret key (`sb_secret_…`), used only by the password reset in `app/actions/recovery.ts`. It skips every database rule. Add it in Vercel to the **Production** environment only, with **Sensitive** turned on, never to Preview or Development, and never with a `NEXT_PUBLIC_` name. Without it, the reset says it isn't available. |
 
 Vercel builds these values into the site, so after adding or changing one, redeploy (Deployments > ⋯ > Redeploy). A production build stops with an error if `NEXT_PUBLIC_CARTO_KEY` is missing, so the live map never shows "API KEY REQUIRED".
 
@@ -66,7 +67,8 @@ The first version is built:
 
 Before we launch it, we need to:
 
-- set up Supabase and the environment variables, as `docs/database-handoff.md` describes;
+- set up Supabase and the environment variables, as `docs/database-handoff.md` describes. The live project already has data, so upgrade it with `database/migrations/20261116_recovery_keys.sql`, never the "Starting over" lines in the schema;
+- run `scripts/supabase-live-checks.mjs` against a scratch Supabase project before building the recovery-key screens (see `docs/database-handoff.md`);
 - add the two CARTO keys to Vercel (see section 2) before the map change is merged. Until then, production builds stop with an error. The keys are free for non-commercial use up to 5 million map tiles a month, and a visit uses about 12 to 90. Above that, CARTO may block the map without notice, so before a wider launch we'll ask support-basemaps@carto.com to raise the limit, which it normally does for free for non-commercial use. CARTO can also withdraw free keys without notice;
 - add a rate limit in Vercel's firewall;
 - test the handoff's "Done when" list on two real phones;

@@ -4,13 +4,14 @@ Features from the Figma mobile design (`docs/figma-mobile-design/`) that are lef
 
 ## Stretch goals
 
-### Account recovery with backup codes (in progress)
-Planned with the backend team. Accounts stay username and password with no email; backup codes give a way back in after a forgotten password.
-- When someone saves an account, show a set of one-time backup codes to write down or save, shown only once. A code lets them set a new password.
-- Agree with the backend team on: the code format and how many codes there are; storing only a hash of each code; each code working once; limiting and CAPTCHA-checking code attempts; making new codes from Settings, which cancels the old ones.
-- Never keep the codes in the browser's storage.
-- Change the text that says a forgotten password can't be recovered: the Save account screen in `app/_components/settings-dialog.tsx` (about line 321) and `docs/database-handoff.md` (about lines 406 and 516). Check whether the terms in `app/_components/policy.tsx` need a new `POLICY_VERSION`; changing the policy needs the owner's approval.
-- Design: Figma's Forgot Password and Code Verification screens (`docs/figma-mobile-design/`) are a style reference for "Use a backup code". Their five-box entry assumes a short code, so match it to the format the backend chooses.
+### Account recovery with a recovery key (in progress)
+Accounts stay username and password with no email. The backend is built: `database/icepik_schema.sql` (or, for the live project, `database/migrations/20261116_recovery_keys.sql`) and `app/actions/recovery.ts`. `docs/database-handoff.md` ("Save the account", "Forgot password", "Settings") has the calls. Before building the screens, run `scripts/supabase-live-checks.mjs` against a scratch Supabase project: it checks the Supabase behaviour this design depends on.
+- One recovery key per saved account: 128 random bits shown as 8 groups of 4 (for example `3f9a-0c21-…`), shown once. Only a hash is stored. It works once; a reset or "Make a new recovery key" replaces it.
+- Saving: after `updateUser`, sign in with the new password (fresh CAPTCHA token), then `rpc('create_recovery_key')` and show the key once. The database makes a key only within 10 minutes of a password sign-in. Offer Copy, and tell people to write the key on paper or keep it in a password manager, not on the phone. Never keep it in the browser's storage.
+- Log in screen: "Forgot password?" asks for the username, the key and a new password, calls the `resetPasswordWithRecoveryKey` server action, shows the new key once, then signs in (fresh CAPTCHA token).
+- Settings: "Make a new recovery key" asks for the password and signs in with it first. After a saved account logs in, call `rpc('has_recovery_key')`; if it returns false, ask once to make one.
+- Change the text that says a forgotten password can't be recovered: the Save account screen in `app/_components/settings-dialog.tsx` (the warning list in `SaveAccount`). The terms in `app/_components/policy.tsx` already describe the recovery key (`POLICY_VERSION` 2026-11-16-draft), so release that version together with these screens.
+- Design: Figma's Forgot Password and Code Verification screens (`docs/figma-mobile-design/`) are a style reference. Their five-box entry assumes a short code; the key is 32 characters in 8 groups, so use one text field that accepts it with or without dashes and spaces.
 
 ### Photos on reports
 Figma shows a photo in each alert card and in the reports list, and an "Add an image (optional)" row on Submit a Report.
@@ -45,5 +46,5 @@ Figma's search box shows the state and city of the map area ("PA | Philadelphia"
 
 These are in the Figma design but go against how ICEPik protects people. Leave them out unless the privacy model changes.
 
-- **Email sign-up and password reset by email.** Accounts use a username and password with no email, so no inbox is linked to anyone (`lib/accounts.ts`, `docs/database-handoff.md`). Recovery comes from backup codes instead (see above).
+- **Email sign-up and password reset by email.** Accounts use a username and password with no email, so no inbox is linked to anyone (`lib/accounts.ts`, `docs/database-handoff.md`). Recovery comes from a recovery key instead (see above).
 - **"Critical" and "Warning" labels.** The app keeps its own status labels: Verified, Unverified and Disputed.

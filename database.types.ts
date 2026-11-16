@@ -34,6 +34,30 @@ export type Database = {
         };
         Relationships: [];
       };
+      recovery_keys: {
+        Row: {
+          key_hash: string;
+          user_id: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          key_hash: string;
+          user_id: string;
+        };
+        Update: {
+          key_hash?: string;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "recovery_keys_user_id_fkey";
+            columns: ["user_id"];
+            isOneToOne: true;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       sighting_reporters: {
         Row: {
           reporter_id: string;
@@ -159,14 +183,20 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
+      block_auth_emails: { Args: { event: Json }; Returns: Json };
+      check_recovery_key: { Args: { p_key: string; p_username: string }; Returns: string };
+      create_recovery_key: { Args: Record<PropertyKey, never>; Returns: string };
       delete_my_account: { Args: Record<PropertyKey, never>; Returns: undefined };
       delete_my_sighting: { Args: { target_sighting_id: string }; Returns: undefined };
       distance_m: {
         Args: { lat1: number; lat2: number; lng1: number; lng2: number };
         Returns: number;
       };
+      has_recovery_key: { Args: Record<PropertyKey, never>; Returns: boolean };
       purge_expired_links: { Args: Record<PropertyKey, never>; Returns: undefined };
+      replace_recovery_key: { Args: { p_user_id: string }; Returns: string };
       set_my_language: { Args: { new_language: string }; Returns: undefined };
+      signed_in_with_password_recently: { Args: Record<PropertyKey, never>; Returns: boolean };
       sightings_near: {
         Args: { pin_lat: number; pin_lng: number; radius_m?: number };
         Returns: {
