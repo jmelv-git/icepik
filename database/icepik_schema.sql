@@ -778,9 +778,16 @@ $$;
 
 revoke execute on function public.purge_expired_links() from public, anon, authenticated;
 
-create extension if not exists pg_cron with schema pg_catalog;
-grant usage on schema cron to postgres;
-grant all privileges on all tables in schema cron to postgres;
+-- Create pg_cron only when it's missing. Supabase gives the postgres role
+-- access to it when it's created; asking again on a project where it's
+-- already on makes Supabase redo those grants, which can fail with
+-- "dependent privileges exist".
+do $$
+begin
+  if not exists (select 1 from pg_extension where extname = 'pg_cron') then
+    create extension pg_cron with schema pg_catalog;
+  end if;
+end $$;
 
 select cron.schedule('purge-expired-links', '0 * * * *', 'select public.purge_expired_links()');
 
