@@ -16,13 +16,16 @@
 --   check passes. To rehearse the upgrade itself, set the scratch project up
 --   with the earlier schema and this file instead of the full schema.
 --
--- Step 1. Deploy the app version that ships with this file to Production
---   first. Its "Delete my account" asks a saved account for its password,
---   which this file starts to require, and it works with the old database
---   too. Set NEXT_PUBLIC_TURNSTILE_SITE_KEY in every Vercel environment that
---   uses this Supabase project, redeploy, and check that the Turnstile check
---   appears on the live site. CAPTCHA isn't on yet, so nothing changes for
---   users.
+-- Step 1. Make sure the Turnstile widget's hostname list includes the live
+--   domain, and set NEXT_PUBLIC_TURNSTILE_SITE_KEY in every Vercel environment
+--   that uses this Supabase project (a production build without it stops).
+--   Then deploy the app version that ships with this file. Its "Delete my
+--   account" asks a saved account for its password, which this file starts to
+--   require, and it works with the old database too. Open the site in a
+--   private window, accept the terms, and check that the Turnstile check
+--   completes and a new anonymous user appears in Authentication -> Users.
+--   CAPTCHA isn't on in Supabase yet, so sign-ins keep working; everyone is
+--   asked to accept the updated terms.
 --
 -- Step 2. Run this query on its own and note the number:
 --
@@ -33,7 +36,8 @@
 --   It counts saved accounts whose login ID breaks the username rule (3 to 20
 --   lowercase letters, numbers or underscores, then @icepik.invalid), most
 --   likely the email accounts made while testing the starter. The app's Log
---   in, Delete my account and Forgot password screens all refuse them. If the
+--   in and Forgot password screens refuse them (one still signed in on a
+--   device can delete itself in Settings). If the
 --   number isn't 0, list them (select id, email, created_at from auth.users
 --   where ... the same condition) and, before Step 3, delete each one in
 --   Authentication -> Users, or rename it to a valid username@icepik.invalid
@@ -44,15 +48,15 @@
 --   last statement shows the same count as Step 2, which should now be 0.
 --
 -- Step 4. Dashboard settings, in this order (all listed at the top of
---   database/icepik_schema.sql): Authentication -> Attack Protection ->
---   CAPTCHA with provider Turnstile and the widget's secret key, then turn it
---   on; Minimum password length 15; Require current password when changing
---   password ON; then Hooks -> Send Email -> Postgres ->
---   public.block_auth_emails (it needs the function this file creates).
+--   database/icepik_schema.sql): Minimum password length 15; Require current
+--   password when changing password ON; Hooks -> Send Email -> Postgres ->
+--   public.block_auth_emails (it needs the function this file creates); then,
+--   last, Attack Protection -> CAPTCHA with provider Turnstile and the
+--   widget's secret key, turned on.
 --
--- Step 5. Smoke test: open the live site in a private window, accept the
---   terms, and check that a new anonymous user appears in Authentication ->
---   Users.
+-- Step 5. Smoke test with CAPTCHA on: open the live site in a private
+--   window, accept the terms, and check that a new anonymous user appears in
+--   Authentication -> Users.
 --
 -- If the username trigger ever blocks Supabase Auth, run
 --   drop function public.check_login_id() cascade;

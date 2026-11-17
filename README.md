@@ -71,7 +71,7 @@ The first version is built:
 Before we launch it, we need to:
 
 - run `scripts/supabase-live-checks.mjs` against a scratch Supabase project, before upgrading the live database or merging the recovery-key changes, and stop unless every check passes;
-- upgrade the live Supabase project in the order `docs/database-handoff.md` gives under "Existing project": deploy this app version with `NEXT_PUBLIC_TURNSTILE_SITE_KEY` set first, then run `database/migrations/20261116_recovery_keys.sql` (never the "Starting over" lines in the schema, which delete all pins and votes), then turn on the dashboard settings, with CAPTCHA last;
+- upgrade the live Supabase project in the order `docs/database-handoff.md` gives under "Existing project": set `NEXT_PUBLIC_TURNSTILE_SITE_KEY` in Vercel and deploy this app version, then delete or rename the saved accounts whose login ID breaks the username rule (such as the three test email accounts), then run `database/migrations/20261116_recovery_keys.sql` (never the "Starting over" lines in the schema, which delete all pins and votes), then turn on the dashboard settings, with CAPTCHA last;
 - add the two CARTO keys to Vercel (see section 2) before the map change is merged. Until then, production builds stop with an error. The keys are free for non-commercial use up to 5 million map tiles a month, and a visit uses about 12 to 90. Above that, CARTO may block the map without notice, so before a wider launch we'll ask support-basemaps@carto.com to raise the limit, which it normally does for free for non-commercial use. CARTO can also withdraw free keys without notice;
 - add a rate limit in Vercel's firewall;
 - test the handoff's "Done when" list on two real phones;

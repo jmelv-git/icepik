@@ -62,7 +62,8 @@ export function PolicyText() {
           addresses for up to 2 business days, or longer for errors or traffic it flags as
           suspicious. CARTO shortens IP addresses before saving them and keeps those logs for
           30 days. Cloudflare&apos;s security check sees your IP address and browser when your
-          account is created and whenever you sign in with a password. For each signed-in
+          account is created, and whenever you open Log in or, for a saved account, Delete my
+          account. For each signed-in
           session, Supabase also keeps the IP address and browser it last used (updated about
           every hour while ICEPik is open), until that session signs out or the account is
           deleted. Logging in to another account on this device can leave the earlier session
