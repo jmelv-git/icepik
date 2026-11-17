@@ -3,9 +3,12 @@
 import { useEffect, useRef } from "react";
 
 // Cloudflare Turnstile, one of the two CAPTCHA providers Supabase Auth
-// supports. Set NEXT_PUBLIC_TURNSTILE_SITE_KEY once CAPTCHA protection is on
-// in Supabase (Authentication -> Attack Protection), with the matching secret
-// key there. Without it, no CAPTCHA script ever loads.
+// supports. CAPTCHA is required: set NEXT_PUBLIC_TURNSTILE_SITE_KEY in Vercel
+// and redeploy BEFORE turning CAPTCHA on in Supabase (Authentication -> Attack
+// Protection, with the widget's secret key there). Supabase ignores tokens
+// while CAPTCHA is off, but once it's on, a build without the key fails every
+// sign-in. Production builds stop if the key is missing (next.config.ts).
+// Without the key (local development), no CAPTCHA script ever loads.
 const SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
 export const captchaEnabled = Boolean(SITE_KEY);
 

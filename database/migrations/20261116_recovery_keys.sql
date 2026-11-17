@@ -3,47 +3,63 @@
 -- email hook, and a password check before a saved account is deleted.
 --
 -- For a Supabase project that already runs the earlier
--- database/icepik_schema.sql. It only adds functions, a table and a trigger,
--- and replaces delete_my_account(), so pins, votes, profile totals and
--- accounts all stay. It is safe to run more than once. A fresh project
--- doesn't need it: run database/icepik_schema.sql, which already includes
--- all of this.
+-- database/icepik_schema.sql. It adds functions, a table and a trigger, and
+-- replaces delete_my_account(), so pins, votes, profile totals and accounts
+-- all stay. It runs as one transaction (if any statement fails, nothing
+-- changes) and is safe to run more than once. A fresh project doesn't need
+-- it: database/icepik_schema.sql already includes all of this.
 --
--- Step 1. Run this query on its own first, and report the number:
+-- Do these steps in order.
+--
+-- Step 0. On a scratch Supabase project, run scripts/supabase-live-checks.mjs
+--   (its header says how to set the project up). Don't go on unless every
+--   check passes. To rehearse the upgrade itself, set the scratch project up
+--   with the earlier schema and this file instead of the full schema.
+--
+-- Step 1. Deploy the app version that ships with this file to Production
+--   first. Its "Delete my account" asks a saved account for its password,
+--   which this file starts to require, and it works with the old database
+--   too. Set NEXT_PUBLIC_TURNSTILE_SITE_KEY in every Vercel environment that
+--   uses this Supabase project, redeploy, and check that the Turnstile check
+--   appears on the live site. CAPTCHA isn't on yet, so nothing changes for
+--   users.
+--
+-- Step 2. Run this query on its own and note the number:
 --
 --   select count(*) from auth.users
 --   where nullif(email, '') is not null
 --     and email !~ '^[a-z0-9_]{3,20}@icepik\.invalid$';
 --
---   It counts saved accounts whose login ID breaks the new username rule
---   (3 to 20 lowercase letters, numbers or underscores). The new trigger
---   leaves those accounts alone, since it checks only new and changed login
---   IDs, and they can still log in. But they can never use "Forgot password?",
---   because the reset only accepts usernames that follow the rule.
+--   It counts saved accounts whose login ID breaks the username rule (3 to 20
+--   lowercase letters, numbers or underscores, then @icepik.invalid), most
+--   likely the email accounts made while testing the starter. The app's Log
+--   in, Delete my account and Forgot password screens all refuse them. If the
+--   number isn't 0, list them (select id, email, created_at from auth.users
+--   where ... the same condition) and, before Step 3, delete each one in
+--   Authentication -> Users, or rename it to a valid username@icepik.invalid
+--   with the admin API. Once this file has run, they can still be deleted but
+--   no longer renamed.
 --
--- Step 2. Run this whole file (SQL Editor -> New query -> paste -> Run).
---   It runs as one transaction: if any statement fails, nothing changes.
+-- Step 3. Run this whole file (SQL Editor -> New query -> paste -> Run). The
+--   last statement shows the same count as Step 2, which should now be 0.
 --
--- Step 3. Turn on the dashboard settings listed at the top of
---   database/icepik_schema.sql, in this order: Minimum password length 15,
---   Require current password ON, CAPTCHA ON (required), then the Send Email
---   hook (Hooks -> Send Email -> Postgres -> public.block_auth_emails).
---   The hook needs the function this file creates.
+-- Step 4. Dashboard settings, in this order (all listed at the top of
+--   database/icepik_schema.sql): Authentication -> Attack Protection ->
+--   CAPTCHA with provider Turnstile and the widget's secret key, then turn it
+--   on; Minimum password length 15; Require current password when changing
+--   password ON; then Hooks -> Send Email -> Postgres ->
+--   public.block_auth_emails (it needs the function this file creates).
+--
+-- Step 5. Smoke test: open the live site in a private window, accept the
+--   terms, and check that a new anonymous user appears in Authentication ->
+--   Users.
+--
+-- If the username trigger ever blocks Supabase Auth, run
+--   drop function public.check_login_id() cascade;
+-- then fix it and run this file again.
 -- =====================================================================
 
 begin;
-
--- Same count as step 1, shown as a notice in the results.
-do $$
-declare
-  rule_breakers bigint;
-begin
-  select count(*) into rule_breakers from auth.users
-  where nullif(email, '') is not null
-    and email !~ '^[a-z0-9_]{3,20}@icepik\.invalid$';
-  raise notice 'Saved accounts whose login ID breaks the username rule: %', rule_breakers;
-end;
-$$;
 
 create extension if not exists pgcrypto with schema extensions;
 
@@ -52,11 +68,15 @@ create extension if not exists pgcrypto with schema extensions;
 -- Password sign-in check, shared by create_recovery_key and delete_my_account
 -- ---------------------------------------------------------------------
 
--- True when this session signed in with its password in the last 10 minutes.
--- Supabase writes how and when a session signed in into the access token's
--- amr claim, e.g. [{"method": "password", "timestamp": 1794614400}]; a
--- refreshed token keeps the original sign-in time. Functions that someone
--- holding an unlocked phone shouldn't run without the password check this.
+-- True when this session signed in with its password in the last 10 minutes
+-- and still exists. Supabase writes how and when a session signed in into the
+-- access token's amr claim, e.g. [{"method": "password", "timestamp": 1794614400}];
+-- a refreshed token keeps the original sign-in time. The session check matters
+-- because the database accepts an access token until it expires (1 hour by
+-- default), even after a password reset or sign-out has ended its session.
+-- Functions that someone holding an unlocked phone shouldn't run without the
+-- password check this. Only security definer functions call it, so it reads
+-- auth.sessions as their owner.
 create or replace function public.signed_in_with_password_recently()
 returns boolean
 language sql
@@ -64,10 +84,15 @@ stable
 set search_path = ''
 as $$
   select case
-    when jsonb_typeof(auth.jwt() -> 'amr') = 'array' then exists (
-      select 1 from jsonb_array_elements(auth.jwt() -> 'amr') m
-      where m ->> 'method' = 'password'
-        and (m ->> 'timestamp')::numeric > extract(epoch from now()) - 600)
+    when jsonb_typeof(auth.jwt() -> 'amr') = 'array' then
+      exists (
+        select 1 from jsonb_array_elements(auth.jwt() -> 'amr') m
+        where m ->> 'method' = 'password'
+          and (m ->> 'timestamp')::numeric > extract(epoch from now()) - 600)
+      and exists (
+        select 1 from auth.sessions s
+        where s.user_id = auth.uid()
+          and s.id::text = auth.jwt() ->> 'session_id')
     else false
   end;
 $$;
@@ -86,12 +111,23 @@ revoke execute on function public.signed_in_with_password_recently() from public
 -- unlocked phone from renaming the account so its owner can't log in or reset
 -- the password. Supabase reports a refusal here only as "Database error ..."
 -- (code unexpected_failure), so the app checks the username before saving.
+-- Supabase Auth's own soft delete overwrites the email and phone with hashes,
+-- so that one update is let through.
+-- If this trigger ever blocks Supabase Auth, run
+--   drop function public.check_login_id() cascade;
+-- (drop trigger is refused: Supabase's Auth role owns auth.users), then fix it
+-- and run the migration again to put it back.
 create or replace function public.check_login_id()
 returns trigger
 language plpgsql
 set search_path = ''
 as $$
 begin
+  if tg_op = 'UPDATE' and (to_jsonb(new) ->> 'deleted_at') is not null
+     and (to_jsonb(old) ->> 'deleted_at') is null then
+    return new;
+  end if;
+
   if tg_op = 'UPDATE' and nullif(old.email, '') is not null
      and new.email is distinct from old.email then
     raise exception 'A saved username can''t be changed.';
@@ -152,6 +188,7 @@ as $$
       'message', 'ICEPik does not send email.'))
   end;
 $$;
+
 grant usage on schema public to supabase_auth_admin;
 grant execute on function public.block_auth_emails(jsonb) to supabase_auth_admin;
 revoke execute on function public.block_auth_emails(jsonb) from authenticated, anon, public;
@@ -258,7 +295,7 @@ grant execute on function public.check_recovery_key(text, text) to service_role;
 
 
 -- ---------------------------------------------------------------------
--- Deleting a saved account now needs a password sign-in in the last 10 minutes
+-- Deleting a saved account now needs a recent password sign-in
 -- ---------------------------------------------------------------------
 
 -- Permanently delete the signed-in user's account (Settings page).
@@ -294,3 +331,8 @@ revoke execute on function public.delete_my_account() from public, anon;
 grant execute on function public.delete_my_account() to authenticated;
 
 commit;
+
+-- Saved accounts whose login ID breaks the username rule (Step 2): should be 0.
+select count(*) as rule_breaking_login_ids from auth.users
+where nullif(email, '') is not null
+  and email !~ '^[a-z0-9_]{3,20}@icepik\.invalid$';

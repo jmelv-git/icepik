@@ -7,12 +7,13 @@ import type { User } from "@supabase/supabase-js";
 const LOGIN_DOMAIN = "@icepik.invalid";
 
 export const USERNAME_RULES = "3 to 20 lowercase letters, numbers or underscores";
-export const PASSWORD_RULES = "15 to 72 characters. A few random words work well";
+export const PASSWORD_RULES = "At least 15 characters. A few random words work well";
 // NIST's minimum when a password is an account's only protection. Supabase
-// enforces the same minimum (Authentication -> Minimum password length).
+// enforces the same minimum (Authentication -> Minimum password length) and
+// counts it in characters (Unicode code points), as this file does.
 const MIN_PASSWORD_LENGTH = 15;
-// Supabase stores passwords with bcrypt, which reads only the first 72 bytes.
-// Letters with accents and emoji take 2 to 4 bytes each.
+// Supabase refuses passwords over 72 bytes (bcrypt's limit). Letters with
+// accents take 2 bytes and emoji 4, so a password with them fits fewer.
 const MAX_PASSWORD_BYTES = 72;
 
 export function normalizeUsername(input: string) {
@@ -36,10 +37,13 @@ export function checkUsername(username: string) {
 }
 
 export function checkPassword(password: string) {
-  return password.length >= MIN_PASSWORD_LENGTH &&
-    new TextEncoder().encode(password).length <= MAX_PASSWORD_BYTES
-    ? null
-    : `Use a password of ${PASSWORD_RULES}.`;
+  if (Array.from(password).length < MIN_PASSWORD_LENGTH) {
+    return "Use a password of at least 15 characters. A few random words work well.";
+  }
+  if (new TextEncoder().encode(password).length > MAX_PASSWORD_BYTES) {
+    return "That password is too long. Use up to 72 characters, fewer if it has accented letters or emoji.";
+  }
+  return null;
 }
 
 // Supabase Auth errors carry a stable `code`; never match on the message.

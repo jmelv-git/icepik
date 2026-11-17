@@ -559,8 +559,10 @@ function DeleteAccount({ supabase, user, onNotice, onClose, onBack }: Props & { 
   // A saved account must sign in with its password first: the database
   // deletes one only within 10 minutes of a password sign-in, so someone
   // holding an unlocked phone can't delete it. Anonymous accounts have no
-  // password.
-  const username = usernameOf(user);
+  // password. "Saved" means the same as in the database: the account has a
+  // login ID, which is also what the sign-in uses.
+  const loginId = user?.email ? user.email : null;
+  const username = usernameOf(user) ?? loginId;
   const [password, setPassword] = useState("");
   const [token, setToken] = useState<string | null>(null);
   const [captchaReset, setCaptchaReset] = useState(0);
@@ -572,7 +574,7 @@ function DeleteAccount({ supabase, user, onNotice, onClose, onBack }: Props & { 
 
   async function deleteAccount(event: React.FormEvent) {
     event.preventDefault();
-    if (username !== null && !password) {
+    if (loginId !== null && !password) {
       setWrongPassword(true);
       return setMessage("Enter your password to delete this account.");
     }
@@ -580,9 +582,12 @@ function DeleteAccount({ supabase, user, onNotice, onClose, onBack }: Props & { 
     setBusy(true);
     setMessage(null);
     setWrongPassword(false);
-    if (username !== null) {
+    if (loginId !== null) {
+      const {
+        data: { session: before },
+      } = await supabase.auth.getSession();
       const { error } = await supabase.auth.signInWithPassword({
-        email: loginIdFor(username),
+        email: loginId,
         password,
         options: token ? { captchaToken: token } : undefined,
       });
@@ -595,6 +600,10 @@ function DeleteAccount({ supabase, user, onNotice, onClose, onBack }: Props & { 
           error.code === "invalid_credentials" ? "That password is wrong." : authErrorMessage(error),
         );
       }
+      // Signing in started a new session. End the one it replaced, so its
+      // IP address and browser don't stay on the server if deleting fails.
+      // This only needs that session's own token, not a secret key.
+      if (before) await supabase.auth.admin.signOut(before.access_token, "local").catch(() => undefined);
     }
 
     const { error } = await supabase.rpc("delete_my_account");
@@ -617,8 +626,10 @@ function DeleteAccount({ supabase, user, onNotice, onClose, onBack }: Props & { 
         record of what you posted and voted on. Your sightings stay on the map until they expire,
         with no link to you. This can&apos;t be undone.
       </p>
-      {username !== null ? (
+      {loginId !== null ? (
         <>
+          {/* Tells password managers which saved login to fill. */}
+          <input type="text" name="username" autoComplete="username" value={username ?? ""} readOnly hidden />
           <label>
             Password for {username}
             <input
@@ -653,7 +664,7 @@ function DeleteAccount({ supabase, user, onNotice, onClose, onBack }: Props & { 
         <button
           type="submit"
           className="danger-button"
-          disabled={busy || (username !== null && captchaEnabled && !token)}
+          disabled={busy || (loginId !== null && captchaEnabled && !token)}
         >
           {busy ? "Deleting…" : "Delete my account"}
         </button>

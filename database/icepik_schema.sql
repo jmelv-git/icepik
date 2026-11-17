@@ -14,12 +14,16 @@
 --   2. Sign In / Providers -> Email -> "Confirm email": OFF
 --      Lets an anonymous user save their account with a username + password
 --      (no real email inbox needed). See "Saving an account" below.
---   3. Attack Protection -> CAPTCHA: ON (required)
---      Without it, one person can create many throwaway accounts to fake
---      confirmations or get around the posting limit, and anyone can check
---      whether a username has an account: saving ("That username is taken")
---      and Supabase's own password-reset endpoint answer differently for a
---      username that exists. CAPTCHA is the only brake on both.
+--   3. Attack Protection -> CAPTCHA: ON (required), provider Turnstile
+--      It guards account creation, password sign-in and Supabase's own
+--      password-reset endpoint. Without it, one person can create many
+--      throwaway accounts to fake confirmations or get around the posting
+--      limit, and anyone can check whether a username has an account
+--      (that endpoint answers differently for a username that exists).
+--      Saving an account ("That username is taken") has no CAPTCHA; only
+--      Supabase's per-IP rate limits (Authentication -> Rate Limits) slow
+--      checks made that way. Put the Turnstile site key in the app's build
+--      before turning CAPTCHA on, or every sign-in fails.
 --   4. Audit Logs -> "Write audit logs to the database": OFF
 --      Otherwise every sign-in's IP address is copied into auth.audit_log_entries.
 --      Supabase Auth still keeps each session's latest IP address and browser
@@ -186,11 +190,15 @@ as $$
 $$;
 
 
--- True when this session signed in with its password in the last 10 minutes.
--- Supabase writes how and when a session signed in into the access token's
--- amr claim, e.g. [{"method": "password", "timestamp": 1794614400}]; a
--- refreshed token keeps the original sign-in time. Functions that someone
--- holding an unlocked phone shouldn't run without the password check this.
+-- True when this session signed in with its password in the last 10 minutes
+-- and still exists. Supabase writes how and when a session signed in into the
+-- access token's amr claim, e.g. [{"method": "password", "timestamp": 1794614400}];
+-- a refreshed token keeps the original sign-in time. The session check matters
+-- because the database accepts an access token until it expires (1 hour by
+-- default), even after a password reset or sign-out has ended its session.
+-- Functions that someone holding an unlocked phone shouldn't run without the
+-- password check this. Only security definer functions call it, so it reads
+-- auth.sessions as their owner.
 create function public.signed_in_with_password_recently()
 returns boolean
 language sql
@@ -198,10 +206,15 @@ stable
 set search_path = ''
 as $$
   select case
-    when jsonb_typeof(auth.jwt() -> 'amr') = 'array' then exists (
-      select 1 from jsonb_array_elements(auth.jwt() -> 'amr') m
-      where m ->> 'method' = 'password'
-        and (m ->> 'timestamp')::numeric > extract(epoch from now()) - 600)
+    when jsonb_typeof(auth.jwt() -> 'amr') = 'array' then
+      exists (
+        select 1 from jsonb_array_elements(auth.jwt() -> 'amr') m
+        where m ->> 'method' = 'password'
+          and (m ->> 'timestamp')::numeric > extract(epoch from now()) - 600)
+      and exists (
+        select 1 from auth.sessions s
+        where s.user_id = auth.uid()
+          and s.id::text = auth.jwt() ->> 'session_id')
     else false
   end;
 $$;
@@ -241,12 +254,23 @@ on conflict (id) do nothing;
 -- unlocked phone from renaming the account so its owner can't log in or reset
 -- the password. Supabase reports a refusal here only as "Database error ..."
 -- (code unexpected_failure), so the app checks the username before saving.
+-- Supabase Auth's own soft delete overwrites the email and phone with hashes,
+-- so that one update is let through.
+-- If this trigger ever blocks Supabase Auth, run
+--   drop function public.check_login_id() cascade;
+-- (drop trigger is refused: Supabase's Auth role owns auth.users), then fix it
+-- and run the migration again to put it back.
 create function public.check_login_id()
 returns trigger
 language plpgsql
 set search_path = ''
 as $$
 begin
+  if tg_op = 'UPDATE' and (to_jsonb(new) ->> 'deleted_at') is not null
+     and (to_jsonb(old) ->> 'deleted_at') is null then
+    return new;
+  end if;
+
   if tg_op = 'UPDATE' and nullif(old.email, '') is not null
      and new.email is distinct from old.email then
     raise exception 'A saved username can''t be changed.';
@@ -624,8 +648,10 @@ revoke execute on function public.block_auth_emails(jsonb) from authenticated, a
 -- they enter their username, the key and a new password. The server action
 -- resetPasswordWithRecoveryKey checks the pair, sets the new password with
 -- the secret key and replaces the used key with a new one shown on the spot.
--- The reset ends every session on the account; a device that is already
--- signed in keeps working until its access token expires (1 hour by default).
+-- The reset ends every session on the account. A device that is already
+-- signed in can still read and post until its access token expires (1 hour
+-- by default), but it can no longer make a recovery key or delete the account:
+-- those check that the token's session still exists.
 
 create extension if not exists pgcrypto with schema extensions;
 

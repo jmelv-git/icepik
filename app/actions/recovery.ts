@@ -19,6 +19,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 // One answer for unknown usernames and wrong keys.
 const NO_MATCH = "That username and recovery key don't match.";
 const TRY_AGAIN = "Something went wrong. Please try again.";
+const KEY_NOT_REPLACED =
+  "Your password was changed, but ICEPik couldn't make your new recovery key. Reset again with the same key to get one.";
 
 export async function resetPasswordWithRecoveryKey(input: {
   username: string;
@@ -50,8 +52,9 @@ export async function resetPasswordWithRecoveryKey(input: {
   if (!userId) return { ok: false, message: NO_MATCH };
 
   // Sets the password and ends every session for this account, including on a
-  // lost or seized phone. A device that's already signed in keeps working
-  // until its access token expires (the JWT expiry, 1 hour by default).
+  // lost or seized phone. A device that's already signed in can still read and
+  // post until its access token expires (the JWT expiry, 1 hour by default),
+  // but it can't make a recovery key or delete the account.
   const { error: passwordError } = await admin.auth.admin.updateUserById(userId, {
     password: newPassword,
   });
@@ -62,12 +65,14 @@ export async function resetPasswordWithRecoveryKey(input: {
     };
   }
 
-  // Replace the used key. If this fails, the old key still works, so trying
-  // again with it is safe.
-  const { data: newRecoveryKey, error: keyError } = await admin.rpc("replace_recovery_key", {
-    p_user_id: userId,
-  });
-  if (keyError || !newRecoveryKey) return { ok: false, message: TRY_AGAIN };
-
-  return { ok: true, data: { newRecoveryKey } };
+  // Replace the used key, trying twice. The password has already changed, so
+  // if both tries fail, say so: the used key still works, and resetting again
+  // with it gives a new one.
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const { data: newRecoveryKey, error: keyError } = await admin.rpc("replace_recovery_key", {
+      p_user_id: userId,
+    });
+    if (!keyError && newRecoveryKey) return { ok: true, data: { newRecoveryKey } };
+  }
+  return { ok: false, message: KEY_NOT_REPLACED };
 }

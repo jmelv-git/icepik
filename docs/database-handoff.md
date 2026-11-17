@@ -10,7 +10,7 @@ The ICEPik backend is ready for the MVP: a Supabase Postgres database with five 
 
 - Handoff package: `icepik-handoff.zip` holds every file below, a PDF of this doc and a README.
 - Schema: `icepik_schema.sql`, run once in Supabase's SQL Editor.
-- Upgrade a project that already has data: `database/migrations/20261116_recovery_keys.sql`. It only adds things and keeps every pin, vote and account.
+- Upgrade a project that already has data: `database/migrations/20261116_recovery_keys.sql`. It adds the recovery-key parts and replaces delete\_my\_account(), and keeps every pin, vote and account. Follow the order under "Existing project".
 - Live checks for a scratch Supabase project: `scripts/supabase-live-checks.mjs`.
 - Server code: `lib/supabase/server.ts`, `lib/supabase/admin.ts`, `app/actions/sightings.ts` and `app/actions/recovery.ts`, also printed under "How to call it".
 - Diagram, access rules and copyable SQL: [ICEPik Database Map](https://claude.ai/artifact/8dMTG4gPJUmLJvZ2vKpZaS), or `icepik-database-map.html` in the package.
@@ -24,16 +24,16 @@ Confirm these eight Supabase settings with the backend owner, then set up the cl
 | --- | --- | --- |
 | Sign In / Providers → Allow anonymous sign-ins | On | The app creates an account silently once the user accepts the terms |
 | Sign In / Providers → Email → Confirm email | Off | Lets users save a username and password without an inbox |
-| Attack Protection → CAPTCHA | On (required) | The only brake on throwaway accounts used to fake confirmations, and on checking whether a username exists. The app sends a `captchaToken` when signing in |
+| Attack Protection → CAPTCHA | On (required) | Guards account creation, password sign-in and Supabase's own password reset against throwaway accounts and username checks. The app sends a `captchaToken` with each of those calls. Put the Turnstile site key in the app's build before turning CAPTCHA on, or every sign-in fails |
 | Audit Logs → Write audit logs to the database | Off | Otherwise every sign-in's IP address is also copied into the database. Each session's latest IP still stays in auth.sessions (see the known gaps) |
 | Hooks → Send Email → Postgres function block\_auth\_emails | On | Supabase never creates an emailed reset or sign-in code, so there is no hidden code to guess for a known username |
 | Sign In / Providers → Email → Secure password change | Off | It emails a code to the account's address, which can never arrive; saving an account would fail once a session is a day old |
 | Sign In / Providers → Email → Minimum password length | 15 | NIST's minimum when the password is an account's only protection |
 | Sign In / Providers → Email → Require current password when changing password | On | Someone holding an unlocked phone can't change the password without knowing it |
 
-**Secret key.** The password reset needs Supabase's secret key (`sb_secret_…`; the older service\_role keys are being retired at the end of 2026). Add it in Vercel as `SUPABASE_SECRET_KEY` to the **Production** environment only, with **Sensitive** turned on: never to Preview or Development, and never with a `NEXT_PUBLIC_` name. Only `lib/supabase/admin.ts` reads it; on a deployment without it, the reset answers that it isn't available. The key skips every database rule, so a leak would expose the private links between people and pins, and every account. If it leaks, make a new secret key in Supabase and delete the old one.
+**Secret key.** The password reset needs Supabase's secret key (`sb_secret_…`; the older service\_role keys are being retired at the end of 2026). Add it in Vercel as `SUPABASE_SECRET_KEY` to the **Production** environment only, with **Sensitive** turned on: never to Preview or Development or a developer's .env.local (use a scratch project's keys to try the reset locally), and never with a `NEXT_PUBLIC_` name. Only `lib/supabase/admin.ts` reads it; on a deployment without it, the reset answers that it isn't available. The key skips every database rule, so a leak would expose the private links between people and pins, and every account. If it leaks, make a new secret key in Supabase and delete the old one.
 
-**Existing project.** If the project already runs an earlier version of the schema, don't run the whole schema again or its "Starting over" lines: they delete every pin, vote and profile total. First run the count query at the top of `database/migrations/20261116_recovery_keys.sql` and note the number: saved accounts whose username breaks the new rule can still log in but can never reset a password. Then run the whole file. It's one transaction, so a failure changes nothing, and it's safe to run twice.
+**Existing project.** The live project already has data, so upgrade it with `database/migrations/20261116_recovery_keys.sql`, never the whole schema or its "Starting over" lines, which delete every pin, vote and profile total. The file's header has the steps; do them in this order. (0) Run `scripts/supabase-live-checks.mjs` on a scratch project, and stop unless every check passes. (1) Deploy the app version that ships with the migration, with `NEXT_PUBLIC_TURNSTILE_SITE_KEY` set, and check that the Turnstile check appears: its "Delete my account" asks a saved account for its password, which the migration starts to require, and it works with the old database too. (2) Count the saved accounts whose login ID breaks the username rule, and delete or rename them: once the migration has run they can be deleted but no longer renamed. The app can't log them in, delete them or reset their password. (3) Run the migration. (4) Turn on the settings above, CAPTCHA only once the site key is live. (5) Open the site in a private window, accept the terms, and check that a new anonymous user appears.
 
 **Client.** Set up supabase-js with `@supabase/ssr`, the way Supabase's [Next.js guide](https://supabase.com/docs/guides/auth/server-side/nextjs) does: `createBrowserClient` in client components, and `createServerClient` with cookies in server code and middleware. The saved session *is* the anonymous account: if its cookie isn't kept, the user loses their account and their posts.
 
@@ -109,8 +109,8 @@ The app reads active pins (signed in or not) and inserts new ones. It deletes it
 | `vote_on_sighting(target_sighting_id, my_vote, my_lat, my_lng)` | Signed in | Called by the voteOnSighting server action. Confirms or disputes after checking the voter is within 1 km; returns the updated pin |
 | `delete_my_sighting(target_sighting_id)` | Signed in | Called by the deleteSighting server action. Deletes your own active pin |
 | `set_my_language(new_language)` | Signed in | Changes your language setting |
-| `delete_my_account()` | Signed in | Deletes the account and its private records; its pins stay on the map. A saved account needs a password sign-in in the last 10 minutes |
-| `create_recovery_key()` | Saved accounts, within 10 minutes of a password sign-in | Creates or replaces your recovery key and returns it once; any older key stops working |
+| `delete_my_account()` | Signed in | Deletes the account and its private records; its pins stay on the map. A saved account needs a password sign-in in the last 10 minutes, from a session that still exists |
+| `create_recovery_key()` | Saved accounts, within 10 minutes of a password sign-in, from a session that still exists | Creates or replaces your recovery key and returns it once; any older key stops working |
 | `has_recovery_key()` | Signed in | Whether you have a recovery key; ask a saved account without one to make one |
 | `check_recovery_key(p_username, p_key)` | Server only (secret key) | The account id when the username and key match, otherwise nothing |
 | `replace_recovery_key(p_user_id)` | Server only (secret key) | Gives the account a new key after a reset and returns it once |
@@ -365,6 +365,8 @@ const USERNAME = /^[a-z0-9_]{3,20}$/
 // One answer for unknown usernames and wrong keys.
 const NO_MATCH = "That username and recovery key don't match."
 const TRY_AGAIN = 'Something went wrong. Please try again.'
+const KEY_NOT_REPLACED =
+  "Your password was changed, but ICEPik couldn't make your new recovery key. Reset again with the same key to get one."
 
 export async function resetPasswordWithRecoveryKey(input: {
   username: string
@@ -381,9 +383,13 @@ export async function resetPasswordWithRecoveryKey(input: {
   if (!USERNAME.test(username) || recoveryKey.length === 0 || recoveryKey.length > 64) {
     return { ok: false, message: NO_MATCH }
   }
-  // bcrypt, which stores Supabase passwords, only uses the first 72 bytes.
-  if (newPassword.length < 15 || new TextEncoder().encode(newPassword).length > 72) {
-    return { ok: false, message: 'Use a password of 15 to 72 characters. A few random words work well.' }
+  // Counted the way Supabase counts: at least 15 characters (code points), and
+  // at most 72 bytes, bcrypt's limit, which Supabase refuses to go over.
+  if (Array.from(newPassword).length < 15) {
+    return { ok: false, message: 'Use a password of at least 15 characters. A few random words work well.' }
+  }
+  if (new TextEncoder().encode(newPassword).length > 72) {
+    return { ok: false, message: 'That password is too long. Use up to 72 characters, fewer if it has accented letters or emoji.' }
   }
 
   // Only Vercel's Production environment has the secret key.
@@ -398,8 +404,9 @@ export async function resetPasswordWithRecoveryKey(input: {
   if (!userId) return { ok: false, message: NO_MATCH }
 
   // Sets the password and ends every session for this account, including on a
-  // lost or seized phone. A device that's already signed in keeps working
-  // until its access token expires (the JWT expiry, 1 hour by default).
+  // lost or seized phone. A device that's already signed in can still read and
+  // post until its access token expires (the JWT expiry, 1 hour by default),
+  // but it can't make a recovery key or delete the account.
   const { error: passwordError } = await admin.auth.admin.updateUserById(userId, {
     password: newPassword,
   })
@@ -410,14 +417,16 @@ export async function resetPasswordWithRecoveryKey(input: {
     }
   }
 
-  // Replace the used key. If this fails, the old key still works, so trying
-  // again with it is safe.
-  const { data: newRecoveryKey, error: keyError } = await admin.rpc('replace_recovery_key', {
-    p_user_id: userId,
-  })
-  if (keyError || !newRecoveryKey) return { ok: false, message: TRY_AGAIN }
-
-  return { ok: true, data: { newRecoveryKey } }
+  // Replace the used key, trying twice. The password has already changed, so
+  // if both tries fail, say so: the used key still works, and resetting again
+  // with it gives a new one.
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const { data: newRecoveryKey, error: keyError } = await admin.rpc('replace_recovery_key', {
+      p_user_id: userId,
+    })
+    if (!keyError && newRecoveryKey) return { ok: true, data: { newRecoveryKey } }
+  }
+  return { ok: false, message: KEY_NOT_REPLACED }
 }
 ```
 
@@ -426,7 +435,8 @@ export async function resetPasswordWithRecoveryKey(input: {
 ```ts
 const { data: { session } } = await supabase.auth.getSession()
 if (!session) {
-  await supabase.auth.signInAnonymously({ options: { captchaToken } }) // only after the terms are accepted; captchaToken if CAPTCHA is on
+  // Only after the terms are accepted. CAPTCHA is required: send a fresh token.
+  await supabase.auth.signInAnonymously({ options: { captchaToken } })
 }
 ```
 
@@ -522,10 +532,12 @@ const { error } = await supabase.auth.updateUser({ password: newPassword, curren
 if (error) showAuthError(error.code) // current_password_invalid, same_password, weak_password, …
 
 // "Make a new recovery key": ask for the password and a fresh CAPTCHA token first.
-// The database makes a key only within 10 minutes of a password sign-in.
-const { data: { user } } = await supabase.auth.getUser()
-const { error: signInError } = await supabase.auth.signInWithPassword({ email: user!.email!, password, options: { captchaToken } })
+// The database makes a key only within 10 minutes of a password sign-in, and only
+// while that session exists. End the session the sign-in replaces.
+const { data: { session: before } } = await supabase.auth.getSession()
+const { error: signInError } = await supabase.auth.signInWithPassword({ email: before!.user.email!, password, options: { captchaToken } })
 if (signInError) return showAuthError(signInError.code) // invalid_credentials → "Wrong password"
+if (before) await supabase.auth.admin.signOut(before.access_token, 'local').catch(() => undefined)
 const { data: newRecoveryKey, error: keyError } = await supabase.rpc('create_recovery_key') // the old key stops working
 if (keyError) return showMessage(keyError.message)
 ```
@@ -543,9 +555,12 @@ const loginId = `${name}@icepik.invalid`
 const { error: saveError } = await supabase.auth.updateUser({ email: loginId, password })
 if (saveError) return showAuthError(saveError.code) // email_exists → "That username is taken"
 
-// Sign in with the new password (fresh CAPTCHA token), then show the recovery key once.
-// If either step fails, the account is still saved; has_recovery_key() catches it later.
-await supabase.auth.signInWithPassword({ email: loginId, password, options: { captchaToken } })
+// Sign in with the new password (fresh CAPTCHA token), end the session it replaces,
+// then show the recovery key once. If a step fails, the account is still saved;
+// has_recovery_key() catches it later.
+const { data: { session: before } } = await supabase.auth.getSession()
+const { error: signInError } = await supabase.auth.signInWithPassword({ email: loginId, password, options: { captchaToken } })
+if (!signInError && before) await supabase.auth.admin.signOut(before.access_token, 'local').catch(() => undefined)
 const { data: recoveryKey } = await supabase.rpc('create_recovery_key')
 if (recoveryKey) showKeyOnce(recoveryKey)
 else showMessage('Your account is saved. Make your recovery key in Settings.')
@@ -577,17 +592,20 @@ else {
 }
 ```
 
-A reset ends every session on the account, including on a lost or seized phone, and replaces the used key with a new one. A device that's already signed in keeps working until its access token expires (the JWT expiry, 1 hour by default). To end it sooner, have the app call supabase.auth.getUser() when it opens or comes back to the foreground, and sign out locally if that returns an error. Without the key, the account can't be recovered and the user starts a new one.
+A reset ends every session on the account, including on a lost or seized phone, and replaces the used key with a new one. A device that's already signed in can still read and post until its access token expires (the JWT expiry, 1 hour by default), but it can't make a recovery key or delete the account: those check that its session still exists. To sign it out sooner, call `supabase.auth.getUser()` when the app opens or comes back to the foreground: supabase-js clears the session itself when Supabase says it no longer exists. Don't sign out on any other error, such as being offline: for an unsaved account that would lose it for good. Without the key, the account can't be recovered and the user starts a new one.
 
 ### Delete the account
 
 ```ts
-// A saved account signs in with its password first (fresh CAPTCHA token): the
-// database deletes one only within 10 minutes of a password sign-in.
-// Anonymous accounts have no password and skip this step.
-if (!user.is_anonymous) {
-  const { error: signInError } = await supabase.auth.signInWithPassword({ email: user.email!, password, options: { captchaToken } })
+// A saved account (one with a login ID) signs in with its password first, with a
+// fresh CAPTCHA token: the database deletes one only within 10 minutes of a
+// password sign-in, from a session that still exists. Anonymous accounts skip this.
+if (user.email) {
+  const { data: { session: before } } = await supabase.auth.getSession()
+  const { error: signInError } = await supabase.auth.signInWithPassword({ email: user.email, password, options: { captchaToken } })
   if (signInError) return showAuthError(signInError.code) // invalid_credentials → "That password is wrong"
+  // End the session the sign-in replaced; this needs only that session's own token
+  if (before) await supabase.auth.admin.signOut(before.access_token, 'local').catch(() => undefined)
 }
 const { error } = await supabase.rpc('delete_my_account')
 if (error) return showMessage(error.code === 'P0001' ? error.message : 'Something went wrong. Please try again.')
@@ -611,11 +629,11 @@ The server enforces all of these. Mirror them in the app so people see a rule be
 | Verification score | (confirmations + 1) ÷ (confirmations + disputes + 2) |
 | Text limits | Label 120 characters, description 280, agent and vehicle counts 0–99 |
 | Private record cleanup | Hourly, for pins that have expired |
-| Passwords | 15 to 72 characters; Supabase stores them with bcrypt, which only uses the first 72 bytes |
+| Passwords | At least 15 characters (Supabase counts them as Unicode characters) and at most 72 bytes; Supabase refuses longer ones (bcrypt's limit). Letters with accents take 2 bytes, emoji 4 |
 | Recovery key | 128 random bits shown once as 8 groups of 4; only a SHA-256 hash is stored; single use, replaced after every reset or on request |
 | Username | 3–20 lowercase letters, numbers or underscores; can't be changed once saved |
-| Making a recovery key | Only within 10 minutes of signing in with the password |
-| Deleting a saved account | Only within 10 minutes of signing in with the password; anonymous accounts need no password |
+| Making a recovery key | Only within 10 minutes of signing in with the password, from a session that still exists |
+| Deleting a saved account | Only within 10 minutes of signing in with the password, from a session that still exists; anonymous accounts need no password |
 
 ## Errors to handle
 
@@ -644,11 +662,14 @@ ICEPik's own checks return `error.code` `P0001` with a message written for users
 | Auth `unexpected_failure` when saving | The username breaks the rule (the database refused it), or Supabase had a problem | Check the username before saving; otherwise ask them to try again |
 | "You can only delete active sightings you posted." | Deleting a pin that isn't yours, or has expired | Show Delete only on your own active pins |
 | "Save your account with a username and password first." | Asking for a recovery key on an unsaved account | Save the account first |
-| "Enter your password again to make a recovery key." | No password sign-in in the last 10 minutes | Ask for the password, sign in with it (fresh CAPTCHA token), then ask again |
-| "Enter your password again to delete your account." | Deleting a saved account with no password sign-in in the last 10 minutes | Ask for the password, sign in with it (fresh CAPTCHA token), then delete again |
+| "Enter your password again to make a recovery key." | No password sign-in in the last 10 minutes, or that session has ended (for example by a reset) | Ask for the password, sign in with it (fresh CAPTCHA token), then ask again |
+| "Enter your password again to delete your account." | Deleting a saved account with no password sign-in in the last 10 minutes, or from a session that has ended | Ask for the password, sign in with it (fresh CAPTCHA token), then delete again |
 | "That username and recovery key don't match." | Wrong key, unknown username, or a key that was already used | Let them try again; the answer is the same in every case |
-| "Use a password of 15 to 72 characters. A few random words work well." | New password too short or too long | Show the length rule next to the field |
+| "Use a password of at least 15 characters. A few random words work well." | New password under 15 characters | Show the rule next to the field |
+| "That password is too long. Use up to 72 characters, fewer if it has accented letters or emoji." | New password over 72 bytes | Show the rule next to the field |
 | "Choose a stronger password." | Supabase rejected the new password as weak | Suggest a longer passphrase; the key was not used up |
+| "Your password was changed, but ICEPik couldn't make your new recovery key. Reset again with the same key to get one." | The reset worked but making the new key failed twice | Show it as is; the used key still works once more |
+| "Password reset isn't available on this version of the site." | A deployment without `SUPABASE_SECRET_KEY` (Preview or local) | Expected outside Production; test the reset there or on the scratch project |
 
 ## What we need from you
 
@@ -673,7 +694,7 @@ Supabase, Vercel and CARTO's tile servers all see every visitor's IP address and
 - **Load the map only after the user agrees to the privacy policy.** Leaflet fetches CARTO's Positron tiles from `*.basemaps.cartocdn.com` (through `leaflet-providers`, with the free key in `NEXT_PUBLIC_CARTO_KEY`), whose servers record each visitor's IP and which tiles, and so which area, they load. Keep the OpenStreetMap and CARTO attribution visible. CARTO's terms forbid proxying or caching tiles on a server.
 - **Keep the browser's default referrer policy.** `strict-origin-when-cross-origin` sends other sites only your domain, never the page path. Don't use `no-referrer`: a CARTO key restricted to your website is checked against the Referer.
 - **Geocode on the server.** Call the reverse geocoder (and Google Translate, later) from a route handler with only the rounded point, so the provider sees Vercel's IP. Never `console.log` request bodies or coordinates: Vercel keeps runtime logs.
-- **Protect shared devices.** Add "Clear this device" in Settings to delete saved places and sign out. If the account isn't saved, say that this ends it for good and offer Save account first; if they go ahead, call delete\_my\_account() before signing out so nothing is left behind. Keep street names out of page titles, which show in tabs and history.
+- **Protect shared devices.** Add "Clear this device" in Settings to delete saved places and sign out. If the account isn't saved, say that this ends it for good and offer Save account first. Keep street names out of page titles, which show in tabs and history.
 - **Don't drop new pins on the reporter's GPS position.** Let them place the pin, and suggest posting after they've left the area: a fresh pin shows roughly where its reporter is standing.
 
 ### Keep the server actions safe
@@ -708,10 +729,10 @@ Server actions are public endpoints: anyone can call one directly with any input
 ### Accounts
 
 - On the first visit, show the terms of service and privacy policy before anything else loads: no sign-in, map tiles or CAPTCHA yet. Once the user agrees, sign in anonymously and go straight to the map, with no sign-up screen. Keep the accepted policy version in localStorage, ask again when it changes, and send nothing about the agreement to the server.
-- Put "Save account" and "Log in" in Settings. Usernames are 3–20 lowercase letters, numbers and underscores, and can't be changed once saved. Check the format before saving: the database refuses anything else, but Supabase reports that only as a generic error. Passwords are 15 to 72 characters; suggest a few random words.
+- Put "Save account" and "Log in" in Settings. Usernames are 3–20 lowercase letters, numbers and underscores, and can't be changed once saved. Check the format before saving: the database refuses anything else, but Supabase reports that only as a generic error. Passwords need at least 15 characters and at most 72 bytes (letters with accents take 2, emoji 4); suggest a few random words.
 - On the save screen, warn people not to use their real name. Then show the recovery key once: offer Copy, tell them to write it on paper or keep it in a password manager (not in a file or note on this device), and ask them to confirm they've stored it. Say plainly that anyone holding the key can reset the password, and that without it a forgotten password means a new account.
 - Put "Delete my account" in Settings with a confirmation step. Users must be able to erase their account and its private records themselves. For a saved account, ask for the password and sign in with it first (fresh CAPTCHA token): the database deletes a saved account only within 10 minutes of a password sign-in.
-- If CAPTCHA is on, pass a `captchaToken` to `signInAnonymously` and `signInWithPassword`. Each token works once, so get a fresh one for every call.
+- CAPTCHA is required: pass a `captchaToken` to every `signInAnonymously` and `signInWithPassword` call. Each token works once, so get a fresh one for every call.
 - Put "Forgot password?" on the log-in screen: username, recovery key and a new password, then show the new key once.
 - In Settings, add "Make a new recovery key" for when someone thinks theirs was seen. It asks for the password and signs in with it first, because the database makes a key only within 10 minutes of a password sign-in. Ask for the current password when changing the password too.
 - After a saved account logs in, call has\_recovery\_key(). If it returns false (an interrupted save, or an account from before recovery keys), ask once to make one.
@@ -746,10 +767,11 @@ These are outside the MVP schema. Ask before building screens that need them.
 - **Stretch features with no tables yet:** notifications, local news, live streaming and translated text. Only `preferred_language` is stored. Light mode needs nothing from the database.
 - **Out of scope in the PRD:** comments and followers.
 - **No moderation:** there's no "report this pin" flow. For now, admins delete harmful posts in Supabase's Table Editor. A report button needs a new table, so ask first.
-- **Run the live checks before building the recovery screens.** The database was tested on a local copy, not on Supabase itself. `scripts/supabase-live-checks.mjs` runs against a scratch Supabase project set up like production (its header lists the settings) and checks what this design depends on: anonymous sign-in with the new trigger on `auth.users`, saving an account while "Require current password" is on, the `amr` claim after a sign-in and after a refresh, that a reset ends every session, that Supabase's own "forgot password" stores no code, and the rules for making a key and deleting an account. Supabase Auth's source already shows two of these: the current-password check applies only to users who already have a password (`internal/api/user.go`), and an admin password change logs out every session (`internal/api/admin.go` calls `UpdatePassword` with no session, which runs `Logout`). The hourly cleanup job also hasn't run on Supabase yet.
-- **Supabase's own logs** record each request's IP address, a rough location worked out from it, the full URL and the user id from the session token. They're kept about 1 day on the Free plan and 7 days on Pro, and Pro's daily backups keep deleted rows for 7 days. Server actions hide the user's IP but not their user id, so while logs are kept they can match a user's posts and votes to their browser requests, which carry their IP, and a post's time to its public `created_at`. Supabase Auth also keeps each device's latest IP address and browser in `auth.sessions` until that device signs out; that can't be turned off. Vercel also sees every visitor's IP. A subpoena or warrant can demand all of it, so tell users plainly what is kept instead of promising complete anonymity. CARTO's tile servers and its delivery network (Fastly) also see each visitor's IP and the area they view. Fastly keeps full client IPs for up to two business days (seven when tied to transmission errors, at least a year when tied to activity it flags as suspicious). CARTO shortens IP addresses before logging them and keeps those logs for 30 days in the US. Its terms forbid proxying its tiles, so hiding visitors' IPs from the tile server would mean hosting your own tiles, which isn't decided yet.
-- **Anyone can check whether a username exists.** Saving ("That username is taken") and Supabase's own password-reset endpoint answer differently for a username that has an account. CAPTCHA, now required, is the only brake. Tell people not to pick a username that identifies them.
-- **"Verified" can be faked.** The voter's location is whatever the app sends, and anonymous accounts are free, so two throwaway accounts can verify a false pin or keep it on the map. This was true before the recovery-key changes. CAPTCHA on account creation is the only brake; stronger checks, such as device attestation, would cost anonymity, so ask before adding them.
+- **Run the live checks before upgrading the live project.** The database was tested on a local copy, not on Supabase itself. `scripts/supabase-live-checks.mjs` runs against a scratch Supabase project set up like production (its header lists the settings) and checks what this design depends on: CAPTCHA and "Require current password" really on, anonymous sign-in with the new trigger on `auth.users`, saving an anonymous account, the `amr` claim after a sign-in and after a refresh, that a reset ends every session and that the old tokens of those sessions can't make a key or delete the account, that Supabase's own "forgot password" is refused by the hook and stores no code, and the delete rules. Supabase Auth's source already shows two of these: the current-password check applies only to users who already have a password (`internal/api/user.go`), and an admin password change logs out every session (`internal/api/admin.go` calls `UpdatePassword` with no session, which runs `Logout`). The hourly cleanup job also hasn't run on Supabase yet.
+- **Supabase's own logs** record each request's IP address, a rough location worked out from it, the full URL and the user id from the session token. They're kept about 1 day on the Free plan and 7 days on Pro, and Pro's daily backups keep deleted rows for 7 days. Server actions hide the user's IP but not their user id, so while logs are kept they can match a user's posts and votes to their browser requests, which carry their IP, and a post's time to its public `created_at`. For each session, Supabase Auth also keeps in `auth.sessions` the IP address and browser of its last token refresh (about hourly while the app is open), until that session ends: a sign-out on that device, a password reset or deleting the account. A sign-in on a device that already has a session leaves the earlier one behind, which is why the save, "make a new recovery key" and delete flows end it. That can't be turned off; Supabase's session time-box and inactivity timeout settings, where the plan offers them, would remove stale rows. Vercel also sees every visitor's IP. With CAPTCHA required, Cloudflare's Turnstile sees each visitor's IP address, browser and TLS fingerprint when an account is created and at every password sign-in; its privacy notice gives no retention period. A subpoena or warrant can demand all of it, so tell users plainly what is kept instead of promising complete anonymity. CARTO's tile servers and its delivery network (Fastly) also see each visitor's IP and the area they view. Fastly keeps full client IPs for up to two business days (seven when tied to transmission errors, at least a year when tied to activity it flags as suspicious). CARTO shortens IP addresses before logging them and keeps those logs for 30 days in the US. Its terms forbid proxying its tiles, so hiding visitors' IPs from the tile server would mean hosting your own tiles, which isn't decided yet.
+- **Anyone can check whether a username exists.** Supabase's own password-reset endpoint answers differently for a username that has an account, and so does saving ("That username is taken"). CAPTCHA, now required, guards the reset endpoint, account creation and password sign-in. Saving has no CAPTCHA: once someone has one anonymous account, only Supabase's per-IP rate limits (Authentication → Rate Limits) slow down checks made that way, so consider lowering the limit for user updates. Tell people not to pick a username that identifies them.
+- **"Verified" can be faked.** The voter's location is whatever the app sends, and anonymous accounts are free, so two throwaway accounts can verify a false pin or keep it on the map. This was true before the recovery-key changes. CAPTCHA on account creation and Supabase's per-IP limit on anonymous sign-ins are the only brakes; stronger checks, such as device attestation, would cost anonymity, so ask before adding them.
+- **Unsaved accounts may end after 30 days.** Supabase's docs say anonymous users aren't cleaned up automatically, but its Auth server's source deletes anonymous users created more than 30 days ago whenever anonymous sign-ins are on (`internal/models/cleanup.go`). If hosted Supabase runs that cleanup, every unsaved account, with its totals and its posts' private links, ends a month after it was made. Ask Supabase support which is true; until then, saving the account is the way to keep it.
 - **Two NIST rules ICEPik knowingly skips:** telling the user about a reset through a stored contact address (there is none; every session ends instead, so the owner notices), and disabling the recovery key after 100 failed tries (that would let anyone lock a user out, and a 128-bit key can't be guessed). Record both as deliberate exceptions.
 - **Optional recovery email (not built):** the most privacy-conscious fallback for people who lose their key stores only a slow, salted fingerprint of the address. But the email provider and the user's mailbox keep plaintext records, and ICEPik could be ordered to check a known address. Ask before building it.
 - **Passkeys (not built):** Supabase's are in beta, and passkeys synced through Chrome send ICEPik's domain, the username and the account id to Google.
@@ -774,6 +796,9 @@ These are outside the MVP schema. Ask before building screens that need them.
 - [Supabase: Send Email hook](https://supabase.com/docs/guides/auth/auth-hooks/send-email-hook)
 - [Supabase: admin updateUserById](https://supabase.com/docs/reference/javascript/auth-admin-updateuserbyid)
 - [Supabase: Password security](https://supabase.com/docs/guides/auth/password-security)
+- [Supabase: Anonymous sign-ins, automatic cleanup](https://supabase.com/docs/guides/auth/auth-anonymous)
+- [supabase/auth: cleanup of anonymous users (internal/models/cleanup.go)](https://github.com/supabase/auth/blob/master/internal/models/cleanup.go)
+- [Cloudflare: Turnstile privacy notice](https://www.cloudflare.com/turnstile-privacy-policy/)
 - [supabase/auth: user update and the current-password check (internal/api/user.go)](https://github.com/supabase/auth/blob/master/internal/api/user.go)
 - [supabase/auth: admin user update (internal/api/admin.go)](https://github.com/supabase/auth/blob/master/internal/api/admin.go)
 - [Cloudflare Turnstile: test keys](https://developers.cloudflare.com/turnstile/troubleshooting/testing/)

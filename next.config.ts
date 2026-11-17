@@ -9,6 +9,14 @@ if (process.env.VERCEL_ENV === "production" && !process.env.NEXT_PUBLIC_CARTO_KE
   );
 }
 
+// CAPTCHA is required in Supabase, and the app sends a CAPTCHA token only when
+// the Turnstile site key is built in. Without it, every sign-in would fail.
+if (process.env.VERCEL_ENV === "production" && !process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY?.trim()) {
+  throw new Error(
+    "NEXT_PUBLIC_TURNSTILE_SITE_KEY is missing. Add it in Vercel (Settings > Environment Variables), then redeploy.",
+  );
+}
+
 const nextConfig: NextConfig = {
   /* config options here */
 };
