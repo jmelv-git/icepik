@@ -14,7 +14,7 @@ Next.js (16.2.4) differs from what you know: after `npm ci`, read the relevant g
 ## Checklist
 
 - [ ] 1. Report at the searched place
-- [ ] 2. Confirm before sending, and Cancel puts everything back
+- [x] 2. Confirm before sending, and Cancel puts everything back
 - [ ] 3. Dragging the pin, and the search icon that brings it back
 - [ ] 4. No pins in impossible places (on land, within 200 m of a road or footpath)
 - [ ] 5. Nothing pinnable nearby, and large search results
@@ -451,7 +451,39 @@ project, real devices and their GPUs).
 
 ## Notes from session 2
 
-(none yet)
+- Test harness (scratchpad, not in the repo): `t/lib.mjs` (Playwright helpers, network recorder that
+  redacts the CARTO key), `t/mock-supabase.mjs` (fake Supabase that accepts posts, rounds them to 3
+  decimals and logs every request body), `main/check-flows.mjs` (changes 1, 2, 3 and 5's large-area
+  part; `node check-flows.mjs desktop|phone`).
+- Parallel work: a workflow builds `lib/pinnable.ts` (change 4) and change 6 in their own worktrees,
+  each followed by an independent reviewer. Until it lands, `lib/pinnable.ts` holds today's rule
+  (plain rounding) behind the final API.
+- Steps 0 and 4's wiring are one piece of code: `checkSpot()` in map-app.tsx shows the spot at Leaflet
+  zoom 16 or deeper (`DETAIL_ZOOM`; with change 6 that is MapLibre zoom 15, so the map itself loads the
+  zoom-15 tiles the check reads), then awaits `snapToPinnable`. A counter drops a check that a newer
+  placement or Cancel overtook. Taps, drops, Enter and pin/cluster taps all go through it.
+- Change 5, large-area rule, calibrated on real Nominatim answers (18 Nov): `place_rank <= 20` would
+  have called every peak an area (peaks are rank 18 with an 11 m box), and a 1 km box would have refused
+  "1500 Market Street, Philadelphia" (its top result, City Hall station, has a 1.1 km box). Used instead:
+  rank 16 or below, or a `place`/`boundary` result of a settlement or region type, or a box longer than
+  2 km on a side. So "Philadelphia", "Fishtown" and big parks (Fairmount 5 km) get the large-area
+  message; addresses, streets, buildings and peaks don't. "Little Tinicum Island" is a 3 km islet, so it
+  gets the large-area message, not nothing-nearby (the plan expected the latter).
+- Change 1: the notice shows the result's short name, as the map label does. For "1500 Market Street,
+  Philadelphia" Nominatim's top result is "City Hall, 1500, Market Street, …", so it reads "Searched:
+  City Hall".
+- **Change 2 verified** (desktop 1280x800 and phone 375x667, `check-flows.mjs`, 26/26 and 25/25): from
+  tapping "Submit a report" to Cancel, no server action call and no write reached the fake Supabase;
+  Enter in the Agents, Location and category fields posts nothing; "Post sighting" makes exactly one
+  action call, and the fake Supabase received only the snapped spot; the form's Cancel, its close
+  button, Escape and the banner's Cancel each restore the search text, the searched label, the pins'
+  screen positions (so the map's center and zoom), and an open card with its selected pin. The exact
+  search coordinates appeared in no request but the search response, and in neither the browser
+  console nor the server log.
+- Changes 1 and 3 pass the same script with today's rule (form opens at once with the notice; the pin is
+  on a grid point, not the exact result; drag snaps; the notice becomes the icon with its accessible
+  name; the icon, by mouse and by keyboard, brings the pin and notice back and focus moves to "Move
+  pin"; the search box keeps its text throughout). Their boxes wait for the re-run with change 4's rule.
 
 ## Sources
 

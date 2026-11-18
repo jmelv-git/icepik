@@ -38,12 +38,21 @@ export type Padding = {
   paddingBottomRight: [number, number];
 };
 
+// Where the map is looking, to put it back later (Cancel on a report).
+export type MapView = { lat: number; lng: number; zoom: number; moved: boolean };
+
 export type MapApi = {
   showPoint(point: Point, padding: Padding): void;
   showPoints(points: Point[], padding: Padding): void;
   // Center the free part of the map (inside the padding) on a point, zoomed
   // in to at least minZoom.
   centerOn(point: Point, padding: Padding, minZoom?: number): void;
+  // Show a point in detail before a pin goes near it: zoomed in to at least
+  // minZoom with the point in view. Resolves once the map has stopped.
+  focusSpot(point: Point, padding: Padding, minZoom: number): Promise<void>;
+  view(): MapView | null;
+  // Back to a saved view at once, without counting as a move.
+  restoreView(view: MapView): void;
   center(): Point | null;
   // Whether the map has moved since it loaded, other than by centerOn: the
   // person dragged or zoomed it, or the app showed them something.
@@ -129,6 +138,43 @@ export function SightingsMap({
         centering.current = true;
         instance.setView(instance.unproject(middle, zoom), zoom, { animate: true });
         centering.current = false;
+      },
+      focusSpot(point, padding, minZoom) {
+        const L = leaflet.current;
+        const instance = map.current;
+        if (!L || !instance) return Promise.resolve();
+        const inView = instance.getBounds().contains([point.lat, point.lng]);
+        if (instance.getZoom() >= minZoom && inView) return Promise.resolve();
+        return new Promise<void>((resolve) => {
+          // A move that changes nothing may not fire moveend: don't wait forever.
+          const timer = window.setTimeout(done, 1500);
+          function done() {
+            window.clearTimeout(timer);
+            instance?.off("moveend", done);
+            resolve();
+          }
+          instance.on("moveend", done);
+          const zoom = Math.max(instance.getZoom(), minZoom);
+          const [left, top] = padding.paddingTopLeft;
+          const [right, bottom] = padding.paddingBottomRight;
+          const shift = L.point((left - right) / 2, (top - bottom) / 2);
+          const middle = instance.project([point.lat, point.lng], zoom).subtract(shift);
+          instance.setView(instance.unproject(middle, zoom), zoom, { animate: true });
+        });
+      },
+      view() {
+        const instance = map.current;
+        if (!instance) return null;
+        const { lat, lng } = instance.getCenter();
+        return { lat, lng, zoom: instance.getZoom(), moved: moved.current };
+      },
+      restoreView(view) {
+        const instance = map.current;
+        if (!instance) return;
+        centering.current = true;
+        instance.setView([view.lat, view.lng], view.zoom, { animate: false });
+        centering.current = false;
+        moved.current = view.moved;
       },
       center() {
         const center = map.current?.getCenter();

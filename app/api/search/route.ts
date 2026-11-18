@@ -13,6 +13,12 @@ type NominatimResult = {
   display_name: string;
   lat: string;
   lon: string;
+  category?: string;
+  type?: string;
+  addresstype?: string;
+  place_rank?: number;
+  // [south, north, west, east], as strings.
+  boundingbox?: string[];
 };
 
 // The search text arrives in the request body, not the URL, so an address
@@ -49,10 +55,20 @@ export async function POST(request: Request) {
 
     const rawResults: NominatimResult[] = await response.json();
 
+    // What kind of place each result is, and how big, so the app can tell a
+    // city or a park from an address before putting a pin there.
     const results = rawResults.map((item) => ({
       display_name: item.display_name,
       lat: item.lat,
       lon: item.lon,
+      category: typeof item.category === "string" ? item.category : null,
+      type: typeof item.type === "string" ? item.type : null,
+      addresstype: typeof item.addresstype === "string" ? item.addresstype : null,
+      place_rank: typeof item.place_rank === "number" ? item.place_rank : null,
+      boundingbox:
+        Array.isArray(item.boundingbox) && item.boundingbox.length === 4
+          ? item.boundingbox.map(String)
+          : null,
     }));
 
     return NextResponse.json(results);

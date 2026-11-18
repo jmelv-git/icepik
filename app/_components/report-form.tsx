@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { postSighting } from "@/app/actions/sightings";
 import { NEARBY_RADIUS_M, distanceMeters, formatDistance } from "@/lib/geo";
 import { runAction } from "@/lib/run-action";
@@ -14,11 +14,15 @@ import {
   type Category,
   type Sighting,
 } from "@/lib/sightings";
-import { StatusIcon } from "./icons";
+import { SearchIcon, StatusIcon } from "./icons";
+import { shortPlaceName } from "./map-pins";
 import type { Point } from "./sightings-map";
 
 type Props = {
   point: Point;
+  // The report started at a searched place. `moved`: the pin was moved away
+  // from the spot found for it; onReturn puts it back there.
+  searched?: { label: string; moved: boolean; onReturn: () => void } | null;
   sightings: Sighting[];
   myPosts: ReadonlySet<string>;
   now: number;
@@ -37,6 +41,7 @@ function parseCount(value: string): number | null | undefined {
 
 export function ReportForm({
   point,
+  searched,
   sightings,
   myPosts,
   now,
@@ -57,6 +62,9 @@ export function ReportForm({
   // Which field the message is about, so the field says it's invalid and
   // points at the message (null: the message is about the whole form).
   const [problem, setProblem] = useState<"category" | "counts" | null>(null);
+  // Said to screen readers when the search icon has put the pin back.
+  const [returnStatus, setReturnStatus] = useState("");
+  const moveButton = useRef<HTMLButtonElement>(null);
   const id = useId();
   const errorId = `${id}-error`;
   const nearbyTitleId = `${id}-nearby-title`;
@@ -92,6 +100,25 @@ export function ReportForm({
     }))
     .filter(({ distance }) => distance <= NEARBY_RADIUS_M)
     .sort((a, b) => a.distance - b.distance);
+
+  // Nothing is posted until "Post sighting" is pressed: Enter in a field,
+  // which browsers treat as submitting the form, does nothing here.
+  function onKeyDown(event: React.KeyboardEvent<HTMLFormElement>) {
+    if (event.key === "Enter" && event.target instanceof HTMLInputElement) event.preventDefault();
+  }
+
+  // The search icon replaces the "Searched" notice once the pin has moved.
+  // It goes away when used, so focus moves on to "Move pin".
+  function returnToSearch() {
+    searched?.onReturn();
+    setReturnStatus("");
+    window.requestAnimationFrame(() => {
+      setReturnStatus("Pin moved back to the searched place.");
+      moveButton.current?.focus();
+    });
+  }
+
+  const searchedName = searched ? shortPlaceName(searched.label) : "";
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -129,13 +156,37 @@ export function ReportForm({
   }
 
   return (
-    <form className="report-form" onSubmit={submit} noValidate>
+    <form className="report-form" onSubmit={submit} onKeyDown={onKeyDown} noValidate>
       <div className="spot-row">
-        <span>Pin placed on the map. Its location is rounded to about 100 m.</span>
-        <button type="button" className="text-button" onClick={onMoveSpot}>
+        <div className="spot-text">
+          {searched && !searched.moved ? (
+            <p className="spot-searched" title={searched.label}>
+              <SearchIcon />
+              <span>Searched: {searchedName}</span>
+            </p>
+          ) : null}
+          <p className="spot-line">
+            {searched?.moved ? (
+              <button
+                type="button"
+                className="spot-searched-return"
+                aria-label={`Move the pin back to the searched place, ${searchedName}`}
+                title={`Move the pin back to the searched place, ${searchedName}`}
+                onClick={returnToSearch}
+              >
+                <SearchIcon />
+              </button>
+            ) : null}
+            <span>Pin placed on the map. Its location is rounded to about 100 m.</span>
+          </p>
+        </div>
+        <button ref={moveButton} type="button" className="text-button" onClick={onMoveSpot}>
           Move pin
         </button>
       </div>
+      <p className="visually-hidden" role="status">
+        {returnStatus}
+      </p>
 
       {nearby.length ? (
         <section className="nearby" aria-labelledby={nearbyTitleId}>

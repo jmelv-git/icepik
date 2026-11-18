@@ -1212,6 +1212,76 @@ textarea::placeholder {
   white-space: nowrap;
 }
 
+/* With a "Searched" notice above the sentence, "Move pin" lines up with the
+   sentence, not with the middle of the two. */
+.spot-row:has(.spot-searched, .spot-searched-return) {
+  align-items: end;
+}
+
+.spot-text {
+  display: grid;
+  justify-items: start;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.spot-line {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+}
+
+/* "Searched: …" when a report starts at a searched place: the same pill and
+   magnifier as the label on the map, on the form's card colour. */
+.spot-searched {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  max-width: 100%;
+  padding: 0.25rem 0.75rem 0.25rem 0.5rem;
+  border: 0.0625rem solid transparent;
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--text);
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.spot-searched span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spot-searched svg {
+  width: 1rem;
+  height: 1rem;
+  flex: none;
+}
+
+/* Once the pin has moved, the notice becomes this button: it puts the pin
+   back at the searched place. 44px, a comfortable target on touch screens. */
+.spot-searched-return {
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  flex: none;
+  border: 0.0625rem solid transparent;
+  border-radius: 50%;
+  background: var(--card);
+  color: var(--text);
+}
+
+.spot-searched-return:hover {
+  background: #3a3b40;
+}
+
+.spot-searched-return svg {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
 .choice-group legend {
   margin-bottom: 0.5rem;
   font-size: 0.875rem;
