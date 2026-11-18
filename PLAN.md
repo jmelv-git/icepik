@@ -30,8 +30,9 @@ Next.js (16.2.4) differs from what you know: after `npm ci`, read the relevant g
    dragged or Enter-placed point with `roundCoord()` (`lib/geo.ts` line 23) to the nearest point on a
    0.001° grid, the same rounding the database applies. In effect every grid point is pinnable today.
    The plan treats that as the existing snapping rule: it moves into one named function,
-   `snapToPinnable()`, and change 4 adds the land and road test to it, keeping the grid. If the user
-   meant something else, stop and ask, as the prompt says.
+   `snapToPinnable()`, and change 4 adds the land and road test to it, keeping the grid.
+   **Confirmed by the user on 18 Nov 2026:** "that rounding pin to about 100m is what I meant by
+   snapping."
 3. **For option A: the area it covers (has a default).** The default area is the Philadelphia region
    (west −75.60, east −74.70, south 39.75, north 40.30: the city, the nearby PA counties, Camden,
    Burlington and Gloucester counties in NJ, and the tip of northern Delaware). Outside it, no pin can be
