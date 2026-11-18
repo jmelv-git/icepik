@@ -110,7 +110,7 @@ export async function snapToPinnable(point: Point): Promise<SnapResult>;
 
 Only the `isPinnable(gridPoint)` test behind it changes from option to option.
 
-### A. A pinnability grid built once from OpenStreetMap, shipped with the site (recommended)
+### A. A pinnability grid built once from OpenStreetMap, shipped with the site (not chosen)
 
 - **What it is**: a dev-only script, `scripts/build-pinnable-grid.mjs`, downloads OSM roads, paths and
   water for the covered area once. It works out, for every 0.001° grid point, whether the point is
