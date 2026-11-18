@@ -18,13 +18,20 @@ Next.js (16.2.4) differs from what you know: after `npm ci`, read the relevant g
 - [ ] 3. Dragging the pin, and the search icon that brings it back
 - [ ] 4. No pins in impossible places (on land, within 200 m of a road or footpath)
 - [ ] 5. Nothing pinnable nearby, and large search results
+- [ ] 6. Draw the map from CARTO's vector tiles, so it can zoom past 18 (added by the user on 18 Nov)
 
-## Decisions needed from the user before or during session 2
+## Decisions from the user
 
-1. **Which option for change 4** (see "Change 4: the options" below). Recommended: **A, a pinnability
-   grid built once from OpenStreetMap and shipped with the site**. Without a choice, session 2 builds
-   everything else, then stops and asks.
-2. **What counts as "the existing snapping function".** No function named or described as snapping
+1. **Change 4 uses option B, CARTO's vector tiles** (user, 18 Nov 2026: "We already use CARTO, so
+   just do the least amount of change needed", then "I want CARTO vector tiles"). They approved the
+   CSP line this needs (`connect-src` for CARTO's tile host), and they chose to leave the privacy terms
+   (policy.tsx) as they are. Options A, C and D below are kept for the record.
+2. **Draw the whole map from vector tiles too** (user, 18 Nov 2026, to remove the zoom limit at 18;
+   chosen over enlarging the zoom-18 images). This is change 6. They chose it knowing it "needs a new
+   map-drawing library (such as MapLibre GL, roughly 800 KB), rebuilt light and dark map styles, more
+   CSP changes, and rework of every marker". The exact packages are under change 6. If the user objects
+   to the small Leaflet bridge package, write the bridge by hand instead (about 150 lines).
+3. **What counts as "the existing snapping function".** No function named or described as snapping
    exists on any branch (searched every branch for `snap` and `pinnable`). What does exist is the
    report branch of `place()` in `app/_components/map-app.tsx` (line 732), which rounds every tapped,
    dragged or Enter-placed point with `roundCoord()` (`lib/geo.ts` line 23) to the nearest point on a
@@ -33,12 +40,6 @@ Next.js (16.2.4) differs from what you know: after `npm ci`, read the relevant g
    `snapToPinnable()`, and change 4 adds the land and road test to it, keeping the grid.
    **Confirmed by the user on 18 Nov 2026:** "that rounding pin to about 100m is what I meant by
    snapping."
-3. **For option A: the area it covers (has a default).** The default area is the Philadelphia region
-   (west −75.60, east −74.70, south 39.75, north 40.30: the city, the nearby PA counties, Camden,
-   Burlington and Gloucester counties in NJ, and the tip of northern Delaware). Outside it, no pin can be
-   placed, and the message says so. That fits the README ("a map of Philadelphia"). The grid is built
-   once from OpenStreetMap state extracts, downloadable from this container (see "Where the
-   OpenStreetMap data comes from").
 4. **Branch base (has a default).** Session 2 works on `claude/confident-cannon-3cv9fu`, which equals
    `main` (`ab6e467`). Two branches have newer work on the same files. Unless the user says otherwise,
    session 2 builds on `main` and leaves both branches alone. The overlap is small, and is listed under
@@ -77,7 +78,13 @@ the web stack"):
 - Writes go through the server actions only. No coordinates or ids in page URLs. Never `console.log`
   coordinates or request bodies (Vercel keeps logs).
 - The CSP allows only this site, Supabase, CARTO's `*.basemaps.cartocdn.com` (for images only) and
-  Turnstile. Changing it needs the user's OK.
+  Turnstile. The user approved one addition for changes 4 and 6: `connect-src https://basemaps.cartocdn.com
+  https://tiles.basemaps.cartocdn.com` (CARTO's style files, and its vector tiles, fonts and icons).
+  Anything beyond that needs a new OK.
+- The pin check must not tell CARTO that someone is placing a pin. It reads the same tile URLs the
+  map has already loaded to draw the area, so they come from the browser's cache (verify: no new CARTO
+  request during a check). Before checking, the map shows the spot at zoom 15 or deeper if it isn't
+  already, so any tile it needs is an ordinary map-viewing request.
 - Searched addresses and the snapshot taken for Cancel live in React state only.
 - Every snapping option below keeps the exact point on the device. They differ in what else leaves it
   (see the table).
@@ -132,15 +139,29 @@ Only the `isPinnable(gridPoint)` test behind it changes from option to option.
 - **Licence**: the grid is derived from OSM data, so it's under ODbL. The map already shows
   "© OpenStreetMap contributors". Add one line to the README and to docs/database-handoff.md.
 
-### B. CARTO vector tiles, read in the browser
+### B. CARTO vector tiles, read in the browser (CHOSEN by the user)
 
+- **Details for session 2** (checked 18 Nov 2026): CARTO's current GL styles
+  (`https://basemaps.cartocdn.com/gl/positron-gl-style/style.json` and `dark-matter-gl-style`) draw from
+  `https://tiles.basemaps.cartocdn.com/v/20261026-01/vectortiles/carto.streets/v2/{z}/{x}/{y}.mvt`,
+  in the **Protomaps schema**, up to **zoom 15** (zoom 16 answers 404). Glyphs and sprites come from
+  the same host. No API key is in those URLs, and tiles load without one. Layers the check uses: `earth`
+  (land polygons, which also covers the sea), `water` (polygons of kind water, lake, basin, swimming_pool
+  and so on, plus river and stream lines, which are ignored), and `roads` (lines of kind highway,
+  major_road, minor_road and path, with kind_detail footway, pedestrian, path, cycleway, service and so
+  on). Rail and `disused_*` kinds are excluded. Sizes: zoom 15 over City Hall is 181 KB on the wire
+  (394 KB unpacked); zoom 14 is 84 KB; a rural zoom-13 tile is 16 KB. Pinnable = inside `earth`, not
+  inside a `water` polygon, and within 200 m of a road. The check reads the zoom-15 tiles covering 500 m
+  around the point (300 m snapping + 200 m to a road), with a hand-written MVT decoder of about 150
+  lines (no new package), and works whether or not change 6 is in. The URL template comes from the style
+  in use, so it's the same URL the map loads.
 - **What it is**: CARTO serves vector tiles of the same base map
   (`tiles.basemaps.cartocdn.com/vectortiles/carto.streets/v1/{z}/{x}/{y}.mvt`, OpenMapTiles schema,
   up to zoom 14). Checked from this container: they have `water` polygons (lake, pond, river, ocean,
   swimming_pool) and `transportation` lines (motorway … minor, service, track, and `path` with subclass
   footway, pedestrian, path, cycleway, steps). They're served with `Access-Control-Allow-Origin: *`.
   The snapping function fetches the 1–4 zoom-14 tiles around the candidates, decodes them and tests the
-  geometry.
+  geometry. (This first check was of the older v1 tiles. Use v2, as above.)
 - **Cost**: free within CARTO's free tier (its pricing page reportedly says 5M requests a month for
   non-commercial use; check the terms for vector use with our key). One zoom-14 tile over Center City
   is 363 KB gzipped (544 KB unpacked); a rural one is 15 KB. A downtown placement could cost up to about
@@ -213,13 +234,15 @@ answer:
   after 3–4 s; 517 B sent, 39 B received", which means the tunnel opened and then dropped. That's a
   failure on the path to those two hosts, not a refusal. Don't depend on them.
 
-### Recommendation
+### Recommendation and choice
 
-**A.** It sends nothing anywhere when someone places a pin, which is what this app is built around. It's
-instant and can't fail during the presentation. It needs no CSP, policy or dependency change. The file is
-tiny. The price is a fixed covered area and data only as fresh as the last build. Both fit an app that
-is "a map of Philadelphia". If the user wants pins anywhere, B is next best, provided they approve the
-CSP change and accept CARTO seeing when someone places a pin.
+Session 1 recommended A, because it sends nothing when someone places a pin and is tiny for users (the
+585 MB download happens once, on the build machine). **The user chose B.** With change 6 the map draws
+from the same vector tiles, so the check reads tiles that are already cached and adds no placement
+request (see "Privacy rules that apply"). What B might miss: anything OSM lacks or CARTO hasn't picked
+up yet (CARTO's data is a few weeks old), trails mapped nowhere, small simplification in the tiles,
+and tidal or seasonal water. Bridges count as water, so the pin goes to the bank. It works anywhere,
+not just Philadelphia.
 
 ## The changes
 
@@ -288,26 +311,28 @@ CSP change and accept CARTO seeing when someone places a pin.
 
 ### 4. No pins in impossible places
 
-- **Files**: `lib/pinnable.ts` (the rule inside `snapToPinnable`), plus by option: **A**
-  `scripts/build-pinnable-grid.mjs` and `public/pinnable/philadelphia.bin`; **B** `proxy.ts`
-  (connect-src, after approval) and maybe policy.tsx (after approval); **C** `app/api/pinnable/route.ts`.
-  Also README.md and docs/database-handoff.md (data source, and for A the licence line).
-- **Change**: as in "Change 4: the options". Every path (search, tap, pin or cluster tap, drag, Enter)
-  already goes through `place()` or `startReport()`, which both call `snapToPinnable`. Existing reports
-  are left alone: pins already in water still show and can still be confirmed.
-- **Stop conditions**: the option needs the user's choice. B needs the CSP and maybe policy.tsx. A's
-  build downloads from geo2day.com (on the build machine only, never at runtime); if it stops
-  answering, fall back to openstreetmap.fr plus geo2day's Delaware file, and say so. C has no Overpass
-  instance answering from here, so stop and say so if it's chosen. Ask before adding a server-side
-  check in `postSighting`.
-- **Verify**: spot checks against the data and the map: City Hall and a Fishtown street are pinnable.
-  The middle of FDR Park's Meadow Lake isn't, and a tap there snaps to the shore. Mid-Delaware by
-  Little Tinicum Island has nothing within 300 m, so the message shows. A land point more than 200 m from
-  any road or path, found in the data (e.g. inside Little Tinicum Island or the Tinicum marsh), is refused.
-  In the browser: tap the map on water → snapped to the shore, or refused with the message. Drag onto the
-  lake and onto the far-from-path spot → refused, and the pin goes back. Drag to a street → accepted. With
-  A, a mountainside outside the area (Hawk Mountain ridge) is refused with the outside-area message.
-  With B or C, test a real slope far from trails.
+- **Files** (option B): `lib/pinnable.ts` (the rule inside `snapToPinnable`: tile maths, fetching the
+  zoom-15 tiles from the style's URL template, the MVT decoder, point-in-polygon and distance to a
+  line), `app/_components/map-app.tsx` (before checking, show the spot at zoom 15 or deeper if the
+  500 m around it isn't on screen there), `proxy.ts` (the approved `connect-src` line, if change 6
+  hasn't added it already), README.md and docs/database-handoff.md (one paragraph: what the check
+  reads, and that it adds no request of its own).
+- **Change**: as in option B. Every path (search, tap, pin or cluster tap, drag, Enter) already goes
+  through `place()` or `startReport()`, which both call `snapToPinnable`. Existing reports are left
+  alone: pins already in water still show and can still be confirmed. Tiles are kept in memory for the
+  session, so repeated checks in one area cost nothing.
+- **Stop conditions**: any CSP change beyond the approved line. If CARTO's terms turn out to forbid
+  reading the vector tiles like this, stop and say so. Ask before adding a server-side check in
+  `postSighting`. Never send the exact point anywhere: only tile numbers, which the map loads anyway.
+- **Verify**: spot checks of `snapToPinnable` in the browser against what the map shows. City Hall and
+  a Fishtown street are pinnable. The middle of FDR Park's Meadow Lake isn't, and a tap there snaps to
+  the shore. Mid-Delaware by Little Tinicum Island has nothing within 300 m, so the message shows. A
+  land point more than 200 m from any road or path (inside Little Tinicum Island or the Tinicum marsh) is
+  refused. A real mountainside far from any trail is refused (choose one with the data, e.g. on Blue
+  Mountain away from the Appalachian Trail). In the browser: tap the map on water → snapped to the
+  shore, or refused with the message. Drag onto the lake and onto the mountainside → refused, and the
+  pin goes back. Drag to a street → accepted. Network: during a check, no new request to CARTO when
+  the area is already on screen, and no request carries the exact point.
 
 ### 5. Nothing pinnable nearby, and large search results
 
@@ -319,23 +344,60 @@ CSP change and accept CARTO seeing when someone places a pin.
   town, city, county, state) or its bounding box is longer than 1 km on a side. Then place nothing and
   show "That's a large area. Search for an address or a place inside it to report there." When
   `snapToPinnable` finds nothing (from search, tap or drag), show "No spot for a pin near here. Pins go
-  on land within 200 m of a road or path." and place nothing. With option A, outside the area: "Pins
-  can only go in the Philadelphia area for now." When the data can't load: "Couldn't check this spot.
-  Try again." The large-area part can be built before change 4. The nothing-nearby part is verified
-  after it.
+  on land within 200 m of a road or path." and place nothing. When the tiles can't load: "Couldn't
+  check this spot. Try again." (Option B has no covered area, so there's no outside-area message.) The
+  large-area part can be built before change 4. The nothing-nearby part is verified after it.
 - **Verify**: search "Philadelphia" → large-area message, no form, nothing on the map changed. Search a
-  remote peak: with A, "Hawk Mountain" (outside the area) → the outside-area message, and "Little
-  Tinicum Island" (inside, no paths) → nothing-nearby; with B or C, a real remote peak → nothing-nearby.
+  remote peak with no trail to its top (find one whose result point is more than 500 m from any road or
+  path in the tiles) → the nothing-nearby message. Also search "Little Tinicum Island" → nothing-nearby.
   Messages are announced (the notice is a status region) and readable on phone and desktop.
+
+### 6. Draw the map from CARTO's vector tiles, so it can zoom past 18
+
+- **Packages** (exact versions, from npm, bundled; no CDN): `maplibre-gl@6.16.0` (BSD-3-Clause; out
+  since 25 Oct; 6.19.0 came out on 17 Nov, too new) and `@maplibre/maplibre-gl-leaflet@0.1.4` (ISC, from
+  the MapLibre project, a 3 KB bridge that puts a MapLibre map inside Leaflet as a layer; it supports
+  MapLibre 6). Leaflet stays in charge of everything else: pins, clusters, the searched label, the blue
+  dot, saved places, taps, dragging, panes and the attribution. Cost to users on the first visit: about
+  455 KB of compressed JavaScript (measured on 6.19: 298 KB main file and a 157 KB worker) plus 10 KB of
+  CSS, cached afterwards. Map data replaces map images: a zoom-15 vector tile (up to 181 KB downtown)
+  covers what many 256-pixel images used to.
+- **Files**: `package.json` and `package-lock.json`; `app/_components/sightings-map.tsx` (the base
+  layer); `app/_components/leaflet.ts` (load the bridge with Leaflet); `app/globals.css` (MapLibre's
+  CSS, and dark-label rules that are no longer needed, kept for the fallback); `proxy.ts` (the approved
+  `connect-src` line); README.md and docs/database-handoff.md (the "Bundle Leaflet from npm" and CSP
+  lines gain MapLibre and the two hosts).
+- **Change**: the base layer becomes a MapLibre GL layer that loads CARTO's Positron or Dark Matter GL
+  style, chosen from `prefers-color-scheme` and switched live with `setStyle`, as the raster layers are
+  today. In dark, `transformStyle` lightens the place and street labels, which Dark Matter draws too
+  faint (the reason for today's separate label tiles). Re-run the contrast check from the dark-map work.
+  The map's deepest zoom goes from 18 to 20 (MapLibre redraws the zoom-15 data sharply). The cluster
+  logic that uses `MAX_ZOOM` follows the new value. The attribution stays "© OpenStreetMap
+  contributors © CARTO" with its links. MapLibre's own controls stay off. **Fallback**: if WebGL isn't
+  available (some privacy-hardened browsers turn it off), keep today's raster layers and deepest zoom 18,
+  unchanged. The pin check (change 4) works in both cases. MapLibre's worker is loaded from this site
+  (`setWorkerUrl`), so the CSP needs no `blob:` script change.
+- **Stop conditions**: if MapLibre or its worker won't run under the CSP with only the approved
+  `connect-src` line (for example if it needs `unsafe-eval` or a looser `script-src`), stop and ask.
+  Same if the bridge or MapLibre 6.16 won't build with Next 16 and Turbopack, rather than swapping in
+  other packages. If it can't be made solid before the presentation, the five changes don't depend on
+  it: leave it on a branch and say so.
+- **Verify** (light and dark, 1280x800 and 375x667): the map draws, labels are readable (contrast
+  check), and zoom 19 and 20 are sharp. A live light/dark switch works without a reload. Every pin and
+  cluster type, the searched label, the blue dot, saved places and the draft pin still sit above the
+  map, and taps still reach the map and the pins. Pick mode, drag and Enter-to-place work. The
+  attribution shows. No CSP errors in the console. Only the allowed hosts are contacted. With WebGL
+  turned off (Chromium `--disable-webgl`), the raster fallback shows. Record first-load bytes before and
+  after.
 
 ## Order
 
-Step 0 → 1 → 2 → 3 → 5 (large-area part) → 4 → 5 (nothing-nearby part, then tick 5) → re-run the
-checks for 1 and 3 with the real rule → regression pass → final report.
+Step 0 → 1 → 2 → 3 → 5 (large-area part) → 4 → 5 (nothing-nearby part, then tick 5) → 6 → re-run
+the checks for 1, 3 and 4 on the vector map → regression pass → final report.
 
-Steps 0 to 3 and the first half of 5 don't depend on the change 4 option. If no option has been chosen
-when they're done, stop there and ask. Record the regression pass and the report under "Notes from
-session 2".
+Change 4 comes before 6 because the five requested changes don't depend on 6, so they're safe for the
+presentation even if 6 runs into a stop condition. Record the regression pass and the report under
+"Notes from session 2".
 
 ## Verification setup (session 2)
 
@@ -358,6 +420,9 @@ session 2".
   `page.route('**/api/search')` fixtures for edge cases (a large box, a peak).
 - Screen sizes: 375x667 and 1280x800, plus 320x568 for the form. Screenshots for the user at
   `deviceScaleFactor: 2`.
+- WebGL in headless Chromium (change 6): launch with `--enable-unsafe-swiftshader` (or
+  `--use-angle=swiftshader`) so MapLibre gets a software WebGL. Check `getContext('webgl2')` first and
+  note it in the report.
 - Regression pass after all five: tapping the map to report on land still works, every pin and cluster
   type still shows, and `npx tsc --noEmit`, `npx eslint` and `npx next build` pass.
 
@@ -379,8 +444,10 @@ session 2".
 
 ## Final report (prose)
 
-For each change: passed or not, and how it was checked. Which data source change 4 uses and what it
-might miss. What couldn't be verified and why (at least: a real Supabase project, real devices).
+For each change (1 to 6): passed or not, and how it was checked. Which data source change 4 uses (CARTO's
+v2 vector tiles, built from OpenStreetMap) and what it might miss. First-load bytes before and after
+change 6, and the fallback without WebGL. What couldn't be verified and why (at least: a real Supabase
+project, real devices and their GPUs).
 
 ## Notes from session 2
 
