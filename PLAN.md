@@ -1,390 +1,371 @@
-# Plan: nine UX changes for the presentation
+# Plan: report at a searched place, and no pins in impossible places
 
-Session 1 wrote this plan and changed nothing else. Session 2 carries it out: tick each box below as soon
-as that change is verified in a real browser, then commit and push (with PLAN.md) so a cut-short session
-can resume at the first unticked box. Where the code doesn't match this plan, follow the code and note the
-difference under "Notes from session 2" at the end.
+Session 1 wrote this plan and changed nothing else. The previous PLAN.md (nine UX changes, all done) is
+in git history at `ab6e467`. Session 2 carries this plan out. Tick each box as soon as that change is
+verified in a real browser, then commit and push with PLAN.md, so a cut-short session can resume at the
+first unticked box. Where the code doesn't match this plan, follow the code and note the difference
+under "Notes from session 2".
+
+Session 2: read this file, the original prompt and AGENTS.md again before starting. AGENTS.md says this
+Next.js (16.2.4) differs from what you know: after `npm ci`, read the relevant guide in
+`node_modules/next/dist/docs/` before writing code (client components, and route handlers for
+`app/api/search/route.ts`).
 
 ## Checklist
 
-- [x] 2. Terms and Privacy paragraph about location (policy.tsx, one paragraph only)
-- [x] 8. Agree button disabled until the terms are read to the end
-- [x] 7. Sticky Back button on the Terms and Privacy card in Settings
-- [x] 1. Location access at the start, with the answer remembered on the device
-- [x] 3. Blue dot at the user's position
-- [x] 4. Re-center button
-- [x] 5. Map icons for saved locations (home, work, custom)
-- [x] 6. Custom saved locations (add, name, delete, localStorage only)
-- [x] 9. Dark map with CartoDB.DarkMatter, switching live
-- [x] Regression pass: every pin and cluster type, map credit at phone width, `npx tsc --noEmit`, `npx eslint`, `npx next build`
-- [x] Final report (prose, as the prompt asks)
+- [ ] 1. Report at the searched place
+- [ ] 2. Confirm before sending, and Cancel puts everything back
+- [ ] 3. Dragging the pin, and the search icon that brings it back
+- [ ] 4. No pins in impossible places (on land, within 200 m of a road or footpath)
+- [ ] 5. Nothing pinnable nearby, and large search results
 
-## Order and why
+## Decisions needed from the user before or during session 2
 
-2 → 8 → 7 → 1 → 3 → 4 → 5 → 6 → 9 → regressions → report.
+1. **Which option for change 4** (see "Change 4: the options" below). Recommended: **A, a pinnability
+   grid built once from OpenStreetMap and shipped with the site**. Without a choice, session 2 builds
+   everything else, then stops and asks.
+2. **What counts as "the existing snapping function".** No function named or described as snapping
+   exists on any branch (searched every branch for `snap` and `pinnable`). What does exist is the
+   report branch of `place()` in `app/_components/map-app.tsx` (line 732), which rounds every tapped,
+   dragged or Enter-placed point with `roundCoord()` (`lib/geo.ts` line 23) to the nearest point on a
+   0.001° grid, the same rounding the database applies. In effect every grid point is pinnable today.
+   The plan treats that as the existing snapping rule: it moves into one named function,
+   `snapToPinnable()`, and change 4 adds the land and road test to it, keeping the grid. If the user
+   meant something else, stop and ask, as the prompt says.
+3. **For option A: the area it covers, and access to OpenStreetMap data.** The default area is the
+   Philadelphia region (west −75.60, east −74.70, south 39.75, north 40.30: the city, the nearby PA
+   counties and Camden, Burlington and Gloucester counties in NJ). Outside it, no pin can be placed, and
+   the message says so. That fits the README ("a map of Philadelphia"). Building the grid needs a
+   one-time download. Both `download.geofabrik.de` and `overpass-api.de` are blocked by this cloud
+   environment's network policy. Either add one of them under Allowed domains in the environment's
+   Network access settings
+   (<https://code.claude.com/docs/en/cloud-environments#network-access>), or run the build script on
+   your own computer and commit its output.
+4. **Branch base (has a default).** Session 2 works on `claude/confident-cannon-3cv9fu`, which equals
+   `main` (`ab6e467`). Two branches have newer work on the same files. Unless the user says otherwise,
+   session 2 builds on `main` and leaves both branches alone. The overlap is small, and is listed under
+   "Other branches".
 
-- 2 first: it lengthens the agreement text, which change 8's scroll check depends on.
-- 8 next: every browser test starts at the consent screen, so the test helper must learn to scroll the
-  terms before tapping "I agree" (see Verification setup).
-- 1 → 3 → 4 build on each other (permission, then the dot, then centering on it).
-- 5 before 6: custom places reuse the generic "saved place" icon.
-- 9 last: it restyles the map, so it is checked against every marker added by 3, 5 and 6.
+## How pinnable spots are decided today
 
-## Stop conditions found while reading (none blocks the work)
+- **Tapping the map** (Report → pick mode): Leaflet's `click` gives the exact point.
+  `SightingsMap` calls `onPlace` (`sightings-map.tsx` line 250), and `place()` sets the draft to
+  `roundCoord(lat), roundCoord(lng)` (`map-app.tsx` line 738).
+- **Tapping a pin or cluster while placing**: it places the draft at that pin's coordinates, which are
+  already on the grid (`sightings-map.tsx` lines 382 and 415).
+- **Dragging the draft pin**: on `dragend`, the exact point goes to `onPlace`, then to `place()`, then
+  it's rounded (`sightings-map.tsx` line 444).
+- **Keyboard**: Enter on the focused map calls `place(center)` (`map-app.tsx` line 349).
+- **Server**: `postSighting` checks only that the coordinates are in range. The database rounds lat
+  and lng to 3 decimals when it saves them (docs/database-handoff.md, "lat, lng").
+- Nothing checks land, water, roads or paths. A pin can go in the Delaware River.
+- **Search**: `chooseSearchResult()` keeps the exact Nominatim point in React state (`searchResult`).
+  `SightingsMap` draws the "Searched:" label there and zooms to it. The search route returns only
+  `display_name`, `lat` and `lon` today, with no type and no bounding box.
+- **Report button**: one button, "Submit a report" (`.report-button`, `map-app.tsx` line 1449). In the
+  code it sits in the **bottom-right** corner on every layout, not the bottom-left. It's the only report
+  button, so it's the one to reuse. Its `startReport()` enters pick mode. "Use this spot" opens the form
+  (`ReportForm`), and "Move pin" goes back to pick mode with the form hidden. The form is a full-screen
+  modal, so the pin can only be dragged in pick mode, never while the form shows.
 
-- **Permissions-Policy** (`proxy.ts` line 50) is `camera=(), microphone=(), geolocation=(self)`, which
-  already allows geolocation on this site. No header change needed. If a test still shows geolocation
-  blocked, stop and ask.
-- **Content-Security-Policy** (`proxy.ts`): `img-src` already allows `https://*.basemaps.cartocdn.com`,
-  and leaflet-providers' `CartoDB.DarkMatter` (variant `dark_all`) uses the same hosts and key. No CSP
-  change needed. Geolocation needs no CSP change.
-- **No new dependencies**: everything below uses browser APIs (Geolocation, Permissions,
-  IntersectionObserver, matchMedia, localStorage, `crypto.randomUUID`) and the existing Leaflet and
-  leaflet-providers.
-- **policy.tsx** may only gain the one paragraph of change 2. Two things in that file will then be out of
-  date, and changing them needs the user's OK (put both in the final report, don't edit them):
-  - the existing bullet "Your location is used only when you confirm or dispute a sighting … It isn't
-    stored. Home and work places stay on this device." (the word "only" becomes wrong);
-  - `POLICY_VERSION`, which the file says to change whenever the text changes so everyone agrees again.
-- **CARTO key**: read only from `NEXT_PUBLIC_CARTO_KEY` at build time. Never print it. Tile URLs contain
-  it, so tests log only status codes, zoom levels and the style segment (`light_all` / `dark_all`), never
-  URLs, headers or page HTML.
+## Privacy rules that apply
 
-## Privacy rules that apply (docs/database-handoff.md, "Protect people's locations")
+From the prompt and docs/database-handoff.md ("Protect people's locations", "Keep locations out of
+the web stack"):
+- The exact search-result point and the exact drag or tap point are never stored, never sent to
+  Supabase or any server, never logged and never put in a URL. Only the snapped spot (a 0.001° grid
+  point) is submitted with a report, and only it goes to `/api/reverse`. That's already the case:
+  `ReportForm` sends `point`, which is the draft.
+- Writes go through the server actions only. No coordinates or ids in page URLs. Never `console.log`
+  coordinates or request bodies (Vercel keeps logs).
+- The CSP allows only this site, Supabase, CARTO's `*.basemaps.cartocdn.com` (for images only) and
+  Turnstile. Changing it needs the user's OK.
+- Searched addresses and the snapshot taken for Cancel live in React state only.
+- Every snapping option below keeps the exact point on the device. They differ in what else leaves it
+  (see the table).
 
-- The device position is sent only with a vote (`vote_on_sighting()`), "and nowhere else: no caching,
-  logs, analytics or crash reports". So the blue-dot position lives in React state (memory) only. It is
-  never stored, never sent to Supabase or `/api/search`, never logged, never in a URL.
-- Saved places (home, work and now custom ones) stay in localStorage only, never cookies, never sent.
-  Custom place names may be sensitive ("Mom's house"): treat them like coordinates.
-- No coordinates or ids in page URLs, query strings or hashes.
-- "Clear this device" must also clear the new keys (custom places, remembered location answer).
+## Change 4: the options
+
+The rule, applied by the snapping function. A grid point is **pinnable** if (a) it isn't inside a
+water area (lake, pond, reservoir, river area, sea) and (b) it is within 200 m of a road or footpath:
+any OSM `highway` way a person can be on, from motorway to footway, path, steps, track and pedestrian
+streets, but not railways, subways, ferries or aerialways. Snapping takes the grid points within
+`SNAP_RANGE_M` (300 m, about three grid steps; a constant to tune) of the exact point, sorted by
+distance, and returns the first pinnable one. If none is pinnable, it places nothing (change 5).
+
+All four options plug into the same function:
+
+```ts
+// lib/pinnable.ts
+export type SnapResult =
+  | { ok: true; spot: Point }                       // a grid point, rounded like roundCoord
+  | { ok: false; reason: "none-nearby" | "outside-area" | "unavailable" };
+export async function snapToPinnable(point: Point): Promise<SnapResult>;
+```
+
+Only the `isPinnable(gridPoint)` test behind it changes from option to option.
+
+### A. A pinnability grid built once from OpenStreetMap, shipped with the site (recommended)
+
+- **What it is**: a dev-only script, `scripts/build-pinnable-grid.mjs`, downloads OSM roads, paths and
+  water for the covered area once. It works out, for every 0.001° grid point, whether the point is
+  pinnable, and writes one bit per point to `public/pinnable/philadelphia.bin`, plus a small header
+  (area, step, data date, licence). The browser fetches the file once from this site after the terms
+  are accepted, so `isPinnable` is a bit lookup.
+- **Cost**: free. No npm package: the script reads OSM data with Node's own `zlib` and a small
+  protobuf reader (from a Geofabrik extract), or reads Overpass JSON. The default area has 900 × 550 =
+  495,000 grid points, so the file is about 62 KB, and about 10–25 KB gzipped. A larger box reaching
+  the Kittatinny Ridge and the Poconos would be about 320 KB. Both are far under "a few megabytes". The
+  one-off download is about 460 MB of extracts for PA, NJ and DE from Geofabrik, or about 50 tiled
+  Overpass queries. Refresh by rerunning the script (say, every few months).
+- **What it sends where**: nothing at runtime. The file comes from this site, and the exact point never
+  leaves the device. At build time, the developer's machine downloads OSM data, with no user data
+  involved. No CSP change, no policy.tsx change and no new runtime service.
+- **What it catches**: lakes, ponds, reservoirs, river areas and the Delaware (mapped as water areas
+  in OSM); land far from any mapped road or path (marshes, airfields, river islands).
+- **What it misses**: anything OSM doesn't have, or that changed after the build (new roads, unmapped
+  trails). Streams mapped only as lines (narrow enough not to matter at 100 m). Bridges count as water,
+  so the pin snaps to the bank. Outside the covered area, nothing is pinnable ("Pins can only go in the
+  Philadelphia area for now."). In the default area there are no mountains, so the "mountainside" and
+  "remote peak" checks use places outside the area (the outside-area message) and in-area places far
+  from paths (see Verification).
+- **Fit**: `snapToPinnable` awaits the one-time load (a few KB), then runs synchronously. The same
+  module could later back a server-side check in `postSighting` (not planned; ask first).
+- **Licence**: the grid is derived from OSM data, so it's under ODbL. The map already shows
+  "© OpenStreetMap contributors". Add one line to the README and to docs/database-handoff.md.
+
+### B. CARTO vector tiles, read in the browser
+
+- **What it is**: CARTO serves vector tiles of the same base map
+  (`tiles.basemaps.cartocdn.com/vectortiles/carto.streets/v1/{z}/{x}/{y}.mvt`, OpenMapTiles schema,
+  up to zoom 14). Checked from this container: they have `water` polygons (lake, pond, river, ocean,
+  swimming_pool) and `transportation` lines (motorway … minor, service, track, and `path` with subclass
+  footway, pedestrian, path, cycleway, steps). They're served with `Access-Control-Allow-Origin: *`.
+  The snapping function fetches the 1–4 zoom-14 tiles around the candidates, decodes them and tests the
+  geometry.
+- **Cost**: free within CARTO's free tier (its pricing page reportedly says 5M requests a month for
+  non-commercial use; check the terms for vector use with our key). One zoom-14 tile over Center City
+  is 363 KB gzipped (544 KB unpacked); a rural one is 15 KB. A downtown placement could cost up to about
+  1 MB of phone data. It needs an MVT decoder: about 150 hand-written lines, or `@mapbox/vector-tile` +
+  `pbf`, which is a new dependency (ask).
+- **What it sends where**: from the browser to CARTO and its CDN (Fastly): the tile numbers, with the
+  visitor's IP. **Needs a CSP change** (`connect-src https://tiles.basemaps.cartocdn.com`), so stop
+  and ask. Privacy cost: those requests happen only while someone places a pin, so CARTO's and Fastly's
+  logs (Fastly keeps full IPs up to two business days) would tie an IP to a 2.4 km square shortly
+  before a public pin appears there. The raster tiles show only that someone looked at the area.
+  Fetching vector tiles for every view at zoom 14 and above would hide that, at more data cost.
+  policy.tsx would probably need a sentence (ask).
+- **What it catches**: everywhere, not just Philadelphia. Data as fresh as CARTO's.
+- **What it misses**: what OSM misses; small simplifications at zoom 14. Tile edges need the
+  neighbouring tile when a candidate is within 200 m of one.
+- **Fit**: async inside `snapToPinnable`, with tiles cached in memory for the session.
+
+### C. Overpass API (OpenStreetMap) through a new server route
+
+- **What it is**: a new `POST /api/pinnable` route. It takes a box around the rounded candidates (about
+  1 km, in the body, never logged), asks Overpass for roads, paths and water areas there, and returns
+  the geometry. The browser tests the candidates locally.
+- **Cost**: free public service with fair-use limits: about 10,000 queries and 1 GB a day per IP, and
+  the OSM wiki asks regular users to divide those by 100. Every visitor shares Vercel's IP, so this is
+  fine for a demo and not for real use without a paid or self-hosted Overpass. Queries take from half a
+  second to many seconds, and 429 or 504 errors happen at busy times, which is risky during a live
+  presentation.
+- **What it sends where**: from Vercel to overpass-api.de: a box of about 1 km, without the visitor's IP.
+  No CSP change. It's a new outside service, so it needs the user's OK. Blocked from this container: to
+  verify it in session 2, the user must allow `overpass-api.de` in the environment's network settings.
+- **What it catches**: everywhere, with the freshest data (minutes old) and every mapped path.
+- **What it misses**: what OSM misses. The sea isn't a polygon in OSM (it's coastline lines), so it
+  needs extra handling. That doesn't matter in Philadelphia.
+- **Fit**: async inside `snapToPinnable`.
+
+### D. Nominatim reverse lookups (the existing provider)
+
+- **What it is**: for each candidate, ask Nominatim (through `/api/reverse` or a sibling route) for the
+  nearest road with its geometry, and whether the point is inside a water feature.
+- **Cost**: free, and no new service. But Nominatim's policy is at most 1 request a second for the
+  whole app (every visitor shares Vercel's IP). Each placement needs several requests, so a busy hour
+  could get the app blocked, which would also break search and street labels.
+- **What it sends where**: from Vercel to Nominatim: the grid points (already done for labels).
+- **What it catches and misses**: built for addresses, not for this kind of check. It finds the
+  nearest named or addressable road, so it skips many unnamed footpaths. It finds water only when the
+  water is a named feature in its "natural" layer, so it misses many ponds. Not recommended.
+
+Considered and rejected: reading pixel colours from the CARTO raster tiles. Positron's land
+(#fafaf8) and roads (#fff) are nearly the same colour, labels and dark mode get in the way, it needs
+CORS-enabled tiles, and it may breach CARTO's terms.
+
+### Recommendation
+
+**A.** It sends nothing anywhere when someone places a pin, which is what this app is built around. It's
+instant and can't fail during the presentation. It needs no CSP, policy or dependency change. The file is
+tiny. The price is a fixed covered area and data only as fresh as the last build. Both fit an app that
+is "a map of Philadelphia". If the user wants pins anywhere, B is next best, provided they approve the
+CSP change and accept CARTO seeing when someone places a pin.
 
 ## The changes
 
-### 2. Terms and Privacy paragraph
-- **File**: `app/_components/policy.tsx`: add one `<li>` in the Privacy list, after the existing
-  location bullet. Nothing else in the file changes.
-- **Draft text** (refine in session 2, keep it this short):
-  "**Your location on the map.** When you first open the map, ICEPik asks your browser for your location
-  so it can show where you are as a blue dot and center the map there. You can say no and the map still
-  works. Your position stays on this device: it isn't sent to ICEPik, stored or shared. Places you save
-  stay on this device too."
-- **Verify**: the paragraph shows on the consent screen and in Settings → Terms and privacy (Playwright
-  text check plus screenshot). Quote the final text in the report.
+### Step 0 (no box): put the existing rule in one function
 
-### 8. Agree button after reading
-- **Files**: `app/_components/consent-screen.tsx`, `app/globals.css`.
-- **Change**: a sentinel element at the end of the text inside `.consent-text`, watched with an
-  IntersectionObserver (root `null`, so it works whether the text box or the whole page scrolls on small
-  phones). While it hasn't been seen, the button keeps `aria-disabled="true"` (not `disabled`, so it stays
-  focusable and in the accessibility tree), ignores clicks, and has `aria-describedby` pointing at a
-  visible note: "Scroll to the end of the terms to agree." When the sentinel is seen once, enable the
-  button and hide the note. If the text fits without scrolling, the observer fires at once and the button
-  starts enabled. The `.consent-text` box is already focusable (`tabIndex={0}`), so keyboard users can
-  scroll it with the arrow keys. Style `[aria-disabled="true"]` on `.primary-button` (dimmed,
-  `cursor: not-allowed`) to match the design.
-- **Verify** (375x667, 320x568, 1280x800, and a tall window where the text fits): before scrolling, Tab
-  reaches "I agree"; it is in the accessibility tree as a disabled button whose description is the note
-  (`getByRole('button', { name: 'I agree' })`, `toBeDisabled()`, `toHaveAccessibleDescription`); clicking
-  it does nothing. After scrolling the text to the end (mouse wheel and keyboard End/PageDown), it is
-  enabled and agreeing works. In the tall window it is enabled from the start.
+- **Files**: new `lib/pinnable.ts` (`snapToPinnable`, with today's rule: the nearest grid point is
+  always pinnable), `app/_components/map-app.tsx` (`place()`, report branch).
+- **Change**: `place()` awaits `snapToPinnable(point)` for `picking === "report"`. A counter drops a
+  result that comes back after a newer placement. No change in behaviour yet.
+- **Verify**: tap, drag and Enter-to-place still put the pin on the same rounded spot as before
+  (Playwright: the submitted coordinates of a mock post equal `roundCoord` of the tap point).
 
-### 7. Sticky Back button
-- **Files**: `app/_components/settings-dialog.tsx` (the `view === "policy"` block, about line 64),
-  `app/globals.css`.
-- **Change**: `.modal` is the scroll container (`overflow-y: auto`). Give the policy view's Back row a
-  class (e.g. `sticky-actions`) with `position: sticky; bottom: 0`, the surface background and a soft top
-  edge, so the existing Back button stays in view from the first line to the last. Check it doesn't cover
-  the last line of text (bottom padding).
-- **Verify** at 375x667 and 1280x800: open Settings → Terms and privacy, scroll to the top, middle and
-  bottom; at each point `elementFromPoint` at the Back button's centre is the button and clicking it
-  returns to the settings page. Screenshots mid-scroll.
+### 1. Report at the searched place
 
-### 1. Location access at the start
-- **Files**: `lib/device-storage.ts` (new key `icepik.location`, values `"granted" | "denied" |
-  "unavailable"`, a `useLocationAnswer()` hook and a setter, cleared by `clearDeviceStorage`), a small
-  hook for the position (e.g. `lib/use-my-position.ts`), `app/_components/map-app.tsx`,
-  `app/globals.css`.
-- **Change**: once the map opens (after consent, so nothing is asked before the terms are agreed), if no
-  answer is stored, show one short line in the notice style, e.g. "ICEPik asks for your location to show
-  where you are and center the map. It stays on this device.", and call `navigator.geolocation
-  .watchPosition` (which shows the browser's prompt). On the first fix: store "granted", hide the line,
-  center the map on the position once (only if the person hasn't moved the map or opened a sighting
-  yet). On error: code 1 stores "denied", codes 2 and 3 store "unavailable"; stop watching, hide the
-  line, and the map works as before. On later loads: if "granted" and `navigator.permissions` still says
-  granted, start watching silently; if "denied"/"unavailable", don't ask. Keep the position in memory
-  only. Reuse the pattern of `currentPosition()` in `sighting-card.tsx`.
-- **Stop condition**: the Permissions-Policy already allows it (see above).
-- **Verify**: Playwright context with `permissions: ['geolocation']` and `geolocation: {...}` (granted)
-  and one without the grant (denied): the line shows on the first visit only; after a reload neither the
-  line nor a new request appears (count `getCurrentPosition`/`watchPosition` calls with an init script);
-  with "denied" the map, search, pins and REPORT all still work; localStorage holds only the answer, no
-  coordinates; network log shows no request carrying the position.
+- **Files**: `app/_components/map-app.tsx`, `app/_components/report-form.tsx`, `app/globals.css`,
+  `app/_components/map-pins.ts` (reuse `shortPlaceName`; the magnifier from `icons.tsx` `SearchIcon`).
+- **Change**: in `startReport()`, if `searchResult` is set, take the snapshot (change 2), check the
+  result's size (change 5), and await `snapToPinnable(searchResult)`. When it works, set the draft to the
+  snapped spot, remember it as `searchSpot` (with the label), open the form directly (no pick mode), and
+  pan so the pin is in view behind the form. Without a search result, `startReport()` stays exactly as it
+  is. `ReportForm` gets an optional `searched` prop. When it's set, the spot row shows a notice
+  "Searched: {shortPlaceName(label)}", in the same style as the map's searched label (dark pill and
+  magnifier). The full name goes to screen readers. "Move pin" and the "rounded to about 100 m"
+  sentence stay. No second report button.
+- **Verify** (Playwright, 1280x800 and 375x667): search a street address (real Nominatim through
+  the route, e.g. "1500 Market Street, Philadelphia"), choose it, tap "Submit a report". The form opens at
+  once with "Searched: 1500 Market Street". The draft pin is on a grid point, not on the exact result. It
+  passes `isPinnable` (after change 4), and the label and pin are visibly apart in the screenshot. Without
+  a search result, the button enters pick mode with "Tap the map where you saw ICE." as before.
+  Screenshots on phone and desktop to check the design.
 
-### 3. Blue dot
-- **Files**: `app/_components/sightings-map.tsx` (new prop `myPosition`), `app/_components/map-pins.ts`
-  (markup), `app/globals.css`.
-- **Change**: a non-interactive Leaflet marker (`interactive: false`, `keyboard: false`) in its own pane
-  just below the sighting pins (marker pane is 600, search pane 550: use about 560), plus a faint
-  accuracy circle when the accuracy is useful. Moved with `setLatLng` on every watch update. Classic
-  "you are here" look: a round blue dot (a stronger blue than `--blue`) with a thick white ring and soft
-  shadow. It must not pass for the new-report pin, which is also blue (`DRAFT_PIN_MARKUP`, `#4f93c8`) but
-  a teardrop with a "+"; the dot is a circle, not a pin. `role="img"`, `aria-label="Your location"`.
-- **Verify**: dot appears at the granted position; `context.setGeolocation` to a new point moves it;
-  screenshot next to a verified, unverified, disputed, selected and draft pin, a cluster and the searched
-  label, at phone and desktop, light (and dark after change 9).
+### 2. Confirm before sending, and Cancel puts everything back
 
-### 4. Re-center button
-- **Files**: `app/_components/map-app.tsx` (button + handler), `app/_components/sightings-map.tsx`
-  (`MapApi.centerOn(point)`), `app/globals.css`, `app/_components/icons.tsx` (a crosshair icon, same
-  style as the others).
-- **Change**: a real `<button>` styled like the zoom buttons, stacked just above the zoom control (bottom
-  right), `aria-label="Center the map on my location"`, reachable with Tab. With a position: pan/zoom to
-  it (zoom at least 15). Without one: if the permission is still "prompt", ask (the tap is a user
-  gesture); if denied or unavailable, show a notice explaining why, e.g. "ICEPik can't see your location.
-  Allow location for this site in your browser settings, then try again." Never do nothing.
-- **Watch out**: on phones the zoom control sits under the open sighting card at 320x568 and 375x667
-  (older problem), and `phonePadding()` in map-app.tsx avoids the zoom control's box. Re-measure so the
-  new button doesn't overlap REPORT, the credits or the P1 pin space; include it in `phonePadding` if it
-  sits in the same column.
-- **Verify**: granted: after panning away, the button (by click and by keyboard Enter) brings the dot to
-  the centre. Denied: the notice appears and the map doesn't move. Tab order, accessible name, focus ring
-  visible (not clipped like the zoom buttons' ring). Phone and desktop screenshots.
+- **Files**: `app/_components/map-app.tsx`, `app/_components/sightings-map.tsx` (`MapApi.view()` and
+  `MapApi.restoreView(view)`, which doesn't count as "moved"), `app/_components/report-form.tsx`.
+- **Change**: "Post sighting" is the confirmation, and nothing is posted before it. Enter in a
+  single-line field of the report form no longer submits it (implicit submission is blocked; Tab to
+  "Post sighting" still works). `startReport()` saves a snapshot in memory: the map view (center and
+  zoom), `selectedId`, `groupIds`, `panelOpen`, `reportsTab`, `query`, `searchResult` and the open results.
+  `cancelReport()` restores it from every way out: the form's Cancel, the close button, Escape, and the
+  pick banner's Cancel. That applies to both the search path and the tap path. Posting, and "Already
+  reported nearby?" → show that sighting, end the report without restoring (a new `endReport()`).
+- **Verify**: log every request from tapping the button until Cancel: no server action call
+  (`Next-Action` header) and nothing to Supabase. Enter in the Agents and Location fields posts
+  nothing. "Post sighting" makes exactly one action call. After Cancel (with each of the four ways out),
+  the search box text, result marker, selected pin or card, panel state and map view match the state
+  before (DOM checks, plus a screenshot diff of the map area once the tiles have loaded).
 
-### 5. Saved-location icons
-- **Files**: `app/_components/map-pins.ts` (`savedPlaceMarkup(kind: "home" | "work" | "custom")`),
-  `app/_components/sightings-map.tsx` (new prop for saved places, own layer and pane below the pins),
-  `app/_components/map-app.tsx` (pass them), `app/globals.css`.
-- **Change**: saved places aren't drawn on the map today. Draw each as a divIcon in the pins' style (rem
-  sizes, white rim, the same drop shadow) but a different shape from the teardrop sighting pins: a round
-  or rounded-square badge in the dark surface colour with a white glyph. Glyphs: the house and briefcase
-  from `PlaceIcon` in `icons.tsx` for the existing `PlaceName` types `"home" | "work"`, and one generic
-  "saved place" glyph (star or bookmark) for every custom place. Non-interactive, `role="img"`,
-  `aria-label` like "Home, saved on this device".
-- **Verify**: set home and work (Settings → Set on map) and one custom place; each shows its own icon at
-  its spot; screenshot next to every sighting pin type and the blue dot; they're distinct by shape, not
-  only colour.
+### 3. Dragging the pin
 
-### 6. Custom saved locations
-- **Files**: `lib/device-storage.ts` (key `icepik.custom-places`, type `CustomPlace = { id, name, lat,
-  lng }`, `useCustomPlaces()`, `addCustomPlace()` returning `false` when it couldn't be saved,
-  `removeCustomPlace(id)`; parse defensively; cap the name length and the count), `map-app.tsx`,
-  `settings-dialog.tsx`, `app/globals.css`.
-- **Storage check**: the existing `write()` swallows errors. Add a checked write that catches the
-  exception and reads the value back (as `acceptPolicy` already does), so "full or blocked" is detected.
-- **Adding**: (a) Settings → Your places → "Add a place" starts a new picking mode (`Picking` gains
-  `"custom"`), the existing pick banner says "Tap the place on the map", and the tap opens a small naming
-  form (name input, Save, Cancel) in the banner's style; (b) after choosing a search result, a "Save this
-  place" button next to the search box's Clear button opens the same form, prefilled with
-  `shortPlaceName(label)`. Coordinates rounded to 4 decimals like home and work.
-- **Showing and deleting**: custom places appear in Settings → Your places (generic icon, name, nearby
-  count, Show, Delete) and in the panel's "Your places" card (Show), and on the map (change 5).
-- **Errors**: if saving fails, notice "Couldn't save this place on this device. Your browser's storage is
-  full or blocked." and the page keeps working.
-- **Verify**: add by map tap and by search result; reload, still there; delete, gone after reload;
-  storage blocked (`addInitScript` making `localStorage.setItem` throw `QuotaExceededError`) shows the
-  message and the map still works; "Clear this device" removes them; network log shows no request with
-  a place name or its coordinates.
+- **Files**: `app/_components/sightings-map.tsx` (draft marker `dragend`),
+  `app/_components/map-app.tsx`, `app/_components/report-form.tsx`, `app/globals.css`.
+- **Change**: dragging already goes through `place()`, so on release it snaps with `snapToPinnable`.
+  When the snap fails, the marker goes back to the previous draft (`setDraft` with a new object, so the
+  map effect moves it back) and the change 5 message shows. When the draft differs from `searchSpot`
+  (dragged or tapped elsewhere), the "Searched" notice turns into a search icon button,
+  `aria-label="Move the pin back to the searched place, {short name}"`, with the same text as its
+  tooltip. Tapping it sets the draft back to `searchSpot` and the notice returns. Focus then goes to
+  "Move pin", and a status line says "Pin moved back to the searched place." The search box keeps its
+  text and result throughout.
+- **Verify**: from the search flow, "Move pin", then drag the marker with `page.mouse` to a nearby
+  street. It lands on a grid point, back in the form the icon shows with its accessible name, and the
+  search input still holds the address with the result marker on the map. Tap the icon: the pin
+  returns to the snapped search spot and the notice is back. Keyboard: Tab reaches the icon, Enter
+  works.
 
-### 9. Dark map
-- **Files**: `app/_components/sightings-map.tsx`, `app/globals.css`.
-- **Change**: pick `CartoDB.Positron` or `CartoDB.DarkMatter` from
-  `matchMedia("(prefers-color-scheme: dark)")`, with the same key and `maxNativeZoom: MAX_ZOOM`; on the
-  media query's `change` event swap the layer live. Put a class (e.g. `map-dark`) on the map container
-  for CSS: a dark container background so loading doesn't flash white, and readable overlays.
-- **Things to restyle or check in dark**: the "Searched:" label is a dark pill with a dark pointer and
-  keeps its colours even in forced-colours mode, so on DarkMatter both would vanish: give it a light
-  version under `.map-dark` (this also covers forced colours with a dark scheme). Check the disputed grey
-  pin, clusters, the blue dot, saved-place badges, the draft pin, zoom and re-center buttons, the pick
-  banner and the map credit. The app has no Leaflet popups as far as I saw; confirm with a grep and
-  say so in the report.
-- **Verify**: Playwright `colorScheme: 'dark'` loads `dark_all` tiles (count by style segment only);
-  `page.emulateMedia({ colorScheme: 'dark' })` and back switches live without reload; screenshots of every
-  marker type and the controls in both schemes, plus contrast samples for the searched label's pointer
-  and the credit text.
+### 4. No pins in impossible places
+
+- **Files**: `lib/pinnable.ts` (the rule inside `snapToPinnable`), plus by option: **A**
+  `scripts/build-pinnable-grid.mjs` and `public/pinnable/philadelphia.bin`; **B** `proxy.ts`
+  (connect-src, after approval) and maybe policy.tsx (after approval); **C** `app/api/pinnable/route.ts`.
+  Also README.md and docs/database-handoff.md (data source, and for A the licence line).
+- **Change**: as in "Change 4: the options". Every path (search, tap, pin or cluster tap, drag, Enter)
+  already goes through `place()` or `startReport()`, which both call `snapToPinnable`. Existing reports
+  are left alone: pins already in water still show and can still be confirmed.
+- **Stop conditions**: the option needs the user's choice. B needs the CSP and maybe policy.tsx.
+  A and C need a blocked host allowed (or a local build). Ask before adding a server-side check in
+  `postSighting`.
+- **Verify**: spot checks against the data and the map: City Hall and a Fishtown street are pinnable.
+  The middle of FDR Park's Meadow Lake isn't, and a tap there snaps to the shore. Mid-Delaware by
+  Little Tinicum Island has nothing within 300 m, so the message shows. A land point more than 200 m from
+  any road or path, found in the data (e.g. inside Little Tinicum Island or the Tinicum marsh), is refused.
+  In the browser: tap the map on water → snapped to the shore, or refused with the message. Drag onto the
+  lake and onto the far-from-path spot → refused, and the pin goes back. Drag to a street → accepted. With
+  A, a mountainside outside the area (Hawk Mountain ridge) is refused with the outside-area message.
+  With B or C, test a real slope far from trails.
+
+### 5. Nothing pinnable nearby, and large search results
+
+- **Files**: `app/api/search/route.ts` (also return `category`, `type`, `addresstype`, `place_rank` and
+  `boundingbox` from the same Nominatim response; still never log anything), the `SearchResult` type
+  and `chooseSearchResult()` in `map-app.tsx` (keep them in `searchResult`), and `map-app.tsx` messages
+  through `showNotice`.
+- **Change**: before snapping a search result, treat it as a large area if `place_rank <= 20` (suburb,
+  town, city, county, state) or its bounding box is longer than 1 km on a side. Then place nothing and
+  show "That's a large area. Search for an address or a place inside it to report there." When
+  `snapToPinnable` finds nothing (from search, tap or drag), show "No spot for a pin near here. Pins go
+  on land within 200 m of a road or path." and place nothing. With option A, outside the area: "Pins
+  can only go in the Philadelphia area for now." When the data can't load: "Couldn't check this spot.
+  Try again." The large-area part can be built before change 4. The nothing-nearby part is verified
+  after it.
+- **Verify**: search "Philadelphia" → large-area message, no form, nothing on the map changed. Search a
+  remote peak: with A, "Hawk Mountain" (outside the area) → the outside-area message, and "Little
+  Tinicum Island" (inside, no paths) → nothing-nearby; with B or C, a real remote peak → nothing-nearby.
+  Messages are announced (the notice is a status region) and readable on phone and desktop.
+
+## Order
+
+Step 0 → 1 → 2 → 3 → 5 (large-area part) → 4 → 5 (nothing-nearby part, then tick 5) → re-run the
+checks for 1 and 3 with the real rule → regression pass → final report.
+
+Steps 0 to 3 and the first half of 5 don't depend on the change 4 option. If no option has been chosen
+when they're done, stop there and ask. Record the regression pass and the report under "Notes from
+session 2".
 
 ## Verification setup (session 2)
 
-- **AGENTS.md**: this Next.js differs from what you know. These changes touch client components and CSS
-  only; if any Next.js API is needed, read `node_modules/next/dist/docs/` first.
-- **Build**: production build so the dev badge doesn't show:
-  `NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321 NEXT_PUBLIC_SUPABASE_ANON_KEY=test-anon-key npx next build`,
-  then `npx next start -p 3000` with the same variables, in the background with a long timeout (2 h
-  maximum; restart if it's stopped). The CARTO key is read from the environment by the build.
-- **Data**: without Supabase settings the app shows the map with a "not connected" note, enough for the
-  consent screen, map, buttons, dark map and location checks. For pins, there is no Supabase project or
-  CLI here, so use the fake Supabase in the appendix (fixture sightings over plain HTTP on port 54321).
-  Say in the report that pin checks ran against fixtures from a fake Supabase, not a real project.
-- **Playwright**: `require('playwright')`, `chromium.launch()` (preinstalled; don't install). Screenshots
-  for the user at `deviceScaleFactor: 2`. Geolocation: `browser.newContext({ permissions:
-  ['geolocation'], geolocation: { latitude: 39.9526, longitude: -75.1652 } })`, move with
-  `context.setGeolocation`; denied = no grant. Dark: `colorScheme: 'dark'`. Search: mock
-  `page.route('**/api/search', …)`. After change 8 the consent helper must scroll `.consent-text` to the
-  end before clicking "I agree".
-- **Sizes**: 320x568, 375x667, 390x844, 667x375, 1280x800.
-- **Branch**: work on `claude/icepik-map-handoff-9xy8qz`. It already holds the four presentation fixes
-  (commits e7e39c7, dd9c4d8), which are not on `main` yet: don't merge to `main` without the user's OK.
+- `npm ci` (no node_modules yet; registry.npmjs.org is reachable). Then read the Next docs, as AGENTS.md
+  says.
+- Build for production with the fake Supabase settings (check the variable names in
+  `lib/supabase/config.ts`), and run `npx next start` in the background. `NEXT_PUBLIC_CARTO_KEY` is set
+  in the environment. Read it only from there: never print it, and never log tile URLs, which contain it.
+- **No Supabase project or CLI here.** Use `scripts/mock-supabase.mjs`, copied to the scratchpad and
+  extended to answer `POST /rest/v1/sightings` with the inserted row (rounded to 3 decimals, as the
+  database does) and to record request bodies for the privacy check. The report must say that posting
+  ran against this fake, so real inserts, database rounding, Realtime and the database's own rules
+  weren't checked.
+- **Privacy check for every flow**: record every browser request (URL and body, including server
+  action calls and `/api/reverse`), what the fake Supabase receives, the browser console and the
+  server's output. Search all of it for the exact result's coordinates at several precisions (the
+  Nominatim string, 6, 5 and 4 decimals). The only allowed place is the `/api/search` response. The
+  snapped spot appears only in `/api/reverse` and the post.
+- Nominatim is reachable from the container. Use the real search for the main flows, and
+  `page.route('**/api/search')` fixtures for edge cases (a large box, a peak).
+- Screen sizes: 375x667 and 1280x800, plus 320x568 for the form. Screenshots for the user at
+  `deviceScaleFactor: 2`.
+- Regression pass after all five: tapping the map to report on land still works, every pin and cluster
+  type still shows, and `npx tsc --noEmit`, `npx eslint` and `npx next build` pass.
+
+## Other branches (checked in session 1)
+
+- `ccr-ce93647e-c29sev`: 31 commits newer than what `main` merged, including the `/demo` page with its
+  own database (2bc7278) and Turnstile on (c2ec338). It overlaps here in `map-app.tsx` (imports, a
+  `demo` constant, a notice effect, the h1), `report-form.tsx` (`useDemo`, `postSighting(…, demo)`),
+  `proxy.ts` (a CSP per path; matters only for option B) and `app/actions/sightings.ts`. If the
+  presentation uses `/demo`, this branch needs merging with that one afterwards; the conflicts should be
+  a few lines.
+- `review-fixes-recovery-keys`: 4 commits ahead of `main` (recovery keys, database review). It
+  rewrites much of docs/database-handoff.md, including the privacy section, and touches policy.tsx and
+  `app/actions/sightings.ts`. Keep this plan's docs edit to one separate paragraph so it merges cleanly.
+  Its privacy rules are no looser than main's for these changes.
+- `ccr-59bf185f-dp6eoa`, `ccr-e62ec9a7-8wl264`, `claude/icepik-map-handoff-9xy8qz`: older than `main` or
+  already merged. `claude/handoff-icepik-map(-1)`: handoff documents only. `claude/icepik-logo-assets`:
+  logo files only. None of them touch this work.
 
 ## Final report (prose)
 
-For each change: passed or not, and how it was checked. The paragraph added to policy.tsx, quoted. What
-couldn't be verified and why (at least: real Supabase, real devices, real Windows contrast themes). The
-policy.tsx follow-ups that need approval (the "only" bullet and `POLICY_VERSION`). Last, the two search
-options: keep search on Enter (no policy problems), or switch to a type-ahead provider such as Photon (a
-new outside service: needs the user's approval and updates to the README and docs/database-handoff.md;
-because search runs through the server route, the provider wouldn't see visitors' IP addresses).
-Autocomplete must not be built on Nominatim: its usage policy forbids it.
-
-## Appendix: fake Supabase for local pin checks
-
-Save as `mock-supabase.js` in the session's scratchpad and run `node mock-supabase.js` (port 54321).
-
-```js
-// Fake Supabase for local UI testing: fixture sightings, fake anonymous sign-up.
-const http = require('http');
-const PORT = Number(process.env.MOCK_PORT || 54321);
-const now = Date.now();
-const iso = (ms) => new Date(ms).toISOString();
-const C = [39.9526, -75.1652];
-const base = (i, o) => ({
-  id: `00000000-0000-4000-8000-${String(i).padStart(12, '0')}`,
-  agent_count: 2, vehicle_count: 1, category: 'patrol', confirm_count: 0, dispute_count: 0,
-  created_at: iso(now - i * 7 * 60000), description: 'Fixture sighting', expires_at: iso(now + 6 * 3600000),
-  lat: C[0], lng: C[1], location_label: `Fixture street ${i}`, verification_score: null,
-  verification_status: 'unverified', ...o,
-});
-const N = Number(process.env.MOCK_COUNT || 8);
-const spots = [
-  [39.9526, -75.1652, 'verified', 'Market Street & 15th'],
-  [39.9580, -75.1580, 'unverified', 'Spring Garden Street'],
-  [39.9450, -75.1550, 'disputed', 'South 9th Street'],
-  [39.9620, -75.1720, 'unverified', 'Fairmount Avenue'],
-  [39.9400, -75.1750, 'verified', 'Washington Avenue'],
-  [39.9500, -75.1450, 'unverified', 'Chestnut Street & 3rd'],
-  [39.9700, -75.1500, 'disputed', 'Girard Avenue'],
-  [39.9350, -75.1600, 'unverified', 'Passyunk Avenue'],
-  [39.9528, -75.1648, 'unverified', 'Market Street & 15th (2)'],
-  [39.9480, -75.1900, 'unverified', 'University City'],
-];
-const rows = spots.slice(0, N).map(([lat, lng, s, label], i) => base(i + 1, { lat, lng, verification_status: s, location_label: label }));
-const b64 = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
-const userId = '11111111-1111-4111-8111-111111111111';
-const exp = Math.floor(now / 1000) + 3600 * 24;
-const jwt = `${b64({ alg: 'HS256', typ: 'JWT' })}.${b64({ sub: userId, role: 'authenticated', aud: 'authenticated', exp, is_anonymous: true, iss: `http://127.0.0.1:${PORT}/auth/v1` })}.sig`;
-const user = { id: userId, aud: 'authenticated', role: 'authenticated', is_anonymous: true, app_metadata: {}, user_metadata: {}, identities: [], created_at: iso(now) };
-const session = { access_token: jwt, refresh_token: 'refresh', expires_in: 86400, expires_at: exp, token_type: 'bearer', user };
-http.createServer((req, res) => {
-  const h = { 'Access-Control-Allow-Origin': req.headers.origin || '*', 'Access-Control-Allow-Credentials': 'true', 'Access-Control-Allow-Headers': req.headers['access-control-request-headers'] || '*', 'Access-Control-Allow-Methods': 'GET,POST,PATCH,DELETE,OPTIONS', 'Content-Type': 'application/json' };
-  if (req.method === 'OPTIONS') { res.writeHead(204, h); return res.end(); }
-  const url = new URL(req.url, 'http://x');
-  let body = '[]', status = 200;
-  if (url.pathname === '/rest/v1/sightings') body = JSON.stringify(rows);
-  else if (url.pathname.startsWith('/rest/v1/')) body = '[]';
-  else if (url.pathname === '/auth/v1/signup' || url.pathname === '/auth/v1/token') body = JSON.stringify(session);
-  else if (url.pathname === '/auth/v1/user') body = JSON.stringify(user);
-  else if (url.pathname.includes('jwks')) body = JSON.stringify({ keys: [] });
-  else { status = 404; body = '{}'; }
-  res.writeHead(status, h); res.end(body);
-}).listen(PORT, () => console.log('mock supabase on', PORT, 'rows', rows.length));
-```
-
-Set `MOCK_COUNT=10` to add a second Market Street sighting at almost the same spot, which forms a cluster.
+For each change: passed or not, and how it was checked. Which data source change 4 uses and what it
+might miss. What couldn't be verified and why (at least: a real Supabase project, real devices).
 
 ## Notes from session 2
 
-- Session 2 scripts and screenshots: `<scratchpad>/ux9/` (`lib.js` has the shared Playwright helpers,
-  `check-*.js` one script per group of changes, `shots/` the screenshots).
-- Change 8: the IntersectionObserver's root is the terms box itself, not the page, so "fits without
-  scrolling" means the text fits in its box. Verified at 375x667, 320x568, 1280x800 (disabled first,
-  Tab reaches it in 2 presses, the accessibility tree reports disabled with the note as its
-  description, an early click does nothing, End in the box enables it) and at 1280x2600 (enabled from
-  the start).
-- Change 7: the bar sticks with `bottom: -1.75rem` (Chrome sticks to the scrollport edge, ignoring the
-  dialog's padding). Verified at 375x667 and 1280x800: the Back button is the topmost element at its
-  centre at top, middle and bottom scroll, the last line ends above the bar, and Back returns to
-  Settings.
-- Change 1: the "asks for your location" line shows only when the browser will really ask (status
-  "asking"); when location is already allowed the hook uses a separate "finding" status and shows
-  nothing. Verified granted (1280x800, 375x667), denied (both) and unavailable (375x667): line then
-  request on the first visit; answer stored; no line and no request after a reload; map, search and
-  REPORT work when denied; no coordinates in localStorage or any request.
-- Change 3: the plan put the dot below the pins, but a pin could then hide it completely (seen at
-  375x667). The dot's pane is now above the marker pane (610); it is non-interactive, so taps reach the
-  pin under it. The accuracy circle has its own pane below the pins (545) and is hidden when accuracy
-  is worse than 1.5 km.
-- Change 4: the button is a Leaflet control holding a real `<button>`, stacked above the zoom buttons,
-  with an inset focus ring (an outline would be clipped like the zoom buttons'). It centers the dot in
-  the middle of the map area left uncovered by the panel or card (`MapApi.centerOn` with `mapPadding()`).
-- Change 3 re-checked at 375x667 and 1280x800 with the position on the South 9th Street pin: the dot
-  draws above the pin, and the topmost element under the dot's centre is still the pin, so taps reach it.
-- Change 5: badges are dark rounded squares with a white edge and a white glyph (house, briefcase, star),
-  centred on the spot, in their own pane (540) under the searched label, the dot and the pins. A place
-  being named shows a dashed badge.
-- Change 6: `write()` in device-storage now reports whether the value was stored (it reads it back),
-  so home and work also say when they couldn't be saved. Custom places are capped at 25, names at 40
-  characters, coordinates rounded to 4 decimals like home and work. Adding: Settings → Saved places →
-  "Add a place", then tap the map; or the star button that appears in the search box after choosing a
-  result. Both open a naming form where the pick banner sits. Verified at 375x667 and 1280x800 (add by
-  tap and by search, Escape cancels, survives reload, Settings lists and deletes, "Clear this device"
-  removes every `icepik.*` key), storage full at 375x667 (message shown, page still works), and no
-  request carried a name or coordinates.
-- Change 9: the styles in dark mode use a `prefers-color-scheme: dark` media query (no class on the map),
-  so CSS and tiles switch together. On a live switch the new tile layer is added on top and the old one
-  removed once the new one has loaded, so the map never flashes empty. The app has no Leaflet popups.
-  Verified at 1280x800, 375x667 and 320x568 in dark: only `dark_all` tiles, every marker type present,
-  map credit visible and dark (text 9.7:1, links 8.7:1), searched label light (text 14.8:1, pointer
-  13.6:1 on dark tiles); switching to light and back live leaves one tile layer showing the right style,
-  with no reload and no page errors.
-- Regression pass, part 1 (commit eaa331e): `npx tsc --noEmit` exit 0, `npx eslint` exit 0,
-  `npx next build` exit 0. Part 2: four independent reviewers (one per group of changes) test the
-  build on port 3000 against the pre-change build (dd9c4d8) on port 3001, including every pin and
-  cluster type in light and dark and the map credit at phone widths; their scripts and screenshots go
-  to `<scratchpad>/ux9/review/`.
+(none yet)
 
-## Merge with nthanvii's restyle (PR #8 on nthanvii/icepik)
+## Sources
 
-- nthanvii merged a restyle of the UI around the map (new rail, "Nearby reports" panel, Know Your
-  Rights card, search box, "Submit a report" button, their own find-me and zoom buttons). Merged into
-  this branch, taking their design and moving this branch's work into it: their find-me button
-  ("Show where I am") runs `centerOnMe` (blue dot, remembered answer, centering in the free part of
-  the map); their zoom buttons replace Leaflet's and my re-center control; custom places appear in
-  their "Your places" card; the save star sits in their search box; `phonePadding` avoids
-  `.map-controls`.
-- Colour and focus checks on the merged UI (`<scratchpad>/ux9/contrast-audit.js`, `focus-check.js`;
-  phone and desktop, light and dark; terms, panel, card, search, Settings, Know Your Rights, pick
-  banner, report form): one failure, "Submit a report" white on #f0313d at 4.0:1, fixed with
-  --red-strong (4.8:1); focus rings on report rows and "Your places" rows were clipped, now drawn
-  inside the row; their zoom group clipped its focus ring, now inset. After the fixes: 0 contrast
-  failures in 1066 text and icon instances. Location (granted, denied, unavailable), saved places, the
-  dark map and P1 re-verified on the merged build.
-- Resolved with the user: keep change 1 (ask when the map opens). nthanvii's "used only when you ask
-  for it" bullet and this branch's paragraph are replaced by one bullet that matches the app, and
-  `POLICY_VERSION` is now "2026-11-04b-draft", so everyone is asked to agree again.
-
-## Fixes after the four reviewers (results in `<scratchpad>/ux9/review/results.json`)
-
-Fixed on the merged branch and verified on a fresh build (`<scratchpad>/ux9/check-fixes.js`, plus the
-earlier suites re-run):
-- Map buttons: on phones held sideways they make a row at the bottom left (they sat under the search
-  box); while an open card covers them they're hidden and inert, so focus can't land on them (WCAG 2.2
-  focus not obscured). A picked pin also avoids them sideways.
-- Auto-centering: any move of the map before the first position (zoom, search, a shown place, a card)
-  now stops the first fix from re-centering it; only an untouched map is centered.
-- Location reset to "Ask" in the browser while the page is open: the button asks again.
-- Notices on phones keep clear of the map buttons and sit above the place-naming form.
-- Naming a place: map and pin taps move the place (no card opens under the form), the star hides while
-  naming and says when 25 places are saved, a name already used gets a number, names are cut without
-  splitting an emoji, focus returns to the star. Settings names wrap; Remove and Delete say what
-  happened, including when storage is blocked. The side panel lists 3 named places and links to the rest.
-- Saved-place badges are diamonds, so they don't look like the map's square buttons.
-- Dark map: fast light/dark switches leave one tile layer; the map area is dark before Leaflet loads;
-  the selected pin's rings swap so the outer one shows.
-- Settings: each view starts at the top; Back returns focus to the button that opened the view.
-- High contrast: clusters keep their status colours (verified and unverified looked alike).
-- Terms: the location bullet also says that centering loads that area's map images, which CARTO sees.
-
-Known and left as is: the blue dot can cover part of a pin's glyph when they overlap; Leaflet's credit
-links have their focus ring cut by the map edge; at 280 px wide with the panel open the credit's first
-line can't be tapped (older); a screen reader reading the terms in browse mode must still move into the
-box and press End to enable "I agree" (the button says why).
+- [CARTO basemap terms](https://carto.com/legal/basemap-terms/) and [CARTO basemaps FAQ](https://docs.carto.com/faqs/carto-basemaps)
+- [Overpass API usage limits (OSM wiki)](https://wiki.openstreetmap.org/wiki/Overpass_API) and [Overpass API user's manual](https://dev.overpass-api.de/overpass-doc/en/preface/commons.html)
