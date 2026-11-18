@@ -32,15 +32,12 @@ Next.js (16.2.4) differs from what you know: after `npm ci`, read the relevant g
    The plan treats that as the existing snapping rule: it moves into one named function,
    `snapToPinnable()`, and change 4 adds the land and road test to it, keeping the grid. If the user
    meant something else, stop and ask, as the prompt says.
-3. **For option A: the area it covers, and access to OpenStreetMap data.** The default area is the
-   Philadelphia region (west −75.60, east −74.70, south 39.75, north 40.30: the city, the nearby PA
-   counties and Camden, Burlington and Gloucester counties in NJ). Outside it, no pin can be placed, and
-   the message says so. That fits the README ("a map of Philadelphia"). Building the grid needs a
-   one-time download. Both `download.geofabrik.de` and `overpass-api.de` are blocked by this cloud
-   environment's network policy. Either add one of them under Allowed domains in the environment's
-   Network access settings
-   (<https://code.claude.com/docs/en/cloud-environments#network-access>), or run the build script on
-   your own computer and commit its output.
+3. **For option A: the area it covers (has a default).** The default area is the Philadelphia region
+   (west −75.60, east −74.70, south 39.75, north 40.30: the city, the nearby PA counties, Camden,
+   Burlington and Gloucester counties in NJ, and the tip of northern Delaware). Outside it, no pin can be
+   placed, and the message says so. That fits the README ("a map of Philadelphia"). The grid is built
+   once from OpenStreetMap state extracts, downloadable from this container (see "Where the
+   OpenStreetMap data comes from").
 4. **Branch base (has a default).** Session 2 works on `claude/confident-cannon-3cv9fu`, which equals
    `main` (`ab6e467`). Two branches have newer work on the same files. Unless the user says otherwise,
    session 2 builds on `main` and leaves both branches alone. The overlap is small, and is listed under
@@ -112,12 +109,12 @@ Only the `isPinnable(gridPoint)` test behind it changes from option to option.
   pinnable, and writes one bit per point to `public/pinnable/philadelphia.bin`, plus a small header
   (area, step, data date, licence). The browser fetches the file once from this site after the terms
   are accepted, so `isPinnable` is a bit lookup.
-- **Cost**: free. No npm package: the script reads OSM data with Node's own `zlib` and a small
-  protobuf reader (from a Geofabrik extract), or reads Overpass JSON. The default area has 900 × 550 =
-  495,000 grid points, so the file is about 62 KB, and about 10–25 KB gzipped. A larger box reaching
-  the Kittatinny Ridge and the Poconos would be about 320 KB. Both are far under "a few megabytes". The
-  one-off download is about 460 MB of extracts for PA, NJ and DE from Geofabrik, or about 50 tiled
-  Overpass queries. Refresh by rerunning the script (say, every few months).
+- **Cost**: free. No npm package: the script reads the `.osm.pbf` extracts with Node's own `zlib`
+  and a small protobuf reader. The default area has 900 × 550 = 495,000 grid points, so the file is
+  about 62 KB, and about 10–25 KB gzipped. A larger box reaching the Kittatinny Ridge and the Poconos
+  would be about 320 KB. Both are far under "a few megabytes". The one-off download is about 585 MB of
+  state extracts (see below), used only on the build machine and never committed. Refresh by rerunning
+  the script (say, every few months).
 - **What it sends where**: nothing at runtime. The file comes from this site, and the exact point never
   leaves the device. At build time, the developer's machine downloads OSM data, with no user data
   involved. No CSP change, no policy.tsx change and no new runtime service.
@@ -171,8 +168,11 @@ Only the `isPinnable(gridPoint)` test behind it changes from option to option.
   second to many seconds, and 429 or 504 errors happen at busy times, which is risky during a live
   presentation.
 - **What it sends where**: from Vercel to overpass-api.de: a box of about 1 km, without the visitor's IP.
-  No CSP change. It's a new outside service, so it needs the user's OK. Blocked from this container: to
-  verify it in session 2, the user must allow `overpass-api.de` in the environment's network settings.
+  No CSP change. It's a new outside service, so it needs the user's OK. From this container no Overpass
+  instance answered: overpass-api.de reset every connection during the TLS handshake (see below),
+  overpass.kumi.systems and overpass.private.coffee timed out after 40 s, and maps.mail.ru answered
+  504. Session 2 could not verify C unless one of them starts answering, and that is the same
+  reliability risk the app would carry.
 - **What it catches**: everywhere, with the freshest data (minutes old) and every mapped path.
 - **What it misses**: what OSM misses. The sea isn't a polygon in OSM (it's coastline lines), so it
   needs extra handling. That doesn't matter in Philadelphia.
@@ -193,6 +193,24 @@ Only the `isPinnable(gridPoint)` test behind it changes from option to option.
 Considered and rejected: reading pixel colours from the CARTO raster tiles. Positron's land
 (#fafaf8) and roads (#fff) are nearly the same colour, labels and dark mode get in the way, it needs
 CORS-enabled tiles, and it may breach CARTO's terms.
+
+### Where the OpenStreetMap data comes from (options A and C)
+
+Checked from this container on 18 Nov 2026. Internet access isn't restricted, but some hosts don't
+answer:
+- **geo2day.com (formerly osmtoday), works; use this for A.** Daily state extracts, all dated
+  18 Nov 2026: `north_america/us/pennsylvania.pbf` (374 MB), `north_america/us/new-jersey.pbf` (178 MB,
+  hyphen, not underscore), `north_america/us/delaware.pbf` (24 MB). Between them they cover the whole
+  default area.
+- **download.openstreetmap.fr, works.** `extracts/north-america/us-northeast-latest.osm.pbf` (2 GB,
+  17 Nov) has PA and NJ but not Delaware. Fallback only.
+- **download.bbbike.org, works, too small.** Its weekly Philadelphia extract (42 MB PBF, 14 Nov) covers
+  only −75.33..−74.94 × 39.83..40.05, which leaves out the city's Far Northeast (up to about 40.14) and
+  every suburb.
+- **download.geofabrik.de and overpass-api.de, no connection.** Each reset the connection right after
+  the TLS hello on every try (3 tries each, also over HTTP/1.1). The local proxy logged "tunnel closed
+  after 3–4 s; 517 B sent, 39 B received", which means the tunnel opened and then dropped. That's a
+  failure on the path to those two hosts, not a refusal. Don't depend on them.
 
 ### Recommendation
 
@@ -276,9 +294,11 @@ CSP change and accept CARTO seeing when someone places a pin.
 - **Change**: as in "Change 4: the options". Every path (search, tap, pin or cluster tap, drag, Enter)
   already goes through `place()` or `startReport()`, which both call `snapToPinnable`. Existing reports
   are left alone: pins already in water still show and can still be confirmed.
-- **Stop conditions**: the option needs the user's choice. B needs the CSP and maybe policy.tsx.
-  A and C need a blocked host allowed (or a local build). Ask before adding a server-side check in
-  `postSighting`.
+- **Stop conditions**: the option needs the user's choice. B needs the CSP and maybe policy.tsx. A's
+  build downloads from geo2day.com (on the build machine only, never at runtime); if it stops
+  answering, fall back to openstreetmap.fr plus geo2day's Delaware file, and say so. C has no Overpass
+  instance answering from here, so stop and say so if it's chosen. Ask before adding a server-side
+  check in `postSighting`.
 - **Verify**: spot checks against the data and the map: City Hall and a Fishtown street are pinnable.
   The middle of FDR Park's Meadow Lake isn't, and a tap there snaps to the shore. Mid-Delaware by
   Little Tinicum Island has nothing within 300 m, so the message shows. A land point more than 200 m from
