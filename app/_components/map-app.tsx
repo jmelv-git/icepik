@@ -139,8 +139,8 @@ const SNAP_FAILED: Record<Extract<SnapResult, { ok: false }>["reason"], string> 
   outside: OUTSIDE_SERVICE_AREA,
 };
 
-// Where ICE works (lib/service-area.ts). Loaded the first time a pin is
-// placed, so its outline isn't part of the page's first download.
+// Where ICE works (lib/service-area.ts). The map loads it once it has started
+// (the outline isn't part of the page's first download); this waits for it.
 function loadServiceArea() {
   return import("@/lib/service-area").then((module) => module.inServiceArea);
 }
@@ -185,6 +185,8 @@ const LOCATION_ASK =
 const LOCATION_DENIED =
   "ICEPik can't see your location. To center the map on you, allow location for this site in your browser's settings.";
 const LOCATION_UNAVAILABLE = "Your device couldn't find your location. Try again in a moment.";
+const LOCATION_OUTSIDE =
+  "You're outside the places ICEPik covers: the 50 states, DC, Puerto Rico, the U.S. Virgin Islands, Guam and the Northern Mariana Islands.";
 
 // The phone layout in globals.css: a tab bar, and sheets that cover the map.
 function isPhone() {
@@ -707,17 +709,23 @@ export function MapApp() {
     if (revealCount) revealSelected();
   }, [revealCount]);
 
-  const onMyPosition = useEffectEvent(() => {
+  const onMyPosition = useEffectEvent(async () => {
     const position = me.position;
     if (!position || !mapApi.current) return;
+    // Somewhere the map doesn't go (lib/service-area.ts): stay put.
+    const covered = await loadServiceArea()
+      .then((inArea) => inArea(position))
+      .catch(() => true);
+    if (!mapApi.current) return;
     if (centerOnMeNext.current) {
       centerOnMeNext.current = false;
       centeredOnMe.current = true;
-      mapApi.current.centerOn(position, mapPadding(), 15);
+      if (covered) mapApi.current.centerOn(position, mapPadding(), 15);
+      else showNotice(LOCATION_OUTSIDE);
     } else if (!centeredOnMe.current) {
       centeredOnMe.current = true;
       const busy = selectedId || groupIds || searchResult || picking || mapApi.current.moved();
-      if (!busy) mapApi.current.centerOn(position, mapPadding());
+      if (!busy && covered) mapApi.current.centerOn(position, mapPadding());
     }
   });
   useEffect(() => {
@@ -774,8 +782,15 @@ export function MapApp() {
     onLocationStatus();
   }, [me.status]);
 
-  function centerOnMe() {
-    if (me.position) return mapApi.current?.centerOn(me.position, mapPadding(), 15);
+  async function centerOnMe() {
+    const position = me.position;
+    if (position) {
+      const covered = await loadServiceArea()
+        .then((inArea) => inArea(position))
+        .catch(() => true);
+      if (!covered) return showNotice(LOCATION_OUTSIDE);
+      return mapApi.current?.centerOn(position, mapPadding(), 15);
+    }
     if (me.status === "denied") return showNotice(LOCATION_DENIED);
     centerOnMeNext.current = true;
     // Asks first if the browser hasn't been allowed; the line says why.
@@ -1445,6 +1460,8 @@ export function MapApp() {
           // The pin check reads the very tiles the map draws with, so the
           // browser answers it from its cache.
           onVectorTiles={setTileTemplate}
+          // The map keeps part of the U.S. in the part people can see.
+          visibleArea={mapPadding}
         />
 
         <div className="panel">

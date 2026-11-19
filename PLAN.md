@@ -639,6 +639,24 @@ project, real devices and their GPUs).
   Tijuana's coordinates refused by the server, nothing inserted; the outline not downloaded until
   the first pin); report flows 26/26 and 25/25, pin checks 16/16, regression 10/10, saved places
   39/39.
+- **Follow-up: the map stays on the covered places.** A single box can't hold Guam and Saipan with
+  the rest (they're across the 180th meridian), so the rule is the user's other idea: at least 10%
+  of the visible map (inside `mapPadding()`, so not under the panel or a card; the whole map when a
+  sheet leaves less than 40% of either side) must show the covered places. The check samples the
+  view on an 8x8 grid against `lib/service-area.json` (about 0.02 ms, with edges indexed by
+  0.1-degree bands of latitude), so it runs on every `move`, keeps the last view that had enough,
+  and at `moveend` glides back to it (once per move; mid-zoom `move` events are skipped). The
+  outline now loads once the map has started, not at the first pin: a 1 km version (11 KB gzipped)
+  misjudged street-level views at the border on phones. minZoom stays 9. The search asks for us,
+  pr, vi, gu and mp and drops results outside the outline (Nominatim files American Samoa under
+  us). "Show where I am" from outside says so and doesn't move the map, and the first fix doesn't
+  auto-center there. Checked (`area/check-map-limit.mjs`, 10/10 on desktop and on a phone): three
+  screens out to sea from Atlantic City and three screens into Manitoba from Pembina glide back to
+  the coast or border (on desktop the coast stops beside the panel, not under it); dragging over
+  land is unchanged; a jump to Guam stays, one to American Samoa doesn't; locate from Beijing shows
+  the message and the map stays, from Philadelphia it centers as before. Real searches: San Juan
+  PR, Hagåtña, Charlotte Amalie and Saipan are found, Pago Pago isn't, and "Tijuana" or "Toronto"
+  only match U.S. places.
 
 ## Sources
 
