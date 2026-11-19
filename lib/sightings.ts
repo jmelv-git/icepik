@@ -23,6 +23,10 @@ export const STATUS_LABEL: Record<Status, string> = {
 // Limits the database enforces, mirrored in the post form.
 export const LIMITS = { label: 120, description: 280, count: 99 } as const;
 
+// Shown when a pin would go outside the places ICE works (lib/service-area.ts).
+export const OUTSIDE_SERVICE_AREA =
+  "Pins can't go here. ICEPik covers the 50 states, DC, Puerto Rico, the U.S. Virgin Islands, Guam and the Northern Mariana Islands, where ICE works.";
+
 export function statusOf(sighting: Sighting): Status {
   const status = sighting.verification_status;
   return status === "verified" || status === "disputed" ? status : "unverified";

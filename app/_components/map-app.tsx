@@ -15,8 +15,9 @@ import {
 } from "@/lib/device-storage";
 import { ONE_MILE_M, distanceMeters } from "@/lib/geo";
 import { readLayout, useLayout } from "@/lib/layout";
-import { setTileTemplate, snapToPinnable, type SnapResult } from "@/lib/pinnable";
+import { anySpotIn, setTileTemplate, snapToPinnable, type SnapResult } from "@/lib/pinnable";
 import {
+  OUTSIDE_SERVICE_AREA,
   STATUS_LABEL,
   sightingSummary,
   sightingTitle,
@@ -135,7 +136,14 @@ const LARGE_AREA =
 const SNAP_FAILED: Record<Extract<SnapResult, { ok: false }>["reason"], string> = {
   "none-nearby": "No spot for a pin near here. Pins go on land within 200 m of a road or path.",
   unavailable: "Couldn't check this spot. Try again.",
+  outside: OUTSIDE_SERVICE_AREA,
 };
+
+// Where ICE works (lib/service-area.ts). The map loads it once it has started
+// (the outline isn't part of the page's first download); this waits for it.
+function loadServiceArea() {
+  return import("@/lib/service-area").then((module) => module.inServiceArea);
+}
 // Before a pin goes near a spot, the map shows it at least this close, so the
 // check reads the same map data the map is showing.
 const DETAIL_ZOOM = 16;
@@ -177,6 +185,10 @@ const LOCATION_ASK =
 const LOCATION_DENIED =
   "ICEPik can't see your location. To center the map on you, allow location for this site in your browser's settings.";
 const LOCATION_UNAVAILABLE = "Your device couldn't find your location. Try again in a moment.";
+// How close the map flies in when the person's location first arrives: a city.
+const CITY_ZOOM = 13;
+const LOCATION_OUTSIDE =
+  "You're outside the places ICEPik covers: the 50 states, DC, Puerto Rico, the U.S. Virgin Islands, Guam and the Northern Mariana Islands.";
 
 // The phone layout in globals.css: a tab bar, and sheets that cover the map.
 function isPhone() {
@@ -699,17 +711,24 @@ export function MapApp() {
     if (revealCount) revealSelected();
   }, [revealCount]);
 
-  const onMyPosition = useEffectEvent(() => {
+  const onMyPosition = useEffectEvent(async () => {
     const position = me.position;
     if (!position || !mapApi.current) return;
+    // Somewhere the map doesn't go (lib/service-area.ts): stay put.
+    const covered = await loadServiceArea()
+      .then((inArea) => inArea(position))
+      .catch(() => true);
+    if (!mapApi.current) return;
     if (centerOnMeNext.current) {
       centerOnMeNext.current = false;
       centeredOnMe.current = true;
-      mapApi.current.centerOn(position, mapPadding(), 15);
+      if (covered) mapApi.current.centerOn(position, mapPadding(), 15);
+      else showNotice(LOCATION_OUTSIDE);
     } else if (!centeredOnMe.current) {
+      // The first position: from the whole country, fly to the person's city.
       centeredOnMe.current = true;
       const busy = selectedId || groupIds || searchResult || picking || mapApi.current.moved();
-      if (!busy) mapApi.current.centerOn(position, mapPadding());
+      if (!busy && covered) mapApi.current.centerOn(position, mapPadding(), CITY_ZOOM);
     }
   });
   useEffect(() => {
@@ -766,8 +785,15 @@ export function MapApp() {
     onLocationStatus();
   }, [me.status]);
 
-  function centerOnMe() {
-    if (me.position) return mapApi.current?.centerOn(me.position, mapPadding(), 15);
+  async function centerOnMe() {
+    const position = me.position;
+    if (position) {
+      const covered = await loadServiceArea()
+        .then((inArea) => inArea(position))
+        .catch(() => true);
+      if (!covered) return showNotice(LOCATION_OUTSIDE);
+      return mapApi.current?.centerOn(position, mapPadding(), 15);
+    }
     if (me.status === "denied") return showNotice(LOCATION_DENIED);
     centerOnMeNext.current = true;
     // Asks first if the browser hasn't been allowed; the line says why.
@@ -916,9 +942,17 @@ export function MapApp() {
     setCheckingSpot(true);
     let result: SnapResult;
     try {
-      await mapApi.current?.focusSpot(point, mapPadding(), DETAIL_ZOOM);
+      const inArea = await loadServiceArea();
       if (seq !== placeSeq.current) return "stale";
-      result = await snapToPinnable(point);
+      // Outside the places ICE works: say so before showing the spot in
+      // detail or reading any map data for it.
+      if (!anySpotIn(point, inArea)) {
+        result = { ok: false, reason: "outside" };
+      } else {
+        await mapApi.current?.focusSpot(point, mapPadding(), DETAIL_ZOOM);
+        if (seq !== placeSeq.current) return "stale";
+        result = await snapToPinnable(point, { inArea });
+      }
     } catch {
       result = { ok: false, reason: "unavailable" };
     }
@@ -935,7 +969,12 @@ export function MapApp() {
   async function reportAtSearchedPlace(place: SearchedPlace) {
     if (place.large) {
       reportSnapshot.current = null;
-      return showNotice(LARGE_AREA);
+      // A whole country or region where ICE doesn't work: say that, not
+      // "search inside it".
+      const outside = await loadServiceArea()
+        .then((inArea) => !anySpotIn(place, inArea))
+        .catch(() => false);
+      return showNotice(outside ? OUTSIDE_SERVICE_AREA : LARGE_AREA);
     }
     // Dropped if, meanwhile, the search changed, a dialog opened or another
     // spot is being chosen.
@@ -1424,6 +1463,8 @@ export function MapApp() {
           // The pin check reads the very tiles the map draws with, so the
           // browser answers it from its cache.
           onVectorTiles={setTileTemplate}
+          // The map keeps part of the U.S. in the part people can see.
+          visibleArea={mapPadding}
         />
 
         <div className="panel">

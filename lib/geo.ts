@@ -1,6 +1,3 @@
-// Philadelphia City Hall. The map opens here.
-export const MAP_CENTER: [number, number] = [39.9526, -75.1652];
-
 export const ONE_MILE_M = 1609;
 // The server's limit for confirming or disputing a sighting.
 export const VOTE_RADIUS_M = 1000;
