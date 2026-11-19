@@ -3,7 +3,6 @@
 import type * as Leaflet from "leaflet";
 import type { Map as VectorMap } from "maplibre-gl";
 import { useEffect, useImperativeHandle, useRef, useState, type Ref } from "react";
-import { MAP_CENTER } from "@/lib/geo";
 import { readLayout } from "@/lib/layout";
 import { type Sighting } from "@/lib/sightings";
 import type { MyPosition } from "@/lib/use-my-position";
@@ -28,6 +27,21 @@ const CARTO_KEY = (process.env.NEXT_PUBLIC_CARTO_KEY ?? "").trim();
 // CARTO serves map images up to zoom 18 and refuses deeper ones, which
 // would leave the map blank. They're the fallback for browsers without WebGL.
 const RASTER_MAX_ZOOM = 18;
+// The map opens on the contiguous United States, zoomed out to fit it (once
+// the person shares their location, it flies to their city), and can zoom out
+// as far as MIN_ZOOM.
+const LOWER_48: [[number, number], [number, number]] = [
+  [24.4, -124.8],
+  [49.4, -66.9],
+];
+const MIN_ZOOM = 3;
+// The map stays on the places ICEPik covers: some of them must show in the
+// middle of the visible map (MIDDLE of its width and height). That middle is
+// sampled on a VIEW_SAMPLES grid, and coasts, borders and islands are found
+// by the outline's corners.
+const MIDDLE = 0.5;
+const VIEW_SAMPLES = 6;
+const NO_PADDING: Padding = { paddingTopLeft: [0, 0], paddingBottomRight: [0, 0] };
 // With WebGL, MapLibre draws the map from CARTO's vector tiles instead. They
 // stop at zoom 15, but MapLibre redraws them sharply when zoomed in further.
 const VECTOR_MAX_ZOOM = 20;
@@ -87,6 +101,8 @@ type Props = {
   // Called with the URL template ({z}/{x}/{y}) of the vector tiles the map
   // draws from, once a style has loaded. Never called on the raster map.
   onVectorTiles?: (template: string) => void;
+  // The part of the map the panels and cards leave visible, as padding.
+  visibleArea?: () => Padding;
 };
 
 export function SightingsMap({
@@ -103,6 +119,7 @@ export function SightingsMap({
   savedPlaces,
   onViewChange,
   onVectorTiles,
+  visibleArea,
 }: Props) {
   const node = useRef<HTMLDivElement>(null);
   const leaflet = useRef<typeof Leaflet | null>(null);
@@ -122,9 +139,9 @@ export function SightingsMap({
   const [zoom, setZoom] = useState(13);
 
   // Leaflet handlers are attached once; they call the latest props.
-  const latest = useRef({ onSelect, onSelectGroup, onPlace, placing, onViewChange });
+  const latest = useRef({ onSelect, onSelectGroup, onPlace, placing, onViewChange, visibleArea });
   useEffect(() => {
-    latest.current = { onSelect, onSelectGroup, onPlace, placing, onViewChange };
+    latest.current = { onSelect, onSelectGroup, onPlace, placing, onViewChange, visibleArea };
   });
 
   useImperativeHandle(
@@ -152,7 +169,9 @@ export function SightingsMap({
         const shift = L.point((left - right) / 2, (top - bottom) / 2);
         const middle = instance.project([point.lat, point.lng], zoom).subtract(shift);
         centering.current = true;
-        instance.setView(instance.unproject(middle, zoom), zoom, { animate: true });
+        // From far out (the whole country down to a city), fly there.
+        if (zoom - instance.getZoom() > 2) instance.flyTo(instance.unproject(middle, zoom), zoom, { duration: 1.5 });
+        else instance.setView(instance.unproject(middle, zoom), zoom, { animate: true });
         centering.current = false;
       },
       focusSpot(point, padding, minZoom) {
@@ -258,12 +277,16 @@ export function SightingsMap({
       // MapLibre needs WebGL2. Without it, the map shows CARTO's map images.
       const vector = hasWebGL2();
       const instance = L.map(node.current, {
-        center: MAP_CENTER,
-        zoom: 13,
-        minZoom: 9,
+        center: L.latLngBounds(LOWER_48).getCenter(),
+        zoom: 4,
+        minZoom: MIN_ZOOM,
         maxZoom: vector ? VECTOR_MAX_ZOOM : RASTER_MAX_ZOOM,
         zoomControl: false,
       });
+      // Open on the lower 48 states, as large as fits the part of the map the
+      // panels leave visible (map-app.tsx flies to the person's city once
+      // they share their location).
+      instance.fitBounds(LOWER_48, { ...(latest.current.visibleArea?.() ?? NO_PADDING), animate: false });
 
       // The raster map: CARTO's Positron style, or its Dark Matter style when
       // the device is set to dark, with their attribution visible. Both come
@@ -452,6 +475,84 @@ export function SightingsMap({
       });
       // Also fires after zooms and resizes.
       instance.on("moveend", reportView);
+
+      // The map stays on the places ICEPik covers (lib/service-area.ts): some
+      // of them must show in the middle of the visible map (not under the
+      // panel or a card), at any zoom, even a small island. A drag, zoom or
+      // jump that leaves none there glides back to the last view that had
+      // some. The outline loads once the map has started; until then nothing
+      // is limited. The visible part is measured once per move.
+      let area: typeof import("@/lib/service-area") | null = null;
+      import("@/lib/service-area").then((module) => {
+        if (!cancelled) area = module;
+      });
+      let visible: Padding | null = null;
+      instance.on("movestart zoomstart", () => (visible = null));
+      const enoughOfArea = () => {
+        if (!area) return true;
+        const size = instance.getSize();
+        visible ??= latest.current.visibleArea?.() ?? NO_PADDING;
+        let [left, top] = visible.paddingTopLeft;
+        let width = size.x - left - visible.paddingBottomRight[0];
+        let height = size.y - top - visible.paddingBottomRight[1];
+        // A sheet over most of the map (phones): judge the whole map instead
+        // of the sliver left showing.
+        if (width < size.x * 0.4 || height < size.y * 0.4) {
+          [left, top, width, height] = [0, 0, size.x, size.y];
+        }
+        // The middle of what's visible.
+        left += (width * (1 - MIDDLE)) / 2;
+        top += (height * (1 - MIDDLE)) / 2;
+        width *= MIDDLE;
+        height *= MIDDLE;
+        for (let i = 0; i < VIEW_SAMPLES; i++) {
+          for (let j = 0; j < VIEW_SAMPLES; j++) {
+            const at = instance.containerPointToLatLng([
+              left + ((i + 0.5) * width) / VIEW_SAMPLES,
+              top + ((j + 0.5) * height) / VIEW_SAMPLES,
+            ]);
+            if (area.inServiceArea(at)) return true;
+          }
+        }
+        const northWest = instance.containerPointToLatLng([left, top]);
+        const southEast = instance.containerPointToLatLng([left + width, top + height]);
+        return area.serviceAreaCornerIn({
+          south: southEast.lat,
+          west: northWest.lng,
+          north: northWest.lat,
+          east: southEast.lng,
+        });
+      };
+      let lastGood = { center: instance.getCenter(), zoom: instance.getZoom() };
+      let zooming = false;
+      let glidingBack = false;
+      const remember = () => {
+        if (!enoughOfArea()) return false;
+        lastGood = { center: instance.getCenter(), zoom: instance.getZoom() };
+        return true;
+      };
+      instance.on("zoomstart", () => (zooming = true));
+      instance.on("zoomend", () => (zooming = false));
+      // Mid-zoom, Leaflet reports the new center with the old zoom: skip it.
+      instance.on("move", () => {
+        if (!zooming) remember();
+      });
+      instance.on("moveend", () => {
+        if (remember()) return void (glidingBack = false);
+        const here = instance.getCenter();
+        const same =
+          instance.getZoom() === lastGood.zoom &&
+          instance.latLngToContainerPoint(here).distanceTo(instance.latLngToContainerPoint(lastGood.center)) < 2;
+        // Once per move: if even the last good view isn't enough now (a panel
+        // or card covers more of the map than it did), keep the view.
+        if (glidingBack || same) {
+          glidingBack = false;
+          lastGood = { center: here, zoom: instance.getZoom() };
+          return;
+        }
+        glidingBack = true;
+        instance.setView(lastGood.center, lastGood.zoom, { animate: true });
+      });
       instance.on("click", (event) => {
         if (latest.current.placing) {
           latest.current.onPlace({ lat: event.latlng.lat, lng: event.latlng.lng });

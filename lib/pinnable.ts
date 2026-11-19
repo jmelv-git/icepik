@@ -12,7 +12,10 @@
 //     construction or only proposed, and nothing in a tunnel (a pin marks a
 //     place on the surface; a road tunnel through a ridge is not a way onto it).
 // snapToPinnable() tries every grid point within SNAP_RANGE_M of the exact
-// point, nearest first, and returns the first pinnable one.
+// point, nearest first, and returns the first pinnable one. With `inArea`
+// (lib/service-area.ts: where ICE works), it tries only grid points inside
+// that area, and when there are none it answers "outside" without reading
+// any tiles.
 //
 // Privacy: the exact point never leaves this module. It requests only whole
 // zoom-15 tiles (about 940 m across in Philadelphia) by their tile numbers,
@@ -34,9 +37,10 @@ export const ROAD_RANGE_M = 200; // a pinnable spot is within this of a road or 
 export type LatLng = { lat: number; lng: number };
 export type SnapResult =
   | { ok: true; spot: LatLng } // a 0.001-degree grid point
-  | { ok: false; reason: "none-nearby" | "unavailable" };
+  | { ok: false; reason: "none-nearby" | "unavailable" | "outside" };
 
-type CheckOptions = { signal?: AbortSignal };
+// inArea: only grid points it accepts may get a pin.
+type CheckOptions = { signal?: AbortSignal; inArea?: (point: LatLng) => boolean };
 
 const ZOOM = 15; // CARTO's deepest data zoom (16 answers 404)
 const DEFAULT_TEMPLATE =
@@ -60,19 +64,23 @@ function roundCoord(value: number) {
  * Moves `point` to the nearest pinnable grid point within SNAP_RANGE_M.
  * The first candidate is always roundCoord(point), the spot a pin got before
  * this check existed; the others follow by distance (ties: north, then east,
- * first). Returns "none-nearby" when no candidate passes (also for a point
- * off the map: not finite, or beyond 85.05 degrees or 180 degrees), and
- * "unavailable" when the tiles can't be fetched or decoded, or none of them
- * exists at the URL template.
+ * first). With `inArea`, candidates outside it are skipped, and "outside"
+ * comes back, with no tile read, when none is inside. Returns "none-nearby"
+ * when no candidate passes (also for a point off the map: not finite, or
+ * beyond 85.05 degrees or 180 degrees), and "unavailable" when the tiles
+ * can't be fetched or decoded, or none of them exists at the URL template.
  * If `signal` aborts, the promise rejects with `signal.reason` (an
  * AbortError DOMException unless the caller gave another reason); tile
  * downloads already started keep going and stay cached.
  */
 export async function snapToPinnable(point: LatLng, options: CheckOptions = {}): Promise<SnapResult> {
-  const { signal } = options;
+  const { signal, inArea } = options;
   throwIfAborted(signal);
   if (!isValid(point)) return { ok: false, reason: "none-nearby" };
-  const [nearest, ...others] = candidates(point);
+  const all = candidates(point);
+  const allowed = inArea ? all.filter((spot) => inArea(spot)) : all;
+  if (!allowed.length) return { ok: false, reason: "outside" };
+  const [nearest, ...others] = allowed;
   let area: CheckArea;
   try {
     // One template for the whole check, so a failed style lookup isn't
@@ -103,14 +111,24 @@ export async function snapToPinnable(point: LatLng, options: CheckOptions = {}):
  * or decoded, and with `signal.reason` when `signal` aborts.
  */
 export async function isPinnable(gridPoint: LatLng, options: CheckOptions = {}): Promise<boolean> {
-  const { signal } = options;
+  const { signal, inArea } = options;
   throwIfAborted(signal);
   if (!isValid(gridPoint)) return false;
   const spot = { lat: roundCoord(gridPoint.lat), lng: roundCoord(gridPoint.lng) };
+  if (inArea && !inArea(spot)) return false;
   const template = await abortable(currentTemplate(), signal);
   const area = await abortable(loadArea(template, spot, ROAD_RANGE_M), signal);
   throwIfAborted(signal);
   return area.isPinnable(spot);
+}
+
+/**
+ * Whether any grid point a snapToPinnable(point) check would try is inside
+ * `inArea`. Reads no tiles: callers use it to say "outside" before showing
+ * the spot or reading any map data.
+ */
+export function anySpotIn(point: LatLng, inArea: (point: LatLng) => boolean): boolean {
+  return isValid(point) && candidates(point).some((spot) => inArea(spot));
 }
 
 /**

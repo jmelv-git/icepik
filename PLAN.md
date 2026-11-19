@@ -622,6 +622,56 @@ project, real devices and their GPUs).
   road check (that check is for report pins; saved places never leave the device). Checked in the
   browser (`places/check-places.mjs`): 39/39 on desktop and on a phone; report flows still 26/26
   and 25/25, regression 10/10; `tsc` and `eslint` exit 0.
+- **Follow-up: pins only where ICE works.** Researched on 2026-11-19 (README, section 6): the
+  INA's "United States" (8 U.S.C. 1101(a)(38)), which every ERO field office covers, with ICE
+  arrests in 2025-2026 in each part; no state can exclude ICE; American Samoa (own immigration
+  system), the minor outlying islands, Guantanamo and every other country left out.
+  `lib/service-area.json` is OSM relation 148838 (to 12 nautical miles out), simplified with
+  Douglas-Peucker at 25 m: checked against the full outline at 167,740 points near the land
+  borders, every wrong answer was within 25 m of the true border. 293 KB, 95 KB gzipped, loaded
+  with import() at the first pin. `snapToPinnable` takes `inArea` and answers "outside" with no
+  tile read; the map checks it before zooming in; a large-area search outside gets the outside
+  message instead of "search inside it"; `postSighting` refuses points outside. Home and work
+  aren't limited (device only). Checked: the app's decoder agrees with a reference checker at
+  20,000 random border points; browser (`area/check-area.mjs`) 19/19 on desktop and on a phone
+  (Tijuana, Pago Pago refused; San Ysidro pinned; a tap 150 m into Mexico moved north into the
+  U.S.; Beijing and a Tijuana search refused; San Juan, PR opens the form; a tampered post with
+  Tijuana's coordinates refused by the server, nothing inserted; the outline not downloaded until
+  the first pin); report flows 26/26 and 25/25, pin checks 16/16, regression 10/10, saved places
+  39/39.
+- **Follow-up: the map stays on the covered places.** A single box can't hold Guam and Saipan with
+  the rest (they're across the 180th meridian), so the rule is the user's other idea: at least 10%
+  of the visible map (inside `mapPadding()`, so not under the panel or a card; the whole map when a
+  sheet leaves less than 40% of either side) must show the covered places. The check samples the
+  view on an 8x8 grid against `lib/service-area.json` (about 0.02 ms, with edges indexed by
+  0.1-degree bands of latitude), so it runs on every `move`, keeps the last view that had enough,
+  and at `moveend` glides back to it (once per move; mid-zoom `move` events are skipped). The
+  outline now loads once the map has started, not at the first pin: a 1 km version (11 KB gzipped)
+  misjudged street-level views at the border on phones. minZoom stays 9. The search asks for us,
+  pr, vi, gu and mp and drops results outside the outline (Nominatim files American Samoa under
+  us). "Show where I am" from outside says so and doesn't move the map, and the first fix doesn't
+  auto-center there. Checked (`area/check-map-limit.mjs`, 10/10 on desktop and on a phone): three
+  screens out to sea from Atlantic City and three screens into Manitoba from Pembina glide back to
+  the coast or border (on desktop the coast stops beside the panel, not under it); dragging over
+  land is unchanged; a jump to Guam stays, one to American Samoa doesn't; locate from Beijing shows
+  the message and the map stays, from Philadelphia it centers as before. Real searches: San Juan
+  PR, Hagåtña, Charlotte Amalie and Saipan are found, Pago Pago isn't, and "Tijuana" or "Toronto"
+  only match U.S. places.
+- **Follow-up: open on the whole country, then the person's city.** The map opens fitted to the
+  lower 48 in the visible map (zoom 4 on desktop, 3 on a phone) instead of Philadelphia, and
+  minZoom is now 3. When the location first arrives (asked on the first visit, as before), it
+  flies to zoom 13 there (`flyTo` for jumps of more than 2 zoom levels); from outside the covered
+  places it stays put without a message. `MAP_CENTER` is gone. Zooming out that far broke the 10%
+  rule for small places (Guam is far under 10% of a zoom-3 view), so the rule became: some covered
+  place must be in the middle half (width and height) of the visible map, found by a 6x6 sample
+  there or by a corner of the outline inside it (coasts, borders, islands; about 0.01 ms). The
+  outline's arcs are now joined with a loop, not `push(...arc)`, which can exceed Safari's
+  argument limit. Tests now give the browser a Philadelphia location by default (`t/lib.mjs`), so
+  the earlier suites start where they did. Checked (`area/check-start.mjs`, 9/9 on desktop and on
+  a phone): no location opens on the lower 48 at zoom 4 (desktop) or 3 (phone); Philadelphia and
+  Guam fly to zoom 13 with the blue dot in view; zooming out to 3 around Guam keeps it on screen;
+  Beijing stays on the country, with no message, and can still zoom in. The address search is
+  still biased toward Philadelphia (open question).
 
 ## Sources
 

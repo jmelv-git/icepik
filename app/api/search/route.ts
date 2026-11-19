@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { inServiceArea } from "@/lib/service-area";
+import { SEARCH_COUNTRY_CODES } from "@/lib/service-area-shape";
 
 const NOMINATIM_BASE = "https://nominatim.openstreetmap.org";
 // Nominatim's usage policy asks for a User-Agent that identifies the app.
@@ -40,7 +42,8 @@ export async function POST(request: Request) {
         format: "jsonv2",
         limit: "5",
         addressdetails: "0",
-        countrycodes: "us",
+        // Only the places ICEPik covers (lib/service-area-shape.ts).
+        countrycodes: SEARCH_COUNTRY_CODES.join(","),
         viewbox: PHILADELPHIA_VIEWBOX,
       }).toString()}`,
       {
@@ -57,7 +60,10 @@ export async function POST(request: Request) {
 
     // What kind of place each result is, and how big, so the app can tell a
     // city or a park from an address before putting a pin there.
-    const results = rawResults.map((item) => ({
+    // Only places ICEPik covers (lib/service-area.ts): the search's country
+    // codes let American Samoa through.
+    const covered = rawResults.filter((item) => inServiceArea({ lat: Number(item.lat), lng: Number(item.lon) }));
+    const results = covered.map((item) => ({
       display_name: item.display_name,
       lat: item.lat,
       lon: item.lon,
