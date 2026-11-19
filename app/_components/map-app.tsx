@@ -159,6 +159,10 @@ type ReportSnapshot = {
 // work, or a new place to name).
 type Picking = "report" | PlaceName | "custom" | null;
 
+// Home or work from a search for a whole city or area: tap it instead.
+const largeAreaFor = (name: PlaceName) =>
+  `That's a large area. Search for an address inside it, or tap your ${name === "home" ? "home" : "workplace"} on the map.`;
+
 const PLACES_FULL = `You've saved ${CUSTOM_PLACES_MAX} places, as many as ICEPik keeps. Delete one in Settings first.`;
 // Named places listed in the side panel; the rest are in Settings.
 const PANEL_PLACES = 3;
@@ -273,6 +277,9 @@ export function MapApp() {
   const backgroundMotion = useBackgroundMotion();
   const [lavaPaused, setLavaPaused] = useState(false);
   const [picking, setPicking] = useState<Picking>(null);
+  // Home or work started at a searched place: where it goes until "Save"
+  // (a tap moves it), and the place's name. Kept in memory only.
+  const [placeDraft, setPlaceDraft] = useState<(Point & { label: string }) | null>(null);
   const [draft, setDraft] = useState<Point | null>(null);
   const [reportFormOpen, setReportFormOpen] = useState(false);
   // A report started at a searched place: its name, and the pinnable spot
@@ -981,7 +988,10 @@ export function MapApp() {
   function leavePicking() {
     if (picking === "report" && !reportFormOpen) cancelReport();
     else if (picking === "report") backToForm();
-    else setPicking(null);
+    else {
+      setPlaceDraft(null);
+      setPicking(null);
+    }
   }
 
   // Back to the form without using a new spot: a check still running for a
@@ -993,13 +1003,41 @@ export function MapApp() {
     setPicking(null);
   }
 
+  // A place was searched for, and the search box still shows it (text typed
+  // since then, without choosing a result, doesn't count).
+  const shownSearch = searchResult && query === searchResult.label ? searchResult : null;
+
   function pickPlace(name: PlaceName | "custom") {
     // Settings closes and the map waits for the spot: it takes focus.
     focusAfterDialog.current = ".map-shell .leaflet-container";
     setModal(null);
     setNaming(null);
-    setPicking(name);
+    setPlaceDraft(null);
     if (isPhone()) setPanelOpen(false);
+    if (shownSearch && name === "custom") {
+      // As the search box's star does: name the searched place.
+      setPicking(null);
+      return startNaming(shownSearch, null);
+    }
+    setPicking(name);
+    if (!shownSearch || name === "custom") return;
+    // Home or work: a whole city or area is too vague, so tap it instead.
+    if (shownSearch.large) return showNotice(largeAreaFor(name));
+    // The pin waits at the searched place for "Save"; a tap moves it.
+    setPlaceDraft({ lat: shownSearch.lat, lng: shownSearch.lng, label: shownSearch.label });
+    void mapApi.current?.focusSpot(shownSearch, mapPadding(), DETAIL_ZOOM);
+    focusAfterDialog.current = ".pick-banner .primary-button";
+  }
+
+  // Home and work are kept to about 10 m, on this device only.
+  function saveHomeOrWork(name: PlaceName, point: Point) {
+    const saved = savePlace(name, {
+      lat: Math.round(point.lat * 1e4) / 1e4,
+      lng: Math.round(point.lng * 1e4) / 1e4,
+    });
+    showNotice(saved ? `${PLACE_LABEL[name]} saved on this device.` : PLACE_NOT_SAVED);
+    setPlaceDraft(null);
+    setPicking(null);
   }
 
   function place(point: Point) {
@@ -1013,13 +1051,11 @@ export function MapApp() {
       namingOpener.current = null;
       setNaming({ ...point, name: "" });
       setPicking(null);
+    } else if (picking && placeDraft) {
+      // Started at a searched place: the tap moves the pin, "Save" saves it.
+      setPlaceDraft({ ...placeDraft, lat: point.lat, lng: point.lng });
     } else if (picking) {
-      const saved = savePlace(picking, {
-        lat: Math.round(point.lat * 1e4) / 1e4,
-        lng: Math.round(point.lng * 1e4) / 1e4,
-      });
-      showNotice(saved ? `${PLACE_LABEL[picking]} saved on this device.` : PLACE_NOT_SAVED);
-      setPicking(null);
+      saveHomeOrWork(picking, point);
     }
   }
 
@@ -1053,20 +1089,31 @@ export function MapApp() {
     if (!searchResult) return;
     if (customPlaces.length >= CUSTOM_PLACES_MAX) return showNotice(PLACES_FULL);
     setPicking(null);
-    namingOpener.current = event.currentTarget;
+    setPlaceDraft(null);
+    startNaming(searchResult, event.currentTarget);
+  }
+
+  // The naming form, at a searched place, with its short name filled in.
+  function startNaming(place: SearchedPlace, opener: HTMLElement | null) {
+    namingOpener.current = opener;
     setNaming({
-      lat: searchResult.lat,
-      lng: searchResult.lng,
-      name: shorten(shortPlaceName(searchResult.label), PLACE_NAME_MAX),
+      lat: place.lat,
+      lng: place.lng,
+      name: shorten(shortPlaceName(place.label), PLACE_NAME_MAX),
     });
   }
 
   // Home, work and named places as the map draws them, plus one being named.
   const mapPlaces = useMemo<MapPlace[]>(() => {
     const list: MapPlace[] = [];
+    // Home or work waiting at a searched place stands in for the saved one.
+    const homeOrWorkDraft = picking === "home" || picking === "work" ? picking : null;
     for (const name of ["home", "work"] as const) {
       const spot = places[name];
-      if (spot) list.push({ ...spot, key: name, kind: name, label: PLACE_LABEL[name] });
+      if (homeOrWorkDraft === name && placeDraft) {
+        const { lat, lng } = placeDraft;
+        list.push({ lat, lng, key: `new-${name}`, kind: name, label: PLACE_LABEL[name], pending: true });
+      } else if (spot) list.push({ ...spot, key: name, kind: name, label: PLACE_LABEL[name] });
     }
     for (const spot of customPlaces) {
       list.push({ lat: spot.lat, lng: spot.lng, key: spot.id, kind: "custom", label: spot.name });
@@ -1075,7 +1122,7 @@ export function MapApp() {
       list.push({ lat: naming.lat, lng: naming.lng, key: "new", kind: "custom", label: "New place", pending: true });
     }
     return list;
-  }, [places, customPlaces, naming]);
+  }, [places, customPlaces, naming, picking, placeDraft]);
 
   function posted(sighting: Sighting) {
     upsert(sighting);
@@ -1691,7 +1738,9 @@ export function MapApp() {
                     : "Tap the map where you saw ICE."
                 : picking === "custom"
                   ? "Tap the place you want to save. It's saved on this device only."
-                  : `Tap your ${picking === "home" ? "home" : "workplace"} on the map. It's saved on this device only.`}
+                  : placeDraft
+                    ? `${PLACE_LABEL[picking]} goes at ${shortPlaceName(placeDraft.label)}. Tap the map to move it. It's saved on this device only.`
+                    : `Tap your ${picking === "home" ? "home" : "workplace"} on the map. It's saved on this device only.`}
               <span className="visually-hidden">
                 {" "}
                 With a keyboard, move the map with the arrow keys, then press Enter on the map to
@@ -1720,6 +1769,15 @@ export function MapApp() {
                   }}
                 >
                   Use this spot
+                </button>
+              ) : null}
+              {(picking === "home" || picking === "work") && placeDraft ? (
+                <button
+                  type="button"
+                  className="primary-button"
+                  onClick={() => saveHomeOrWork(picking, placeDraft)}
+                >
+                  Save {picking === "home" ? "home" : "workplace"}
                 </button>
               ) : null}
             </div>

@@ -612,6 +612,16 @@ project, real devices and their GPUs).
   (`/api/reverse`, the snapped spot only) still runs when the form opens, before "Post sighting",
   as before this work. (5) A tap now zooms the map to street level (zoom 16) before the pin lands.
   (6) A bare street name ("Broad Street") is not treated as a large area.
+- **Follow-up: saved places start at a searched place too.** With a search result shown (and the
+  box still showing it), Settings' "Set on map" for home or work puts a pending pin there and waits
+  for "Save home" / "Save workplace" (focus goes to it); a tap or Enter moves the pin; Cancel and
+  Escape save nothing. A whole city or area says "That's a large area. Search for an address inside
+  it, or tap your home on the map." and falls back to tapping. "Add a place" opens the name form at
+  the searched place with its short name filled in, as the search box's star does. Without a
+  search, all three work as before. Home and work keep their own 4-decimal rounding and no land and
+  road check (that check is for report pins; saved places never leave the device). Checked in the
+  browser (`places/check-places.mjs`): 39/39 on desktop and on a phone; report flows still 26/26
+  and 25/25, regression 10/10; `tsc` and `eslint` exit 0.
 
 ## Sources
 
