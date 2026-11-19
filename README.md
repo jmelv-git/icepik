@@ -28,6 +28,8 @@ Everything is in Supabase, a database with user accounts built in. The tables an
 
 Home and work places stay in the browser and never reach the database. The map pictures come from CARTO and the address search from OpenStreetMap, and we don't store anything from them.
 
+Where the browser has WebGL, the map is drawn from CARTO's vector map instead of its pictures, by MapLibre GL, which is bundled from npm like Leaflet. So the Content-Security-Policy's `connect-src` also allows `https://basemaps.cartocdn.com` and `https://tiles.basemaps.cartocdn.com`, for the map's style, tiles, fonts and icons (none of them carry the CARTO key). Without WebGL, the map shows CARTO's pictures as before.
+
 The site needs these environment variables, in Vercel and in `.env.local` for `npm run dev`:
 
 | Variable | What it is |

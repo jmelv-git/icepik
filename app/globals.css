@@ -2019,10 +2019,21 @@ textarea::placeholder {
   }
 }
 
-/* Dark map: the street and place names, drawn from their own tiles, are
-   lightened so they read on the dark map. Their dark outlines stay dark. */
+/* Dark raster map (the fallback without WebGL): the street and place names,
+   drawn from their own tiles, are lightened so they read on the dark map.
+   Their dark outlines stay dark. The vector map lightens them in its style. */
 .map-labels {
   filter: brightness(2.6);
+}
+
+/* The vector map sits in Leaflet's tile pane like the raster map's images
+   (MapLibre's stylesheet would put it in the page flow, which stretches the
+   pane), and only draws: taps and drags pass through it to Leaflet. */
+.leaflet-pane > .leaflet-gl-layer {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none;
 }
 
 /* ---------------------------------------------------------------------------

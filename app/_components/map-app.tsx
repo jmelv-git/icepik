@@ -15,7 +15,7 @@ import {
 } from "@/lib/device-storage";
 import { ONE_MILE_M, distanceMeters } from "@/lib/geo";
 import { readLayout, useLayout } from "@/lib/layout";
-import { snapToPinnable, type SnapResult } from "@/lib/pinnable";
+import { setTileTemplate, snapToPinnable, type SnapResult } from "@/lib/pinnable";
 import {
   STATUS_LABEL,
   sightingSummary,
@@ -1372,6 +1372,9 @@ export function MapApp() {
           myPosition={me.position}
           savedPlaces={mapPlaces}
           onViewChange={setBounds}
+          // The pin check reads the very tiles the map draws with, so the
+          // browser answers it from its cache.
+          onVectorTiles={setTileTemplate}
         />
 
         <div className="panel">
