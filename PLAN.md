@@ -551,6 +551,15 @@ project, real devices and their GPUs).
   mountainside 4/4 (both the whole 500 m box), search start 2/2, at both sizes. The flow suites pass
   on the vector map too (desktop 26/26, phone 25/25), as do the review-fix checks (12/12) and Cancel
   during a zoom (3/3).
+- **Regression pass** (on the merged build with the vector map): `npx tsc --noEmit` exit 0;
+  `npx eslint` exit 0 for the repo (run with `--ignore-pattern '.claude/**'`: the agents' git
+  worktrees under `.claude/worktrees/`, which are untracked copies with their own `.next` builds,
+  otherwise add thousands of findings that aren't in the repo); `npx next build` succeeds.
+  `main/check-regression.mjs` 10/10: at 1280x800 and 375x667, light and dark, verified, unverified
+  and disputed pins and a cluster all draw above the vector map and are the topmost element at their
+  centre; a report placed by tapping the map on land posts ("Sighting posted. Everyone can see it
+  now.") and opens its card, at both sizes; no console errors other than the fake Supabase's
+  realtime socket.
 
 ## Sources
 
