@@ -404,7 +404,8 @@ presentation even if 6 runs into a stop condition. Record the regression pass an
 - `npm ci` (no node_modules yet; registry.npmjs.org is reachable). Then read the Next docs, as AGENTS.md
   says.
 - Build for production with the fake Supabase settings (check the variable names in
-  `lib/supabase/config.ts`), and run `npx next start` in the background. `NEXT_PUBLIC_CARTO_KEY` is set
+  `lib/supabase/config.ts`) and `NEXT_PUBLIC_TURNSTILE_SITE_KEY=` (empty: ICEPik's site key is built
+  in, and its check can't pass on 127.0.0.1), and run `npx next start` in the background. `NEXT_PUBLIC_CARTO_KEY` is set
   in the environment. Read it only from there: never print it, and never log tile URLs, which contain it.
 - **No Supabase project or CLI here.** Use `scripts/mock-supabase.mjs`, copied to the scratchpad and
   extended to answer `POST /rest/v1/sightings` with the inserted row (rounded to 3 decimals, as the

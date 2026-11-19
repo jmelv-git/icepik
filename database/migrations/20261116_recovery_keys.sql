@@ -17,9 +17,11 @@
 --   with the earlier schema and this file instead of the full schema.
 --
 -- Step 1. Make sure the Turnstile widget's hostname list includes the live
---   domain, and set NEXT_PUBLIC_TURNSTILE_SITE_KEY in every Vercel environment
---   that uses this Supabase project (a production build without it stops).
---   Then deploy the app version that ships with this file. Its "Delete my
+--   domain. ICEPik's site key is built into the app (captcha.tsx), so leave
+--   NEXT_PUBLIC_TURNSTILE_SITE_KEY unset in Vercel, or set it to the key of
+--   the widget whose secret goes into Supabase (an empty value turns the
+--   check off, and a production build then stops). Then deploy the app
+--   version that ships with this file. Its "Delete my
 --   account" asks a saved account for its password, which this file starts to
 --   require, and it works with the old database too. Open the site in a
 --   private window, accept the terms, and check that the Turnstile check

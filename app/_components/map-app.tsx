@@ -1335,7 +1335,12 @@ export function MapApp() {
     };
   }
 
-  const noticeText = notice || (me.status === "asking" ? LOCATION_ASK : "");
+  // On a first visit to /demo, the demo's opening notice and the reason for
+  // the location prompt show together, so the prompt is never unexplained.
+  const noticeText =
+    notice === DEMO_ABOUT && me.status === "asking"
+      ? `${DEMO_ABOUT} ${LOCATION_ASK}`
+      : notice || (me.status === "asking" ? LOCATION_ASK : "");
 
   return (
     <div className="app" data-panel={panelState} data-modal={modal ?? undefined} data-tab={reportsTab}>

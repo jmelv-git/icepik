@@ -2,18 +2,31 @@
 -- ICEPik demo: looser verification rules, for the demo at /demo only
 --
 -- Run this ONLY in a separate Supabase project made for the demo, never in
--- the real one. Order: first database/icepik_schema.sql, then this file
--- (Supabase Dashboard -> SQL Editor -> New query -> paste -> Run).
--- Then set the demo project's URL and key in Vercel as
--- NEXT_PUBLIC_DEMO_SUPABASE_URL and NEXT_PUBLIC_DEMO_SUPABASE_PUBLISHABLE_KEY
--- (or NEXT_PUBLIC_DEMO_SUPABASE_ANON_KEY), and redeploy. The dashboard
--- settings at the top of icepik_schema.sql apply to the demo project too
--- (anonymous sign-ins ON, "Confirm email" OFF, CAPTCHA recommended).
+-- the real one. The first statement below stops the file unless you have
+-- removed the "-- " in front of the line that says this is the demo project.
+--
+-- Order, in the demo project:
+--   1. SQL Editor -> New query: run database/icepik_schema.sql.
+--   2. New query: paste this file, remove the "-- " in front of the
+--      set_config line just below this header, and run it. It is safe to
+--      run again. A demo project made from an earlier schema: run
+--      database/migrations/20261116_recovery_keys.sql first, then this file.
+--   3. Turn on every dashboard setting listed at the top of
+--      icepik_schema.sql, the same as the real project, CAPTCHA last:
+--      CAPTCHA is required, with provider Turnstile and the same widget's
+--      secret key as the real project (the app uses one site key for both).
+--   4. In Vercel, set NEXT_PUBLIC_DEMO_SUPABASE_URL and
+--      NEXT_PUBLIC_DEMO_SUPABASE_PUBLISHABLE_KEY (or
+--      NEXT_PUBLIC_DEMO_SUPABASE_ANON_KEY) to the demo project's, and redeploy.
+--   5. Before each demo, paste the sample sightings at the end of this file
+--      (they expire after 4 hours, like any sighting). A free Supabase
+--      project pauses after about a week without use: restore it first.
 --
 -- What changes, compared with the real map:
---   1. Confirming or disputing works from anywhere. vote_on_sighting() no
---      longer checks that the voter is within 1 km, and takes no location
---      (the demo app sends none).
+--   1. Confirming or disputing works from anywhere. vote_on_sighting() keeps
+--      its my_lat and my_lng arguments, so the app calls it the same way,
+--      but ignores them: no 1 km check, and the location is never stored.
+--      The demo's vote buttons don't wait for a location.
 --   2. A sighting is Verified after 1 confirmation, as long as it has more
 --      confirmations than disputes (real map: at least 2, and at least twice
 --      the disputes). Disputed mirrors it: 1 dispute, more disputes than
@@ -22,6 +35,17 @@
 -- sighting, no voting on your own sighting, 5 posts an hour, sightings
 -- expire after 4 hours, and the hourly cleanup of who posted and voted.
 -- =====================================================================
+
+
+-- This is the demo project: remove the "-- " at the start of the next line.
+-- select set_config('icepik.this_is_the_demo_project', 'yes', false);
+
+do $$
+begin
+  if coalesce(current_setting('icepik.this_is_the_demo_project', true), '') <> 'yes' then
+    raise exception 'Stopped before changing anything: this file is only for the demo''s own Supabase project. In that project, remove the "-- " in front of the set_config line near the top and run it again.';
+  end if;
+end $$;
 
 
 -- 1. Verified sooner. The status is a generated column, so it is dropped
@@ -87,13 +111,16 @@ revoke execute on function public.vote_on_sighting(uuid, public.vote_type, doubl
 grant execute on function public.vote_on_sighting(uuid, public.vote_type, double precision, double precision) to authenticated;
 
 
--- Optional: sample sightings for the demo, around Philadelphia City Hall.
--- Inserts from the SQL editor skip the posting limit (see
--- prepare_new_sighting() in icepik_schema.sql). They expire after 4 hours
--- like any sighting; run this block again before a demo.
+-- Sample sightings for the demo, around Philadelphia City Hall. Paste these
+-- lines into a new query in the demo project and remove the "-- " at the
+-- start of each, within 4 hours before a demo: sightings expire after 4
+-- hours like any other. The delete first removes samples from an earlier
+-- run, so they never show twice. Inserts from the SQL editor skip the
+-- posting limit (see prepare_new_sighting() in icepik_schema.sql).
+-- delete from public.sightings where description = 'Demo sighting';
 -- insert into public.sightings (lat, lng, location_label, category, agent_count, vehicle_count, description)
 -- values
 --   (39.953, -75.165, 'Market St & 15th St', 'patrol', 2, 1, 'Demo sighting'),
---   (39.958, -75.158, 'Spring Garden St', 'vehicle', null, 2, 'Demo sighting'),
---   (39.945, -75.155, 'S 9th St', 'checkpoint', 4, 2, 'Demo sighting'),
---   (39.962, -75.172, 'Fairmount Ave', 'patrol', 1, 1, 'Demo sighting');
+--   (39.962, -75.158, 'Spring Garden St', 'vehicle', null, 2, 'Demo sighting'),
+--   (39.943, -75.157, 'S 9th St & South St', 'checkpoint', 4, 2, 'Demo sighting'),
+--   (39.967, -75.172, 'Fairmount Ave', 'patrol', 1, 1, 'Demo sighting');

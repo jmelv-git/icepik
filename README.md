@@ -54,19 +54,22 @@ Anyone can copy the CARTO key from the page, and our free 5 million map tiles a 
 
 ### The security check (CAPTCHA)
 
-Creating an account and logging in show Cloudflare Turnstile's check, after the terms are agreed. The app sends its one-time token to Supabase, and Supabase checks it with Cloudflare. To turn it on:
+Creating an account, logging in and deleting a saved account show Cloudflare Turnstile's check, after the terms are agreed. The app sends its one-time token to Supabase, and Supabase checks it with Cloudflare. ICEPik's site key is built into `app/_components/captcha.tsx`, so there's nothing to set in Vercel. To turn it on, in this order:
 
-1. In the Cloudflare dashboard (Turnstile → the ICEPik widget → Settings), make sure the hostnames include `icepik.vercel.app`, plus `localhost` if you test with `npm run dev`. Copy the widget's **secret key**. Never paste it into the code, a chat or a pull request.
-2. In Supabase (Authentication → Attack Protection), turn on **Enable CAPTCHA protection**, choose **Turnstile by Cloudflare** and paste the secret key. Do the same in the demo project if `/demo` is set up.
-3. Redeploy in Vercel so the live site has the site key.
+1. In the Cloudflare dashboard (Turnstile → the ICEPik widget → Settings), make sure the hostnames include `icepik.vercel.app`. Copy the widget's **secret key**. Never paste it into the code, a chat or a pull request.
+2. Make sure `NEXT_PUBLIC_TURNSTILE_SITE_KEY` isn't set in Vercel (it would replace the built-in key), deploy, and check in a private window that the check completes and a new anonymous user appears in Supabase (Authentication → Users). Until CAPTCHA is on, Supabase ignores the token.
+3. Only then, in Supabase (Authentication → Attack Protection), turn on **Enable CAPTCHA protection**, choose **Turnstile by Cloudflare** and paste the secret key. Do the same in the demo project if `/demo` is set up.
+4. Repeat the private-window check.
 
-Until step 2 is done, the check still shows, but Supabase ignores the token. Once it's done, signing in without a token fails, so do step 3 at the same time. Vercel's preview addresses aren't in the widget's hostnames, so the check shows an error there unless you add them.
+The check only works on the hostnames in the widget's list, so on a Vercel preview address or `npm run dev` it shows "The security check couldn't load" and no account can be created or logged into. Don't add those addresses to the production widget. To try sign-in locally, build with `NEXT_PUBLIC_TURNSTILE_SITE_KEY=` (empty, which turns the check off) against `scripts/mock-supabase.mjs` or a scratch Supabase project with CAPTCHA off. A production build stops if that variable is set to an empty value.
 
 ### The demo at `/demo`
 
 `/demo` is the same app on a second Supabase project, with sample sightings and looser rules for verifying them: anyone can confirm or dispute a sighting from anywhere, and one confirmation marks it Verified. The real map and its database don't change, and a vote on `/demo` can't reach a real sighting. The page says it's a demo, and search engines are asked not to list it.
 
-To set it up: create a second Supabase project, run `database/icepik_schema.sql` and then `database/icepik_demo_changes.sql` in its SQL Editor, use the same Authentication settings as the real project, add the two demo variables above in Vercel, and redeploy. The end of `icepik_demo_changes.sql` has sample sightings to paste in before a demo (they expire after 4 hours, like any sighting).
+To set it up, follow the steps at the top of `database/icepik_demo_changes.sql`: create a second Supabase project, run `database/icepik_schema.sql` and then `database/icepik_demo_changes.sql` in its SQL Editor (the file stops unless you confirm, on its first line, that this is the demo project), turn on every Authentication setting the real project has, CAPTCHA included with the same widget's secret key, add the two demo variables above in Vercel, and redeploy. The demo starts empty: before each demo, paste in the sample sightings at the end of `icepik_demo_changes.sql` (they expire after 4 hours, like any sighting).
+
+The demo keeps its session in its own cookie and its saved places under their own names in the browser, so a demo shown on a shared screen never shows the person's real places. "Clear this device" on either page signs out of both and clears both.
 
 ## 3. How does a change get from Claude Code to the live site?
 
@@ -91,7 +94,7 @@ The first version is built:
 Before we launch it, we need to:
 
 - run `scripts/supabase-live-checks.mjs` against a scratch Supabase project, before upgrading the live database or merging the recovery-key changes, and stop unless every check passes;
-- upgrade the live Supabase project in the order `docs/database-handoff.md` gives under "Existing project": set `NEXT_PUBLIC_TURNSTILE_SITE_KEY` in Vercel and deploy this app version, then delete or rename the saved accounts whose login ID breaks the username rule (such as the three test email accounts), then run `database/migrations/20261116_recovery_keys.sql` (never the "Starting over" lines in the schema, which delete all pins and votes), then turn on the dashboard settings, with CAPTCHA last;
+- finish the Supabase setup: the live project was started over with the new schema (it had no real users), so it needs no migration; turn on the dashboard settings in `docs/database-handoff.md` if any aren't yet, with CAPTCHA last, after checking in a private window that the Turnstile check completes;
 - add the two CARTO keys to Vercel (see section 2) before the map change is merged. Until then, production builds stop with an error. The keys are free for non-commercial use up to 5 million map tiles a month, and a visit uses about 12 to 90. Above that, CARTO may block the map without notice, so before a wider launch we'll ask support-basemaps@carto.com to raise the limit, which it normally does for free for non-commercial use. CARTO can also withdraw free keys without notice;
 - add a rate limit in Vercel's firewall;
 - test the handoff's "Done when" list on two real phones;

@@ -116,7 +116,7 @@ export async function voteOnSighting(
   const { data, error } = await supabase.rpc('vote_on_sighting', {
     target_sighting_id: input.sightingId,
     my_vote: input.vote,
-    // The demo database's vote_on_sighting() takes no location (null).
+    // The demo app sends no location (null); the demo database ignores it.
     my_lat: (located ? input.myLat : null) as number,
     my_lng: (located ? input.myLng : null) as number,
   })

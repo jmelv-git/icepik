@@ -10,10 +10,11 @@ export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
 
   const demo = request.nextUrl.pathname === "/demo" || request.nextUrl.pathname.startsWith("/demo/");
-  const { url, key, configured } = projectFor(demo);
+  const { url, key, configured, cookieName } = projectFor(demo);
   if (!configured) return response;
 
   const supabase = createServerClient(url!, key!, {
+    ...(cookieName ? { cookieOptions: { name: cookieName } } : {}),
     cookies: {
       getAll() {
         return request.cookies.getAll();

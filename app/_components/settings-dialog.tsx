@@ -25,7 +25,8 @@ import {
 } from "@/lib/device-storage";
 import { ONE_MILE_M, distanceMeters } from "@/lib/geo";
 import type { Sighting } from "@/lib/sightings";
-import { forgetSession, type Client } from "@/lib/supabase/client";
+import { projectFor } from "@/lib/supabase/config";
+import { createClient, forgetSession, type Client } from "@/lib/supabase/client";
 import type { ProfileTotals } from "@/lib/use-my-activity";
 import { BrandLogo } from "./brand-logo";
 import { DEMO_ABOUT, useDemo } from "./demo-context";
@@ -658,10 +659,12 @@ function DeleteAccount({ supabase, user, onNotice, onClose, onBack }: Props & { 
           {captchaEnabled ? (
             <Captcha
               action="delete-account"
-              onToken={setToken}
-              onError={() =>
-                setMessage("The security check couldn't load. Check your connection, then go back and try again.")
-              }
+              onToken={(next) => {
+                setToken(next);
+                // The widget retries on its own after some errors.
+                if (next) setMessage((current) => (current === CAPTCHA_FAILED ? null : current));
+              }}
+              onError={() => setMessage(CAPTCHA_FAILED)}
               resetKey={captchaReset}
             />
           ) : null}
@@ -698,17 +701,25 @@ function ClearDevice({ supabase, user, onBack }: Props & { onBack: () => void })
     // screen, which unmounts the map and its auth listener. Signing out first
     // would let AccountStarter create a new account before the terms show.
     clearDeviceStorage();
-    const { error } = await supabase.auth.signOut({ scope: "local" });
-    // When signOut() can't remove the session (offline with an expired token),
-    // delete it here, so the next person who agrees doesn't get this account.
-    if (error) forgetSession(demo);
+    // Sign out of the other project as well (the real map's account on /demo,
+    // the demo's on the real map): both sessions live in this browser, and the
+    // next person to open the other page would otherwise get that account.
+    const other = projectFor(!demo).configured ? createClient(!demo, false) : null;
+    const [own, others] = await Promise.all([
+      supabase.auth.signOut({ scope: "local" }),
+      other?.auth.signOut({ scope: "local" }),
+    ]);
+    // When signOut() can't remove a session (offline with an expired token),
+    // delete it here, so the next person who agrees doesn't get that account.
+    if (own.error) forgetSession(demo);
+    if (other && others?.error) forgetSession(!demo);
   }
 
   return (
     <div className="form">
       <h3>Clear this device</h3>
       <p>
-        This deletes your saved places from this browser and signs this device out. You&apos;ll see
+        This deletes your saved places from this browser and signs this device out of ICEPik and its demo. You&apos;ll see
         the terms again next time.
         {user?.is_anonymous
           ? " Your account isn't saved, so you won't be able to get back to it or its posts."

@@ -15,9 +15,10 @@ import { projectFor } from "./config";
  */
 export async function createClient(demo = false) {
   const cookieStore = await cookies();
-  const { url, key } = projectFor(demo);
+  const { url, key, cookieName } = projectFor(demo);
 
   return createServerClient<Database>(url!, key!, {
+    ...(cookieName ? { cookieOptions: { name: cookieName } } : {}),
     cookies: {
       getAll() {
         return cookieStore.getAll();
