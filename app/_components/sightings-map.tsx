@@ -354,15 +354,29 @@ export function SightingsMap({
           const styleTimer = window.setTimeout(() => {
             if (!styled) fallBack();
           }, 12000);
+          // The same if the style loads but its map data can't: no vector
+          // tile has arrived 15 seconds after the style.
+          let tiled = false;
+          let tileTimer: number | undefined;
           glMap.once("style.load", () => {
             styled = true;
             window.clearTimeout(styleTimer);
+            tileTimer = window.setTimeout(() => {
+              if (!tiled) fallBack();
+            }, 15000);
           });
-          // Once a style has loaded, an error (a tile that didn't load, say)
-          // leaves the rest of the map working. Before that, give up after
-          // MapLibre has finished reporting it.
+          glMap.on("sourcedata", (event) => {
+            if (event.tile && !tiled) {
+              tiled = true;
+              window.clearTimeout(tileTimer);
+            }
+          });
+          // Once a tile has loaded, an error (one tile that didn't load, say)
+          // leaves the rest of the map working. Before that (the style, or
+          // the tile server, can't be reached), give up after MapLibre has
+          // finished reporting it.
           glMap.on("error", () => {
-            if (!styled) setTimeout(fallBack);
+            if (!tiled) setTimeout(fallBack);
           });
           let template = "";
           glMap.on("sourcedata", (event) => {
