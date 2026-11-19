@@ -185,6 +185,8 @@ const LOCATION_ASK =
 const LOCATION_DENIED =
   "ICEPik can't see your location. To center the map on you, allow location for this site in your browser's settings.";
 const LOCATION_UNAVAILABLE = "Your device couldn't find your location. Try again in a moment.";
+// How close the map flies in when the person's location first arrives: a city.
+const CITY_ZOOM = 13;
 const LOCATION_OUTSIDE =
   "You're outside the places ICEPik covers: the 50 states, DC, Puerto Rico, the U.S. Virgin Islands, Guam and the Northern Mariana Islands.";
 
@@ -723,9 +725,10 @@ export function MapApp() {
       if (covered) mapApi.current.centerOn(position, mapPadding(), 15);
       else showNotice(LOCATION_OUTSIDE);
     } else if (!centeredOnMe.current) {
+      // The first position: from the whole country, fly to the person's city.
       centeredOnMe.current = true;
       const busy = selectedId || groupIds || searchResult || picking || mapApi.current.moved();
-      if (!busy && covered) mapApi.current.centerOn(position, mapPadding());
+      if (!busy && covered) mapApi.current.centerOn(position, mapPadding(), CITY_ZOOM);
     }
   });
   useEffect(() => {

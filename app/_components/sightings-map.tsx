@@ -3,7 +3,6 @@
 import type * as Leaflet from "leaflet";
 import type { Map as VectorMap } from "maplibre-gl";
 import { useEffect, useImperativeHandle, useRef, useState, type Ref } from "react";
-import { MAP_CENTER } from "@/lib/geo";
 import { readLayout } from "@/lib/layout";
 import { type Sighting } from "@/lib/sightings";
 import type { MyPosition } from "@/lib/use-my-position";
@@ -28,10 +27,20 @@ const CARTO_KEY = (process.env.NEXT_PUBLIC_CARTO_KEY ?? "").trim();
 // CARTO serves map images up to zoom 18 and refuses deeper ones, which
 // would leave the map blank. They're the fallback for browsers without WebGL.
 const RASTER_MAX_ZOOM = 18;
-// The map stays on the places ICEPik covers: at least this share of the
-// visible map must show them. The view is sampled on a VIEW_SAMPLES grid.
-const MIN_VIEW_SHARE = 0.1;
-const VIEW_SAMPLES = 8;
+// The map opens on the contiguous United States, zoomed out to fit it (once
+// the person shares their location, it flies to their city), and can zoom out
+// as far as MIN_ZOOM.
+const LOWER_48: [[number, number], [number, number]] = [
+  [24.4, -124.8],
+  [49.4, -66.9],
+];
+const MIN_ZOOM = 3;
+// The map stays on the places ICEPik covers: some of them must show in the
+// middle of the visible map (MIDDLE of its width and height). That middle is
+// sampled on a VIEW_SAMPLES grid, and coasts, borders and islands are found
+// by the outline's corners.
+const MIDDLE = 0.5;
+const VIEW_SAMPLES = 6;
 const NO_PADDING: Padding = { paddingTopLeft: [0, 0], paddingBottomRight: [0, 0] };
 // With WebGL, MapLibre draws the map from CARTO's vector tiles instead. They
 // stop at zoom 15, but MapLibre redraws them sharply when zoomed in further.
@@ -160,7 +169,9 @@ export function SightingsMap({
         const shift = L.point((left - right) / 2, (top - bottom) / 2);
         const middle = instance.project([point.lat, point.lng], zoom).subtract(shift);
         centering.current = true;
-        instance.setView(instance.unproject(middle, zoom), zoom, { animate: true });
+        // From far out (the whole country down to a city), fly there.
+        if (zoom - instance.getZoom() > 2) instance.flyTo(instance.unproject(middle, zoom), zoom, { duration: 1.5 });
+        else instance.setView(instance.unproject(middle, zoom), zoom, { animate: true });
         centering.current = false;
       },
       focusSpot(point, padding, minZoom) {
@@ -266,12 +277,16 @@ export function SightingsMap({
       // MapLibre needs WebGL2. Without it, the map shows CARTO's map images.
       const vector = hasWebGL2();
       const instance = L.map(node.current, {
-        center: MAP_CENTER,
-        zoom: 13,
-        minZoom: 9,
+        center: L.latLngBounds(LOWER_48).getCenter(),
+        zoom: 4,
+        minZoom: MIN_ZOOM,
         maxZoom: vector ? VECTOR_MAX_ZOOM : RASTER_MAX_ZOOM,
         zoomControl: false,
       });
+      // Open on the lower 48 states, as large as fits the part of the map the
+      // panels leave visible (map-app.tsx flies to the person's city once
+      // they share their location).
+      instance.fitBounds(LOWER_48, { ...(latest.current.visibleArea?.() ?? NO_PADDING), animate: false });
 
       // The raster map: CARTO's Positron style, or its Dark Matter style when
       // the device is set to dark, with their attribution visible. Both come
@@ -461,20 +476,20 @@ export function SightingsMap({
       // Also fires after zooms and resizes.
       instance.on("moveend", reportView);
 
-      // The map stays on the places ICEPik covers (lib/service-area.ts): at
-      // least a tenth of the visible map (not under the panel or a card) must
-      // show them. A drag, zoom or jump that leaves less glides back to the
-      // last view that had enough. The outline loads once the map has
-      // started; until then nothing is limited. The visible part is measured
-      // once per move.
-      let inArea: ((point: Point) => boolean) | null = null;
+      // The map stays on the places ICEPik covers (lib/service-area.ts): some
+      // of them must show in the middle of the visible map (not under the
+      // panel or a card), at any zoom, even a small island. A drag, zoom or
+      // jump that leaves none there glides back to the last view that had
+      // some. The outline loads once the map has started; until then nothing
+      // is limited. The visible part is measured once per move.
+      let area: typeof import("@/lib/service-area") | null = null;
       import("@/lib/service-area").then((module) => {
-        if (!cancelled) inArea = module.inServiceArea;
+        if (!cancelled) area = module;
       });
       let visible: Padding | null = null;
       instance.on("movestart zoomstart", () => (visible = null));
       const enoughOfArea = () => {
-        if (!inArea) return true;
+        if (!area) return true;
         const size = instance.getSize();
         visible ??= latest.current.visibleArea?.() ?? NO_PADDING;
         let [left, top] = visible.paddingTopLeft;
@@ -485,17 +500,28 @@ export function SightingsMap({
         if (width < size.x * 0.4 || height < size.y * 0.4) {
           [left, top, width, height] = [0, 0, size.x, size.y];
         }
-        let inside = 0;
+        // The middle of what's visible.
+        left += (width * (1 - MIDDLE)) / 2;
+        top += (height * (1 - MIDDLE)) / 2;
+        width *= MIDDLE;
+        height *= MIDDLE;
         for (let i = 0; i < VIEW_SAMPLES; i++) {
           for (let j = 0; j < VIEW_SAMPLES; j++) {
             const at = instance.containerPointToLatLng([
               left + ((i + 0.5) * width) / VIEW_SAMPLES,
               top + ((j + 0.5) * height) / VIEW_SAMPLES,
             ]);
-            if (inArea(at)) inside++;
+            if (area.inServiceArea(at)) return true;
           }
         }
-        return inside >= MIN_VIEW_SHARE * VIEW_SAMPLES * VIEW_SAMPLES;
+        const northWest = instance.containerPointToLatLng([left, top]);
+        const southEast = instance.containerPointToLatLng([left + width, top + height]);
+        return area.serviceAreaCornerIn({
+          south: southEast.lat,
+          west: northWest.lng,
+          north: northWest.lat,
+          east: southEast.lng,
+        });
       };
       let lastGood = { center: instance.getCenter(), zoom: instance.getZoom() };
       let zooming = false;

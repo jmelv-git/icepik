@@ -657,6 +657,21 @@ project, real devices and their GPUs).
   the message and the map stays, from Philadelphia it centers as before. Real searches: San Juan
   PR, Hagåtña, Charlotte Amalie and Saipan are found, Pago Pago isn't, and "Tijuana" or "Toronto"
   only match U.S. places.
+- **Follow-up: open on the whole country, then the person's city.** The map opens fitted to the
+  lower 48 in the visible map (zoom 4 on desktop, 3 on a phone) instead of Philadelphia, and
+  minZoom is now 3. When the location first arrives (asked on the first visit, as before), it
+  flies to zoom 13 there (`flyTo` for jumps of more than 2 zoom levels); from outside the covered
+  places it stays put without a message. `MAP_CENTER` is gone. Zooming out that far broke the 10%
+  rule for small places (Guam is far under 10% of a zoom-3 view), so the rule became: some covered
+  place must be in the middle half (width and height) of the visible map, found by a 6x6 sample
+  there or by a corner of the outline inside it (coasts, borders, islands; about 0.01 ms). The
+  outline's arcs are now joined with a loop, not `push(...arc)`, which can exceed Safari's
+  argument limit. Tests now give the browser a Philadelphia location by default (`t/lib.mjs`), so
+  the earlier suites start where they did. Checked (`area/check-start.mjs`, 9/9 on desktop and on
+  a phone): no location opens on the lower 48 at zoom 4 (desktop) or 3 (phone); Philadelphia and
+  Guam fly to zoom 13 with the blue dot in view; zooming out to 3 around Guam keeps it on screen;
+  Beijing stays on the country, with no message, and can still zoom in. The address search is
+  still biased toward Philadelphia (open question).
 
 ## Sources
 

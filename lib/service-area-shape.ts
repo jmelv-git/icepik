@@ -26,10 +26,57 @@ type Topology = {
 // the edges that cross its latitude.
 const BAND = 0.1; // degrees
 
-/** A test for whether a point is inside the outline (even-odd, so holes work). */
-export function makeAreaTest(topology: Topology): (point: LatLng) => boolean {
+type Box = { south: number; west: number; north: number; east: number };
+type Ring = Box & { points: number[] };
+
+export type Area = {
+  /** Whether a point is inside the outline (even-odd, so holes work). */
+  contains: (point: LatLng) => boolean;
+  /**
+   * Whether a corner of the outline lies in the box: a coast, a border or a
+   * small island shows there. The box may run past 180 degrees.
+   */
+  hasCornerIn: (box: Box) => boolean;
+};
+
+export function makeArea(topology: Topology): Area {
+  const all: Ring[] = rings(topology).map(withBounds);
+  return { contains: makeContains(all), hasCornerIn: (box) => hasCornerIn(all, box) };
+}
+
+function hasCornerIn(all: Ring[], box: Box) {
+  // The box as the map gives it, and shifted a world either way.
+  for (const shift of [0, 360, -360]) {
+    const west = box.west + shift;
+    const east = box.east + shift;
+    for (const ring of all) {
+      if (ring.north < box.south || ring.south > box.north || ring.east < west || ring.west > east) continue;
+      const p = ring.points;
+      for (let i = 0; i < p.length; i += 2) {
+        if (p[i] >= west && p[i] <= east && p[i + 1] >= box.south && p[i + 1] <= box.north) return true;
+      }
+    }
+  }
+  return false;
+}
+
+function withBounds(points: number[]): Ring {
+  let west = Infinity;
+  let south = Infinity;
+  let east = -Infinity;
+  let north = -Infinity;
+  for (let i = 0; i < points.length; i += 2) {
+    west = Math.min(west, points[i]);
+    east = Math.max(east, points[i]);
+    south = Math.min(south, points[i + 1]);
+    north = Math.max(north, points[i + 1]);
+  }
+  return { points, west, south, east, north };
+}
+
+function makeContains(all: Ring[]): (point: LatLng) => boolean {
   const bands = new Map<number, number[]>();
-  for (const ring of rings(topology)) {
+  for (const { points: ring } of all) {
     for (let i = 2; i < ring.length; i += 2) {
       const x1 = ring[i - 2];
       const y1 = ring[i - 1];
@@ -87,8 +134,9 @@ function rings(topology: Topology): number[][] {
         const points: number[] = [];
         arcIds.forEach((id, k) => {
           const arc = id < 0 ? reversed(arcs[~id]) : arcs[id];
-          // Consecutive arcs share their joining point.
-          points.push(...(k ? arc.slice(2) : arc));
+          // Consecutive arcs share their joining point. (A loop, not
+          // push(...arc): an arc can hold more numbers than a call takes.)
+          for (let i = k ? 2 : 0; i < arc.length; i++) points.push(arc[i]);
         });
         result.push(points);
       }

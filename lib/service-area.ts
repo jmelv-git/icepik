@@ -20,12 +20,18 @@
 // search API and the server action that posts a sighting import it directly.
 
 import outline from "./service-area.json";
-import { makeAreaTest } from "./service-area-shape";
+import { makeArea, type Area } from "./service-area-shape";
 
-let test: ((point: { lat: number; lng: number }) => boolean) | null = null;
+let area: Area | null = null;
 
 /** Whether a point is in a place where ICE works (see the top of this file). */
 export function inServiceArea(point: { lat: number; lng: number }): boolean {
-  test ??= makeAreaTest(outline);
-  return test(point);
+  area ??= makeArea(outline);
+  return area.contains(point);
+}
+
+/** Whether the outline of those places has a corner in the box (a coast, border or island). */
+export function serviceAreaCornerIn(box: { south: number; west: number; north: number; east: number }): boolean {
+  area ??= makeArea(outline);
+  return area.hasCornerIn(box);
 }
