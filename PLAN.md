@@ -16,7 +16,7 @@ Next.js (16.2.4) differs from what you know: after `npm ci`, read the relevant g
 - [x] 1. Report at the searched place
 - [x] 2. Confirm before sending, and Cancel puts everything back
 - [x] 3. Dragging the pin, and the search icon that brings it back
-- [ ] 4. No pins in impossible places (on land, within 200 m of a road or footpath)
+- [x] 4. No pins in impossible places (on land, within 200 m of a road or footpath)
 - [x] 5. Nothing pinnable nearby, and large search results
 - [ ] 6. Draw the map from CARTO's vector tiles, so it can zoom past 18 (added by the user on 18 Nov)
 
@@ -518,6 +518,39 @@ project, real devices and their GPUs).
 - Found while testing: a repeated notice (a second refused pin in a row) wasn't announced again,
   because the screen-reader copy only speaks when its text changes. `showNotice` now clears the
   message for 150 ms first when it's the same (commit "Announce a repeated notice again").
+- Independent review of `lib/pinnable.ts` (its own Python decoder written from the MVT spec): 1,207
+  of 1,207 grid points and 175 of 175 snaps agree on live tiles; verdict pass. Fixed from its
+  findings: a 404 tile now makes the check "unavailable" ("Couldn't check this spot. Try again.")
+  instead of being read as sea; one template lookup per check; a note on where the flat maths stops
+  being exact. Re-tested in Node with a local tile server that 404s one tile.
+- Independent review of the change 1–3/5 code: verdict "fixes needed" (2 major, 5 minor). All fixed
+  (commit c340486) and checked in the browser (`main/check-review-fixes.mjs`, 12/12;
+  `main/check-zoom-cancel.mjs`, 3/3): a check started from a searched place now says "Checking the
+  spot…" on the button and to screen readers, Escape cancels it, and it is dropped if the search
+  changes, a dialog opens or another spot is being chosen (it used to open the form for the old
+  search); any error in a check counts as "unavailable"; "Back to the form" during a drag check drops
+  the check and puts the pin back; Cancel returns focus to "Submit a report" (also from the banner);
+  Cancel's view survives a zoom animation still under way (Escape 30, 120 and 220 ms into the
+  zoom-in); a long searched name shortens instead of widening the form at 320 and 375 px; screen
+  readers get the full name; the large-area message says how to tap the map instead. Accepted as is:
+  a bare street name ("Broad Street") is not treated as a large area, so the pin goes near the
+  segment Nominatim returns.
+- Change 6 was finished by a second worker after the first hit a usage limit, and merged (8387f13,
+  merge efed5fd). Its builder's checks: the map draws from CARTO's vector tiles under every pin and
+  overlay; zoom 19 and 20 are sharp; labels reach 6.66:1 in dark and 4.71:1 in light; a live
+  light/dark switch keeps one style; the raster map shows without WebGL (max zoom 18) and if
+  MapLibre fails; no WebGL context leaks over 20 unmounts; first visit with WebGL about 1.71 MB
+  instead of 0.90 MB (MapLibre about 440 KB compressed, vector data 782 KB instead of 438 KB of
+  images), cached afterwards; without WebGL +2.5 KB. Added on merge: the map passes its tile
+  template to the pin check (`onVectorTiles={setTileTemplate}`); a style that hasn't arrived after
+  12 s gives the raster map instead of a blank one; MapLibre's worker, a static file the page's CSP
+  doesn't reach, gets its own policy from `next.config.ts` (`default-src 'none'; connect-src` the two
+  CARTO vector hosts), checked with curl and in the browser.
+- **Change 4 verified on the vector map** (desktop and phone, `check-pinnable.mjs`, 12/12 each): every
+  pin check's tiles came from the browser's cache and none from CARTO: lake 4/4, river 4/4 and
+  mountainside 4/4 (both the whole 500 m box), search start 2/2, at both sizes. The flow suites pass
+  on the vector map too (desktop 26/26, phone 25/25), as do the review-fix checks (12/12) and Cancel
+  during a zoom (3/3).
 
 ## Sources
 
