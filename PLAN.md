@@ -585,7 +585,7 @@ project, real devices and their GPUs).
   check the map now waits for the vector map to load what it shows. A tap from the opening zoom
   used to send 2 of its 4 tile requests to CARTO; now 0 of 4. New checks: the exact tap and drop
   points (6 of them) appear in no request, database record, console or server log; a house-number
-  address reads "Searched: 1234 Christian Street"; touch input on a phone (tap, finger drag,
+  address reads "Searched: [number] [street]", as the map label does; touch input on a phone (tap, finger drag,
   "Use this spot"); a pin on the image map without WebGL; and "Couldn't check this spot" when CARTO's
   vector tiles are unreachable (`main/check-audit-fixes.mjs`, 8/8).
 - **Final run on the final build** (after every code change): flows desktop 26/26, phone 25/25,
