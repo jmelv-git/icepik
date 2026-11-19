@@ -171,10 +171,23 @@ export function SightingsMap({
       restoreView(view) {
         const instance = map.current;
         if (!instance) return;
-        centering.current = true;
-        instance.setView([view.lat, view.lng], view.zoom, { animate: false });
-        centering.current = false;
-        moved.current = view.moved;
+        const apply = () => {
+          centering.current = true;
+          instance.setView([view.lat, view.lng], view.zoom, { animate: false });
+          centering.current = false;
+          moved.current = view.moved;
+        };
+        apply();
+        // A zoom animation already under way (Leaflet starts one a frame
+        // after it's asked for) would end after this and undo it: put the
+        // view back once more when it ends, if it ends soon.
+        const again = () => {
+          instance.off("zoomend", again);
+          window.clearTimeout(timer);
+          apply();
+        };
+        const timer = window.setTimeout(() => instance.off("zoomend", again), 700);
+        instance.on("zoomend", again);
       },
       center() {
         const center = map.current?.getCenter();

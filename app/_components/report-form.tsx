@@ -160,10 +160,12 @@ export function ReportForm({
       <div className="spot-row">
         <div className="spot-text">
           {searched && !searched.moved ? (
-            <p className="spot-searched" title={searched.label}>
+            <div className="spot-searched" title={searched.label}>
               <SearchIcon />
-              <span>Searched: {searchedName}</span>
-            </p>
+              {/* The short name shows; screen readers get the full one. */}
+              <span aria-hidden="true">Searched: {searchedName}</span>
+              <span className="visually-hidden">Searched: {searched.label}</span>
+            </div>
           ) : null}
           <p className="spot-line">
             {searched?.moved ? (
@@ -185,7 +187,7 @@ export function ReportForm({
         </button>
       </div>
       <p className="visually-hidden" role="status">
-        {returnStatus}
+        {searched && !searched.moved ? returnStatus : ""}
       </p>
 
       {nearby.length ? (
