@@ -782,7 +782,7 @@ textarea::placeholder {
   transform: rotate(-45deg);
 }
 
-/* The place being named, before it's saved. */
+/* The place being named, or home or work at a searched place, before it's saved. */
 .saved-place-new {
   border-style: dashed;
 }
