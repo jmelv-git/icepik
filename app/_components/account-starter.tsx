@@ -105,7 +105,12 @@ export function AccountStarter({
       )}
       {noSession && captchaEnabled ? (
         <Captcha
-          onToken={setToken}
+          action="anonymous-signin"
+          onToken={(next) => {
+            setToken(next);
+            // The widget retries on its own after some errors.
+            if (next) setCaptchaFailed(false);
+          }}
           onError={() => setCaptchaFailed(true)}
           resetKey={captchaReset}
         />
