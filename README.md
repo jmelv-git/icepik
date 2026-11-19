@@ -28,6 +28,8 @@ Everything is in Supabase, a database with user accounts built in. The tables an
 
 Home and work places stay in the browser and never reach the database. The map pictures come from CARTO and the address search from OpenStreetMap, and we don't store anything from them.
 
+Where the browser has WebGL 2, the map is drawn from CARTO's vector map instead of its pictures, by MapLibre GL, which is bundled from npm like Leaflet. So the Content-Security-Policy's `connect-src` also allows `https://basemaps.cartocdn.com` and `https://tiles.basemaps.cartocdn.com`, for the map's style, tiles, fonts and icons (none of them carry the CARTO key). Without WebGL 2, or if CARTO's vector map can't be loaded, the map shows CARTO's pictures as before.
+
 The site needs these environment variables, in Vercel and in `.env.local` for `npm run dev`:
 
 | Variable | What it is |
@@ -59,7 +61,7 @@ The first version is built:
 
 - **Accounts:** the terms and privacy notice show before anything loads. Agreeing creates an anonymous account, with no sign-up screen. People can save it with a username and password, log in on another phone, or delete it.
 - **Live map:** a map of Philadelphia where a new sighting shows up for everyone within a few seconds, without a refresh. Each pin shows whether it's verified, unverified or disputed, how many people confirmed or disputed it, and how long ago it was posted. Pins leave the map after 4 hours, and each confirmation keeps one there for at least 2 more hours.
-- **Posting:** place the pin on the map and choose what you saw. The counts, street names and details are optional, and the street names are suggested for you. If someone already reported a sighting nearby, the form offers to confirm it instead.
+- **Posting:** place the pin on the map, or search for a place and tap "Submit a report" to start there, then choose what you saw. The pin snaps to the nearest spot on land within 200 m of a road or footpath, so it can't land in water or deep in the woods; nothing is sent until "Post sighting". The counts, street names and details are optional, and the street names are suggested for you. If someone already reported a sighting nearby, the form offers to confirm it instead.
 - **"Are they still there?":** people within 1 km can confirm or dispute a sighting.
 - **Home and work:** saved on the device only, with the number of sightings within 1 mile of each. On a shared phone, "Clear this device" in Settings deletes them and signs out.
 - **Know Your Rights:** links to legal resources.

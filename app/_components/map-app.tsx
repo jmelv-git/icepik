@@ -13,8 +13,9 @@ import {
   useSavedPlaces,
   type PlaceName,
 } from "@/lib/device-storage";
-import { ONE_MILE_M, distanceMeters, roundCoord } from "@/lib/geo";
+import { ONE_MILE_M, distanceMeters } from "@/lib/geo";
 import { readLayout, useLayout } from "@/lib/layout";
+import { setTileTemplate, snapToPinnable, type SnapResult } from "@/lib/pinnable";
 import {
   STATUS_LABEL,
   sightingSummary,
@@ -61,11 +62,98 @@ import {
   type Bounds,
   type MapApi,
   type MapPlace,
+  type MapView,
   type Padding,
   type Point,
 } from "./sightings-map";
 
-type SearchResult = { display_name: string; lat: string; lon: string };
+// What /api/search returns for each place (OpenStreetMap's own fields).
+type SearchResult = {
+  display_name: string;
+  lat: string;
+  lon: string;
+  category?: string | null;
+  type?: string | null;
+  addresstype?: string | null;
+  place_rank?: number | null;
+  // [south, north, west, east]
+  boundingbox?: string[] | null;
+};
+
+// The searched place on the map. `large`: a city, a region or a big park,
+// too big to put a pin at its center.
+type SearchedPlace = Point & { label: string; large: boolean };
+
+// Kinds of place that are areas, not spots: settlements and regions.
+const AREA_TYPES = new Set([
+  "administrative",
+  "archipelago",
+  "borough",
+  "city",
+  "city_district",
+  "country",
+  "county",
+  "district",
+  "hamlet",
+  "island",
+  "islet",
+  "locality",
+  "municipality",
+  "neighbourhood",
+  "province",
+  "quarter",
+  "region",
+  "state",
+  "suburb",
+  "town",
+  "village",
+]);
+// Longer than this on a side, a search result is an area (a big park, an
+// airport). Addresses, streets and buildings are far smaller; OpenStreetMap
+// can give a station or a campus about 1–2 km.
+const LARGE_AREA_M = 2000;
+
+// Judged from OpenStreetMap's type for the place and its bounding box.
+function isLargeArea(item: SearchResult) {
+  if (typeof item.place_rank === "number" && item.place_rank <= 16) return true;
+  if (
+    (item.category === "place" || item.category === "boundary") &&
+    (AREA_TYPES.has(item.type ?? "") || AREA_TYPES.has(item.addresstype ?? ""))
+  )
+    return true;
+  const box = item.boundingbox?.map(Number);
+  if (!box || box.length !== 4 || !box.every(Number.isFinite)) return false;
+  const [south, north, west, east] = box;
+  const middle = (south + north) / 2;
+  const tall = distanceMeters(south, west, north, west);
+  const wide = distanceMeters(middle, west, middle, east);
+  return Math.max(tall, wide) > LARGE_AREA_M;
+}
+
+const LARGE_AREA =
+  "That's a large area. Search for an address or a place inside it, or clear the search and tap the map.";
+const SNAP_FAILED: Record<Extract<SnapResult, { ok: false }>["reason"], string> = {
+  "none-nearby": "No spot for a pin near here. Pins go on land within 200 m of a road or path.",
+  unavailable: "Couldn't check this spot. Try again.",
+};
+// Before a pin goes near a spot, the map shows it at least this close, so the
+// check reads the same map data the map is showing.
+const DETAIL_ZOOM = 16;
+
+// What the screen looked like when "Submit a report" was tapped. Cancel puts
+// it back. Kept in memory only.
+type ReportSnapshot = {
+  view: MapView | null;
+  selectedId: string | null;
+  groupIds: string[] | null;
+  panelOpen: boolean | null;
+  reportsTab: "nearby" | "search";
+  query: string;
+  searchResult: SearchedPlace | null;
+  results: SearchResult[];
+  searchError: boolean;
+  noResults: boolean;
+};
 
 // Choosing a spot on the map: for a new report, or for a saved place (home,
 // work, or a new place to name).
@@ -187,6 +275,17 @@ export function MapApp() {
   const [picking, setPicking] = useState<Picking>(null);
   const [draft, setDraft] = useState<Point | null>(null);
   const [reportFormOpen, setReportFormOpen] = useState(false);
+  // A report started at a searched place: its name, and the pinnable spot
+  // nearest it (where the pin goes back to from the form's search icon).
+  const [reportSearch, setReportSearch] = useState<{ label: string; spot: Point } | null>(null);
+  // A spot is being checked before the pin goes there.
+  const [checkingSpot, setCheckingSpot] = useState(false);
+  // Counts placements: a check that a newer one (or Cancel) overtook is dropped.
+  const placeSeq = useRef(0);
+  const reportSnapshot = useRef<ReportSnapshot | null>(null);
+  // The map view Cancel puts back, once the restored state has rendered.
+  const viewToRestore = useRef<MapView | null>(null);
+  const [restoreTick, setRestoreTick] = useState(0);
   // null until the user toggles it: CSS then shows the panel on desktop and
   // hides it on phones, so neither layout flashes the wrong state on load.
   const [panelOpen, setPanelOpen] = useState<boolean | null>(null);
@@ -230,7 +329,7 @@ export function MapApp() {
   const [searchError, setSearchError] = useState(false);
   // A search that found nothing. Nothing shows for it; screen readers hear it.
   const [noResults, setNoResults] = useState(false);
-  const [searchResult, setSearchResult] = useState<(Point & { label: string }) | null>(null);
+  const [searchResult, setSearchResult] = useState<SearchedPlace | null>(null);
   const searchForm = useRef<HTMLFormElement>(null);
   const searchInput = useRef<HTMLInputElement>(null);
   const searchAbort = useRef<AbortController | null>(null);
@@ -252,15 +351,28 @@ export function MapApp() {
   const NOTICE_MS = 20000;
   const [noticePaused, setNoticePaused] = useState(false);
   const noticePausedRef = useRef(false);
+  // The message on screen, and a pending re-show of it (see showNotice).
+  const noticeNow = useRef("");
+  const noticeAgain = useRef<number | undefined>(undefined);
   const startNoticeTimer = useCallback(() => {
     window.clearTimeout(noticeTimer.current);
-    noticeTimer.current = window.setTimeout(() => setNotice(""), NOTICE_MS);
+    noticeTimer.current = window.setTimeout(() => {
+      noticeNow.current = "";
+      setNotice("");
+    }, NOTICE_MS);
   }, []);
   const showNotice = useCallback(
     (message: string) => {
       noticePausedRef.current = false;
       setNoticePaused(false);
-      setNotice(message);
+      window.clearTimeout(noticeAgain.current);
+      if (noticeNow.current === message) {
+        // The same message again (a second pin refused in a row): screen
+        // readers only announce a change, so it goes away for a moment first.
+        setNotice("");
+        noticeAgain.current = window.setTimeout(() => setNotice(message), 150);
+      } else setNotice(message);
+      noticeNow.current = message;
       startNoticeTimer();
     },
     [startNoticeTimer],
@@ -279,11 +391,61 @@ export function MapApp() {
     else startNoticeTimer();
   };
 
-  const cancelReport = useCallback(() => {
+  // The report is over (posted, or the person went to a sighting near it):
+  // leave everything where it is now.
+  const endReport = useCallback(() => {
+    placeSeq.current++;
+    reportSnapshot.current = null;
+    setCheckingSpot(false);
     setPicking(null);
     setDraft(null);
     setReportFormOpen(false);
+    setReportSearch(null);
   }, []);
+
+  // Cancel, in any of its forms (the form's Cancel and close buttons, the
+  // banner's Cancel, Escape): nothing is sent, and the map, the search and the
+  // pins go back to how they were before "Submit a report" was tapped.
+  const cancelReport = useCallback(() => {
+    const snapshot = reportSnapshot.current;
+    // Focus goes back to "Submit a report", not to a card Cancel brings back.
+    if (document.querySelector('.modal-layer[data-kind="report"]:not([hidden])')) {
+      focusAfterDialog.current = ".report-button";
+    } else if (document.activeElement?.closest(".pick-banner")) {
+      // The banner and its focused Cancel button go away.
+      window.requestAnimationFrame(() =>
+        document.querySelector<HTMLElement>(".report-button:not([inert])")?.focus(),
+      );
+    }
+    endReport();
+    if (!snapshot) return;
+    setSelectedId(snapshot.selectedId);
+    setGroupIds(snapshot.groupIds);
+    setPanelOpen(snapshot.panelOpen);
+    setReportsTab(snapshot.reportsTab);
+    setQuery(snapshot.query);
+    setSearchResult(snapshot.searchResult);
+    setResults(snapshot.results);
+    setSearchError(snapshot.searchError);
+    setNoResults(snapshot.noResults);
+    // The map moves back after this state has rendered, so nothing that
+    // reacts to it (a restored search moves the map) can move it again.
+    viewToRestore.current = snapshot.view;
+    setRestoreTick((tick) => tick + 1);
+  }, [endReport]);
+
+  // React runs the map's own effects before this one, so the view is last.
+  useEffect(() => {
+    const view = viewToRestore.current;
+    viewToRestore.current = null;
+    if (view) mapApi.current?.restoreView(view);
+  }, [restoreTick]);
+
+  // The screen as it is now, for a spot check that finishes after it changed.
+  const latestScreen = useRef({ searchResult, modal, naming, picking, reportFormOpen });
+  useEffect(() => {
+    latestScreen.current = { searchResult, modal, naming, picking, reportFormOpen };
+  });
 
   // Focus the first of these that is on screen and can take focus.
   function focusFirst(candidates: (HTMLElement | string | null)[]) {
@@ -354,9 +516,10 @@ export function MapApp() {
   const onEscape = useEffectEvent(() => {
     if (modal) setModal(null);
     else if (reportShown) cancelReport();
+    // A report starting at a searched place, still checking its spot.
+    else if (checkingSpot && !picking && !reportFormOpen) cancelReport();
     else if (naming) closeNaming();
-    else if (picking === "report" && !reportFormOpen) cancelReport();
-    else if (picking) setPicking(null);
+    else if (picking) leavePicking();
     else if (selectedId) closeCard(() => setSelectedId(null));
     else if (groupIds) closeCard(() => setGroupIds(null));
   });
@@ -704,6 +867,24 @@ export function MapApp() {
       setStarterHidden(false);
       return showNotice("Your account is still being set up. Try again in a moment.");
     }
+    // Tapped again while it checks the spot near a searched place: stop.
+    if (checkingSpot) return cancelReport();
+    // Remember the screen as it is now, for Cancel.
+    reportSnapshot.current = {
+      view: mapApi.current?.view() ?? null,
+      selectedId,
+      groupIds,
+      panelOpen,
+      reportsTab,
+      query,
+      searchResult,
+      results,
+      searchError,
+      noResults,
+    };
+    // A place was searched for, and the search box still shows it (text typed
+    // since then, without choosing a result, doesn't count): start there.
+    if (searchResult && query === searchResult.label) return void reportAtSearchedPlace(searchResult);
     setSelectedId(null);
     setGroupIds(null);
     setDraft(null);
@@ -714,10 +895,102 @@ export function MapApp() {
     focusMap();
   }
 
+  // The pinnable spot nearest a point: on land, near a road or path, on the
+  // grid pins are rounded to. The map first shows the point in detail.
+  // "refused": there's no such spot (the notice says why). "stale": a newer
+  // placement or Cancel overtook this check.
+  // isCurrent: whether the screen is still the one the check was for, once it
+  // has finished (a check can take a few seconds on a slow connection).
+  async function checkSpot(
+    point: Point,
+    isCurrent: () => boolean,
+  ): Promise<Point | "refused" | "stale"> {
+    const seq = ++placeSeq.current;
+    setCheckingSpot(true);
+    let result: SnapResult;
+    try {
+      await mapApi.current?.focusSpot(point, mapPadding(), DETAIL_ZOOM);
+      if (seq !== placeSeq.current) return "stale";
+      result = await snapToPinnable(point);
+    } catch {
+      result = { ok: false, reason: "unavailable" };
+    }
+    if (seq !== placeSeq.current) return "stale";
+    setCheckingSpot(false);
+    if (!isCurrent()) return "stale";
+    if (result.ok) return result.spot;
+    showNotice(SNAP_FAILED[result.reason]);
+    return "refused";
+  }
+
+  // "Submit a report" with a place searched for: the form opens at once, with
+  // the pin on the pinnable spot nearest that place, never on the place itself.
+  async function reportAtSearchedPlace(place: SearchedPlace) {
+    if (place.large) {
+      reportSnapshot.current = null;
+      return showNotice(LARGE_AREA);
+    }
+    // Dropped if, meanwhile, the search changed, a dialog opened or another
+    // spot is being chosen.
+    const spot = await checkSpot(place, () => {
+      const now = latestScreen.current;
+      return (
+        now.searchResult === place && !now.modal && !now.naming && !now.picking && !now.reportFormOpen
+      );
+    });
+    if (spot === "stale") {
+      reportSnapshot.current = null;
+      return;
+    }
+    if (spot === "refused") {
+      // Nothing was placed: the map goes back to how it was too.
+      const view = reportSnapshot.current?.view;
+      reportSnapshot.current = null;
+      if (view) mapApi.current?.restoreView(view);
+      return;
+    }
+    setSelectedId(null);
+    setGroupIds(null);
+    if (isPhone()) setPanelOpen(false);
+    setReportSearch({ label: place.label, spot });
+    setDraft(spot);
+    setPicking(null);
+    setReportFormOpen(true);
+  }
+
+  // A tap, a drop or Enter while choosing the report's spot.
+  async function placeReportPin(point: Point) {
+    const spot = await checkSpot(point, () => latestScreen.current.picking === "report");
+    if (spot === "stale") return;
+    // No spot: a dragged pin goes back to where it was (a new object, so the
+    // map moves its marker back).
+    if (spot === "refused") return setDraft((current) => (current ? { ...current } : current));
+    setDraft(spot);
+  }
+
+  // The form's search icon: the pin goes back to the spot found for the
+  // searched place.
+  function returnToSearchedSpot() {
+    if (!reportSearch) return;
+    placeSeq.current++;
+    setCheckingSpot(false);
+    setDraft(reportSearch.spot);
+  }
+
   // Moving the pin of an open report goes back to the form; otherwise stop.
   function leavePicking() {
     if (picking === "report" && !reportFormOpen) cancelReport();
+    else if (picking === "report") backToForm();
     else setPicking(null);
+  }
+
+  // Back to the form without using a new spot: a check still running for a
+  // moved pin is dropped, and the pin goes back to where it was.
+  function backToForm() {
+    placeSeq.current++;
+    setCheckingSpot(false);
+    setDraft((current) => (current ? { ...current } : current));
+    setPicking(null);
   }
 
   function pickPlace(name: PlaceName | "custom") {
@@ -734,8 +1007,8 @@ export function MapApp() {
       // Naming a place: a tap moves it.
       setNaming({ ...naming, lat: point.lat, lng: point.lng });
     } else if (picking === "report") {
-      // Pins are rounded to about 100 m: show where it will really go.
-      setDraft({ lat: roundCoord(point.lat), lng: roundCoord(point.lng) });
+      // Snapped to the nearest pinnable spot: show where it will really go.
+      void placeReportPin(point);
     } else if (picking === "custom") {
       namingOpener.current = null;
       setNaming({ ...point, name: "" });
@@ -807,7 +1080,7 @@ export function MapApp() {
   function posted(sighting: Sighting) {
     upsert(sighting);
     activity.addPost(sighting.id);
-    cancelReport();
+    endReport();
     selectSighting(sighting.id);
     showNotice("Sighting posted. Everyone can see it now.");
   }
@@ -921,7 +1194,7 @@ export function MapApp() {
     const lat = Number(item.lat);
     const lng = Number(item.lon);
     if (Number.isFinite(lat) && Number.isFinite(lng)) {
-      setSearchResult({ lat, lng, label: item.display_name });
+      setSearchResult({ lat, lng, label: item.display_name, large: isLargeArea(item) });
       // On phones the detail card would cover the place. Searched from the
       // map, the place shows on the map. Searched from the Reports sheet, the
       // sheet stays, with its list now showing the reports around the place.
@@ -1101,6 +1374,9 @@ export function MapApp() {
           myPosition={me.position}
           savedPlaces={mapPlaces}
           onViewChange={setBounds}
+          // The pin check reads the very tiles the map draws with, so the
+          // browser answers it from its cache.
+          onVectorTiles={setTileTemplate}
         />
 
         <div className="panel">
@@ -1408,9 +1684,11 @@ export function MapApp() {
             {/* Also the description of the map while it waits for a spot. */}
             <p id="pick-help" role="status">
               {picking === "report"
-                ? draft
-                  ? "Drag the pin, or tap somewhere else to move it."
-                  : "Tap the map where you saw ICE."
+                ? checkingSpot
+                  ? "Checking the spot…"
+                  : draft
+                    ? "Drag the pin, or tap somewhere else to move it."
+                    : "Tap the map where you saw ICE."
                 : picking === "custom"
                   ? "Tap the place you want to save. It's saved on this device only."
                   : `Tap your ${picking === "home" ? "home" : "workplace"} on the map. It's saved on this device only.`}
@@ -1435,6 +1713,7 @@ export function MapApp() {
                 <button
                   type="button"
                   className="primary-button"
+                  disabled={checkingSpot}
                   onClick={() => {
                     setPicking(null);
                     setReportFormOpen(true);
@@ -1446,9 +1725,23 @@ export function MapApp() {
             </div>
           </div>
         ) : (
-          <button type="button" className="report-button" onClick={startReport} inert={sheetCovers || starterCovers}>
+          <button
+            type="button"
+            className="report-button"
+            onClick={startReport}
+            aria-busy={checkingSpot || undefined}
+            inert={sheetCovers || starterCovers}
+          >
             <PlusIcon />
-            Submit a report
+            {/* Starting at a searched place: the spot near it is being checked
+                (Escape stops it). */}
+            {checkingSpot ? (
+              <>
+                Checking the spot…<span className="visually-hidden"> Press again to stop.</span>
+              </>
+            ) : (
+              "Submit a report"
+            )}
           </button>
         )}
 
@@ -1488,11 +1781,14 @@ export function MapApp() {
           </div>
         </div>
 
-        {/* Tells screen readers the searched place is on the map. */}
+        {/* Tells screen readers the searched place is on the map, and when a
+            report starting there is checking its spot. */}
         <p className="visually-hidden" role="status">
-          {searchResult
-            ? `Searched place marked on the map: ${shortPlaceName(searchResult.label)}. Clear the search to remove it.`
-            : ""}
+          {searchResult && checkingSpot && !picking
+            ? "Checking the spot near the searched place…"
+            : searchResult
+              ? `Searched place marked on the map: ${shortPlaceName(searchResult.label)}. Clear the search to remove it.`
+              : ""}
         </p>
       </main>
 
@@ -1513,6 +1809,16 @@ export function MapApp() {
             </header>
             <ReportForm
               point={draft}
+              searched={
+                reportSearch
+                  ? {
+                      label: reportSearch.label,
+                      moved:
+                        draft.lat !== reportSearch.spot.lat || draft.lng !== reportSearch.spot.lng,
+                      onReturn: returnToSearchedSpot,
+                    }
+                  : null
+              }
               sightings={sightings}
               myPosts={activity.posts}
               now={now}
@@ -1520,7 +1826,7 @@ export function MapApp() {
               onCancel={cancelReport}
               onPosted={posted}
               onShowSighting={(id) => {
-                cancelReport();
+                endReport();
                 showSighting(id);
               }}
             />
