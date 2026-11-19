@@ -1,0 +1,11 @@
+// Sorts the pieces of OSM's United States outline (relation 148838):
+//   area            the INA's "United States" (8 U.S.C. 1101(a)(38))
+//   american_samoa  American Samoa and Swains Island (own immigration system; off by default)
+//   (dropped)       the minor outlying islands: Wake, Midway, Johnston, Palmyra, Kingman, Jarvis, Howland, Baker, Navassa
+var x = this.centroidX, y = this.centroidY;
+var box = function (w, s, e, n) { return x >= w && x <= e && y >= s && y <= n; };
+group = box(-172, -15, -167.5, -10.5) ? "american_samoa"
+  : (box(-163, 5, -161.5, 7) || box(-170, 16, -169, 17.5) || box(166, 18.5, 167.5, 20) ||
+     box(-160.5, -1, -159.5, 0) || box(-177, -0.5, -176, 1.5) || box(-75.5, 18, -74.5, 19) ||
+     box(-177.7, 27.9, -177, 28.6)) ? "drop"
+  : "area";

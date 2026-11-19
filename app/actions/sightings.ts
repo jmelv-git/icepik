@@ -25,6 +25,8 @@
 
 import type { PostgrestError } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/server'
+import { inServiceArea } from '@/lib/service-area'
+import { OUTSIDE_SERVICE_AREA } from '@/lib/sightings'
 import type { Database } from '@/database.types'
 
 type Sighting = Database['public']['Tables']['sightings']['Row']
@@ -111,6 +113,8 @@ function checkNewSighting(input: unknown): string | null {
   if (!isInRange(input.lat, -90, 90) || !isInRange(input.lng, -180, 180)) {
     return 'Pick a spot on the map first.'
   }
+  // Only where ICE works (lib/service-area.ts), as the map allows.
+  if (!inServiceArea({ lat: input.lat, lng: input.lng })) return OUTSIDE_SERVICE_AREA
   if (!CATEGORIES.includes(input.category as Category)) return 'Choose what you saw.'
   if (!isCount(input.agentCount) || !isCount(input.vehicleCount)) {
     return 'Counts must be whole numbers from 0 to 99.'

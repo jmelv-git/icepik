@@ -11,6 +11,9 @@ function contentSecurityPolicy(nonce: string) {
     ? `${supabase.origin} ${supabase.protocol === "https:" ? "wss:" : "ws:"}//${supabase.host}`
     : "";
   const captcha = "https://challenges.cloudflare.com";
+  // CARTO's vector map: its styles, and the vector tiles, fonts and icons
+  // they load (no key in any of them).
+  const cartoVector = "https://basemaps.cartocdn.com https://tiles.basemaps.cartocdn.com";
   const isDev = process.env.NODE_ENV === "development";
 
   return `
@@ -19,7 +22,7 @@ function contentSecurityPolicy(nonce: string) {
     style-src 'self' 'unsafe-inline';
     img-src 'self' blob: data: https://*.basemaps.cartocdn.com;
     font-src 'self';
-    connect-src 'self' ${supabaseSources} ${captcha};
+    connect-src 'self' ${supabaseSources} ${captcha} ${cartoVector};
     frame-src ${captcha};
     worker-src 'self' blob:;
     object-src 'none';

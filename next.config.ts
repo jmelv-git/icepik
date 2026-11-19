@@ -18,7 +18,24 @@ if (process.env.VERCEL_ENV === "production" && !process.env.NEXT_PUBLIC_TURNSTIL
 }
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  async headers() {
+    return [
+      {
+        // MapLibre's worker, which loads the vector map's tiles, is a static
+        // file, so the page's Content-Security-Policy (proxy.ts) doesn't
+        // reach it. Give it its own: it may only contact CARTO's vector map
+        // hosts.
+        source: "/_next/static/media/:file(maplibre-gl-worker\\..*\\.mjs)",
+        headers: [
+          {
+            key: "Content-Security-Policy",
+            value:
+              "default-src 'none'; connect-src https://basemaps.cartocdn.com https://tiles.basemaps.cartocdn.com",
+          },
+        ],
+      },
+    ];
+  },
 };
 
 export default nextConfig;

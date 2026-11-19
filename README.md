@@ -31,6 +31,8 @@ Everything is in Supabase, a database with user accounts built in. The tables an
 
 Home and work places stay in the browser and never reach the database. The map pictures come from CARTO and the address search from OpenStreetMap, and we don't store anything from them.
 
+Where the browser has WebGL 2, the map is drawn from CARTO's vector map instead of its pictures, by MapLibre GL, which is bundled from npm like Leaflet. So the Content-Security-Policy's `connect-src` also allows `https://basemaps.cartocdn.com` and `https://tiles.basemaps.cartocdn.com`, for the map's style, tiles, fonts and icons (none of them carry the CARTO key). Without WebGL 2, or if CARTO's vector map can't be loaded, the map shows CARTO's pictures as before.
+
 The site needs these environment variables, in Vercel and (all except `SUPABASE_SECRET_KEY`) in `.env.local` for `npm run dev`:
 
 | Variable | What it is |
@@ -62,10 +64,10 @@ Anyone can copy the CARTO key from the page, and our free 5 million map tiles a 
 The first version is built:
 
 - **Accounts:** the terms and privacy notice show before anything loads. Agreeing creates an anonymous account, with no sign-up screen. People can save it with a username and password, log in on another phone, or delete it.
-- **Live map:** a map of Philadelphia where a new sighting shows up for everyone within a few seconds, without a refresh. Each pin shows whether it's verified, unverified or disputed, how many people confirmed or disputed it, and how long ago it was posted. Pins leave the map after 4 hours, and each confirmation keeps one there for at least 2 more hours.
-- **Posting:** place the pin on the map and choose what you saw. The counts, street names and details are optional, and the street names are suggested for you. If someone already reported a sighting nearby, the form offers to confirm it instead.
+- **Live map:** it opens on the whole country and, once you share your location, flies to your city. A new sighting shows up for everyone within a few seconds, without a refresh. Each pin shows whether it's verified, unverified or disputed, how many people confirmed or disputed it, and how long ago it was posted. Pins leave the map after 4 hours, and each confirmation keeps one there for at least 2 more hours.
+- **Posting:** place the pin on the map, or search for a place and tap "Submit a report" to start there, then choose what you saw. The pin snaps to the nearest spot on land within 200 m of a road or footpath, so it can't land in water or deep in the woods, and only in the places ICE works (section 6); nothing is sent until "Post sighting". The counts, street names and details are optional, and the street names are suggested for you. If someone already reported a sighting nearby, the form offers to confirm it instead.
 - **"Are they still there?":** people within 1 km can confirm or dispute a sighting.
-- **Home and work:** saved on the device only, with the number of sightings within 1 mile of each. On a shared phone, "Clear this device" in Settings deletes them and signs out.
+- **Home and work:** saved on the device only, with the number of sightings within 1 mile of each. With a place shown in the search box, "Set on map" puts the pin there and waits for "Save" (a tap moves it), and "Add a place" opens the name form there. On a shared phone, "Clear this device" in Settings deletes them and signs out.
 - **Know Your Rights:** links to legal resources.
 
 Before we launch it, we need to:
@@ -103,6 +105,23 @@ flowchart LR
 
 Posting, voting on and deleting sightings go through Vercel, so Supabase sees Vercel's IP address for them instead of the person's. Address searches and street-name suggestions go through Vercel too. Signing in, loading pins and loading map pictures go straight from the browser, so Supabase and CARTO see the person's IP address for those.
 
+## 6. Where pins can go
+
+New pins only go where ICE works: the 50 states, DC, Puerto Rico, the U.S. Virgin Islands, Guam and the Northern Mariana Islands. Anywhere else, the app says "Pins can't go here" and places nothing, and the server refuses a sighting posted there. Pins already on the map aren't changed. We checked this in November 2026:
+
+- **That list is the "United States" in immigration law** ([8 U.S.C. 1101(a)(38)](https://www.law.cornell.edu/uscode/text/8/1101)), and ICE's field offices cover every place on it (ICE's [field office list](https://www.ice.gov/contact/ero), updated September 2026). ICE made arrests in every state, DC and Puerto Rico in 2024, 2025 and 2026, and in 2026 also in Guam, Saipan and St. Croix.
+- **No state can keep ICE out.** Sanctuary laws only stop state and local police from helping ICE. Courts blocked California's mask ban for federal agents (February 2026) and its agent-ID law (Ninth Circuit, October 2026). Sanctuary states such as California, Illinois, Minnesota and New York had some of the largest operations. Tribal reservations are included too, though some tribes contest ICE entering.
+- **Left out:** American Samoa and Swains Island (they run their own immigration system and ICE has no office there; set `INCLUDE_AMERICAN_SAMOA` in `lib/service-area-shape.ts` to `true` if that changes), the uninhabited minor islands (Wake, Midway and others), the base at Guantanamo Bay (in Cuba and closed to the public, though ICE detains people there), and every other country. ICE has investigators in about 50 countries, China included, but they work with local police there and don't make arrests.
+- Many agents people report as ICE are Border Patrol or CBP, part of the same department. They work in the same places, so the same area fits.
+
+The map stays on these places too. Some of them always show in the middle of the part of the map you can see (not under the panel or a card): drag out to sea or across a border, and the map glides back until some of the U.S. is there again. That works at every zoom, down to a small island like Guam. The address search only finds places there, and "Show where I am" says so instead of moving the map when you're somewhere else. To reach Guam or Puerto Rico from the mainland, search for a place there.
+
+The outline is `lib/service-area.json`: OpenStreetMap's outline of the United States, which reaches 12 nautical miles out to sea so ports and piers are inside, simplified so no border moves more than 25 m. It's about 95 KB gzipped, and the browser loads it once the map has started, not with the page. Data © OpenStreetMap contributors, under the [ODbL](https://opendatacommons.org/licenses/odbl/). To rebuild it, download `https://polygons.openstreetmap.fr/get_geojson.py?id=148838&params=0` as `osm-148838.geojson`, then run:
+
+```bash
+npx mapshaper@0.6.102 osm-148838.geojson -explode -each "$(cat scripts/service-area-pieces.txt)" -filter 'group != "drop"' -split group -dissolve target=* -simplify dp interval=25 keep-shapes -o format=topojson quantization=2000000 target=* lib/service-area.json
+```
+
 ---
 
 ## Screenshots
@@ -129,4 +148,4 @@ Posting, voting on and deleting sightings go through Vercel, so Supabase sees Ve
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE). `lib/service-area.json` is OpenStreetMap data, © OpenStreetMap contributors, under the [ODbL](https://opendatacommons.org/licenses/odbl/).
