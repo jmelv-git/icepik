@@ -13,11 +13,11 @@ Next.js (16.2.4) differs from what you know: after `npm ci`, read the relevant g
 
 ## Checklist
 
-- [ ] 1. Report at the searched place
+- [x] 1. Report at the searched place
 - [x] 2. Confirm before sending, and Cancel puts everything back
-- [ ] 3. Dragging the pin, and the search icon that brings it back
+- [x] 3. Dragging the pin, and the search icon that brings it back
 - [ ] 4. No pins in impossible places (on land, within 200 m of a road or footpath)
-- [ ] 5. Nothing pinnable nearby, and large search results
+- [x] 5. Nothing pinnable nearby, and large search results
 - [ ] 6. Draw the map from CARTO's vector tiles, so it can zoom past 18 (added by the user on 18 Nov)
 
 ## Decisions from the user
@@ -484,6 +484,40 @@ project, real devices and their GPUs).
   on a grid point, not the exact result; drag snaps; the notice becomes the icon with its accessible
   name; the icon, by mouse and by keyboard, brings the pin and notice back and focus moves to "Move
   pin"; the search box keeps its text throughout). Their boxes wait for the re-run with change 4's rule.
+- Change 4's engine (`lib/pinnable.ts`, 740 lines, no imports) was built in a worktree and merged
+  (31fce03). Its builder cross-checked it against a separate reference implementation (1,135 of 1,135
+  grid points agree) and found the test places used below. Two deliberate differences from the plan:
+  every tile of a check missing gives "unavailable", not "none-nearby" (a stale template would
+  otherwise refuse every pin), and the nearest grid point is checked with only the tiles within 200 m
+  of it before the whole 500 m box is read (same answers, fewer tiles). Road tunnels don't count (the
+  Turnpike tunnel under Blue Mountain doesn't make the slope above it pinnable).
+- The plan's "zoom 15" before a check is Leaflet zoom 16 in the code (`DETAIL_ZOOM`): the MapLibre
+  bridge runs MapLibre one zoom below Leaflet, and zoom-15 vector tiles load only from Leaflet 16.
+- Test places (found with the module in Node, `main/places.json`): South Meadow Lake in FDR Park
+  (39.9014819, −75.1787115), the Delaware south of Little Tinicum Island (39.849, −75.293; nearest
+  pinnable spot 477 m), a forested north slope below the Blue Mountain crest west of Port Clinton
+  (40.5704, −76.0939; nearest pinnable spot 479 m; the builder's first slope point, 40.566, −76.090, is
+  1.26 km from any path), Frankford Ave & Girard Ave, and the search "Mount Sanford" (Alaska, a
+  volcano with no trail: nothing pinnable within 300 m).
+- Change 5: Little Tinicum Island has a mapped trail at its east end and is a 3 km islet anyway, so it
+  isn't a "nothing nearby" test; the remote-peak search ("Mount Sanford") is.
+- **Change 4 verified on the raster map** (desktop and phone, `main/check-pinnable.mjs`, 12/12 each):
+  a tap on South Meadow Lake and a drag back onto it both end on the shore (124 m from the middle, on
+  the grid); a tap on the river or the slope is refused with "No spot for a pin near here. Pins go on
+  land within 200 m of a road or path." and places nothing; a pin dragged onto either goes back to
+  where it was, with the message; a tap on a street lands on the nearest grid point (61 m); no console
+  errors. Still to check after change 6: the check's tiles come from the browser cache. On the raster
+  map they are new requests (4 for the lake), as expected.
+- **Changes 1, 3 and 5 verified with the real rule**: `check-flows.mjs` again (desktop 26/26, phone
+  25/25, small phone 25/25 earlier) and `check-pinnable.mjs` (search "1500 Market Street,
+  Philadelphia": the form opens with "Searched: City Hall" and the pin on a pinnable grid point 22 m
+  from the exact result; after a drag the notice is the icon, the search box keeps its text, the icon
+  brings the notice back; "Mount Sanford" gives the nothing-nearby message with no form and no pin;
+  "Philadelphia" gives the large-area message; the exact result coordinates appear in no request but
+  the search response, nor in the console or server log).
+- Found while testing: a repeated notice (a second refused pin in a row) wasn't announced again,
+  because the screen-reader copy only speaks when its text changes. `showNotice` now clears the
+  message for 150 ms first when it's the same (commit "Announce a repeated notice again").
 
 ## Sources
 
