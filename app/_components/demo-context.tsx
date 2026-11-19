@@ -11,6 +11,15 @@ export function useDemo() {
   return use(DemoContext);
 }
 
+// Where the demo opens: around its sample sightings near Philadelphia City
+// Hall (public.reset_demo() in database/icepik_demo_changes.sql), as
+// [[south, west], [north, east]]. It stays there when the presenter shares
+// their location, wherever they are.
+export const DEMO_AREA: [[number, number], [number, number]] = [
+  [39.94, -75.176],
+  [39.97, -75.154],
+];
+
 // What the demo says about itself, wherever it explains the looser rules.
 export const DEMO_ABOUT =
-  "This is the ICEPik demo. Its reports are samples, kept apart from the real map. Here you can confirm or dispute a sighting from anywhere, and one confirmation marks it Verified.";
+  "This is the ICEPik demo. Its reports are samples, kept apart from the real map. Here you can confirm or dispute a sighting from anywhere: one confirmation marks it Verified, and one dispute marks it Disputed.";

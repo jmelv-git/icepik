@@ -9,7 +9,7 @@
 --   1. SQL Editor -> New query: run database/icepik_schema.sql.
 --   2. New query: paste this file, remove the "-- " in front of the
 --      set_config line just below this header, and run it. It is safe to
---      run again. A demo project made from an earlier schema: run
+--      run again (it also resets the demo, as in step 5). A demo project made from an earlier schema: run
 --      database/migrations/20261116_recovery_keys.sql first, then this file.
 --   3. Turn on every dashboard setting listed at the top of
 --      icepik_schema.sql, the same as the real project, CAPTCHA last:
@@ -18,9 +18,11 @@
 --   4. In Vercel, set NEXT_PUBLIC_DEMO_SUPABASE_URL and
 --      NEXT_PUBLIC_DEMO_SUPABASE_PUBLISHABLE_KEY (or
 --      NEXT_PUBLIC_DEMO_SUPABASE_ANON_KEY) to the demo project's, and redeploy.
---   5. Before each demo, paste the sample sightings at the end of this file
---      (they expire after 4 hours, like any sighting). A free Supabase
---      project pauses after about a week without use: restore it first.
+--   5. Before presenting, run  select public.reset_demo();  in the SQL
+--      Editor: it puts the sample sightings back (one Verified, two
+--      Unverified, one Disputed) and clears everyone else's pins and votes.
+--      It also runs every night. A free Supabase project pauses after about
+--      a week without use: restore it first.
 --
 -- What changes, compared with the real map:
 --   1. Confirming or disputing works from anywhere. vote_on_sighting() keeps
@@ -31,9 +33,12 @@
 --      confirmations than disputes (real map: at least 2, and at least twice
 --      the disputes). Disputed mirrors it: 1 dispute, more disputes than
 --      confirmations.
+--   3. Sample sightings, one for each status, put back by public.reset_demo()
+--      before each demo and every night.
 -- Everything else stays as in the real map: one vote per person per
--- sighting, no voting on your own sighting, 5 posts an hour, sightings
--- expire after 4 hours, and the hourly cleanup of who posted and voted.
+-- sighting, no voting on your own sighting, 5 posts an hour, posted
+-- sightings expire after 4 hours (the samples last 25), and the hourly
+-- cleanup of who posted and voted.
 -- =====================================================================
 
 
@@ -111,16 +116,50 @@ revoke execute on function public.vote_on_sighting(uuid, public.vote_type, doubl
 grant execute on function public.vote_on_sighting(uuid, public.vote_type, double precision, double precision) to authenticated;
 
 
--- Sample sightings for the demo, around Philadelphia City Hall. Paste these
--- lines into a new query in the demo project and remove the "-- " at the
--- start of each, within 4 hours before a demo: sightings expire after 4
--- hours like any other. The delete first removes samples from an earlier
--- run, so they never show twice. Inserts from the SQL editor skip the
--- posting limit (see prepare_new_sighting() in icepik_schema.sql).
--- delete from public.sightings where description = 'Demo sighting';
--- insert into public.sightings (lat, lng, location_label, category, agent_count, vehicle_count, description)
--- values
---   (39.953, -75.165, 'Market St & 15th St', 'patrol', 2, 1, 'Demo sighting'),
---   (39.962, -75.158, 'Spring Garden St', 'vehicle', null, 2, 'Demo sighting'),
---   (39.943, -75.157, 'S 9th St & South St', 'checkpoint', 4, 2, 'Demo sighting'),
---   (39.967, -75.172, 'Fairmount Ave', 'patrol', 1, 1, 'Demo sighting');
+-- 3. Sample sightings, one for each status, and a reset. public.reset_demo()
+--    deletes every sighting in the demo (and with them every vote and who
+--    posted what) and adds the samples again, fresh: posted minutes ago and
+--    on the map for 25 hours. Run it in the SQL Editor before presenting:
+--      select public.reset_demo();
+--    It also runs every night at 08:00 UTC (3 or 4 a.m. in Philadelphia),
+--    so visitors' votes and pins never pile up. The samples' counts are
+--    set directly; once someone votes on a sample, the real votes replace
+--    them (a dispute on the Verified sample makes it Disputed).
+--    Inserts from the SQL editor or pg_cron have no signed-in user, so they
+--    skip the posting limit and keep their counts and times (see
+--    prepare_new_sighting() in icepik_schema.sql). The app opens /demo on
+--    this area (DEMO_AREA in app/_components/demo-context.tsx).
+create or replace function public.reset_demo()
+returns void
+language plpgsql
+security definer set search_path = ''
+as $$
+begin
+  delete from public.sightings where true;
+
+  insert into public.sightings
+    (lat, lng, location_label, category, agent_count, vehicle_count, description,
+     confirm_count, dispute_count, created_at, expires_at)
+  values
+    (39.953, -75.165, 'Market St & 15th St', 'patrol', 2, 1,
+     'Sample report: one person confirmed it, so it shows as Verified.',
+     1, 0, now() - interval '25 minutes', now() + interval '25 hours'),
+    (39.962, -75.158, 'Spring Garden St', 'vehicle', null, 2,
+     'Sample report with no votes yet. Confirm or dispute it to see its status change.',
+     0, 0, now() - interval '12 minutes', now() + interval '25 hours'),
+    (39.943, -75.157, 'S 9th St & South St', 'checkpoint', 4, 2,
+     'Sample report: one person disputed it, so it shows as Disputed.',
+     0, 1, now() - interval '40 minutes', now() + interval '25 hours'),
+    (39.967, -75.172, 'Fairmount Ave', 'patrol', 1, 1,
+     'Sample report with no votes yet. Confirm or dispute it to see its status change.',
+     0, 0, now() - interval '5 minutes', now() + interval '25 hours');
+end;
+$$;
+
+-- Only the SQL Editor and pg_cron run it, never the app.
+revoke execute on function public.reset_demo() from public, anon, authenticated;
+
+select cron.schedule('reset-demo', '0 8 * * *', 'select public.reset_demo()');
+
+-- Start the demo with the samples.
+select public.reset_demo();

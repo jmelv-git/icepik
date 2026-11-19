@@ -34,7 +34,7 @@ import { useMyActivity } from "@/lib/use-my-activity";
 import { useMyPosition } from "@/lib/use-my-position";
 import { AccountStarter } from "./account-starter";
 import { BrandLogo } from "./brand-logo";
-import { DEMO_ABOUT, useDemo } from "./demo-context";
+import { DEMO_ABOUT, DEMO_AREA, useDemo } from "./demo-context";
 import { LavaLamp, LavaToggle } from "./lava-lamp";
 import {
   ArrowIcon,
@@ -733,9 +733,10 @@ export function MapApp() {
       else showNotice(LOCATION_OUTSIDE);
     } else if (!centeredOnMe.current) {
       // The first position: from the whole country, fly to the person's city.
+      // Not in the demo, which stays on its sample sightings.
       centeredOnMe.current = true;
       const busy = selectedId || groupIds || searchResult || picking || mapApi.current.moved();
-      if (!busy && covered) mapApi.current.centerOn(position, mapPadding(), CITY_ZOOM);
+      if (!busy && covered && !demo) mapApi.current.centerOn(position, mapPadding(), CITY_ZOOM);
     }
   });
   useEffect(() => {
@@ -1477,6 +1478,7 @@ export function MapApp() {
           onVectorTiles={setTileTemplate}
           // The map keeps part of the U.S. in the part people can see.
           visibleArea={mapPadding}
+          openOn={demo ? DEMO_AREA : undefined}
         />
 
         <div className="panel">

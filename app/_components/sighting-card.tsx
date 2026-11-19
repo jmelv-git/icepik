@@ -242,8 +242,8 @@ function VoteControls({
         <p className="vote-question">Are they still there?</p>
         <VoteButtons myVote={myVote} voting={voting} onVote={vote} />
         <p className="detail-hint">
-          Demo: you can confirm or dispute from anywhere, and one confirmation marks a sighting
-          Verified.
+          Demo: vote from anywhere. One confirmation marks a sighting Verified, one dispute marks it
+          Disputed, and you can switch your vote.
         </p>
       </>
     );
