@@ -179,7 +179,8 @@ export function ReportForm({
                 <SearchIcon />
               </button>
             ) : null}
-            <span>Pin placed on the map. Its location is rounded to about 100 m.</span>
+            {/* A no-break space keeps "100 m" together on narrow screens. */}
+            <span>Pin placed on the map. Its location is rounded to about 100&nbsp;m.</span>
           </p>
         </div>
         <button ref={moveButton} type="button" className="text-button" onClick={onMoveSpot}>
