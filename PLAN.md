@@ -572,6 +572,46 @@ project, real devices and their GPUs).
 - **Change 6 verified**: the builder's and the reviewer's checks above, plus every suite of this
   session re-run on the vector map (flows, pin checks, review fixes, regression, fallback).
 - Clean-up: the agents' three git worktrees and their local branches were removed after merging.
+- **Final audit** (two independent read-only auditors over the whole branch). Privacy/security: pass
+  (the CARTO key is in no diff, tracked file or log; policy.tsx, `database/` and the sightings
+  server action are untouched; the CSP diff is exactly the approved line; the two packages are pinned
+  and from the npm registry; no new storage, logging or URLs of coordinates). Task compliance: one
+  major gap, now closed: no lake had been shown refusing, and the small-lake check could pass
+  without its drags. South Meadow Lake (FDR Park) snaps to its shore by design (there is land within
+  300 m); the lake check now asserts that each drag moves the pin, and Lake Nockamixon (open water,
+  nothing pinnable within 300 m) is refused, by a tap and by a drag that sends the pin back. Also
+  fixed from the audit (commit 881e402): Report uses a search result only while the box still shows
+  it; tapping "Checking the spot…" stops the check; "Move pin" lines up beside the icon; and before a
+  check the map now waits for the vector map to load what it shows. A tap from the opening zoom
+  used to send 2 of its 4 tile requests to CARTO; now 0 of 4. New checks: the exact tap and drop
+  points (6 of them) appear in no request, database record, console or server log; a house-number
+  address reads "Searched: 1234 Christian Street"; touch input on a phone (tap, finger drag,
+  "Use this spot"); a pin on the image map without WebGL; and "Couldn't check this spot" when CARTO's
+  vector tiles are unreachable (`main/check-audit-fixes.mjs`, 8/8).
+- **Final run on the final build** (after every code change): flows desktop 26/26, phone 25/25,
+  320x568 25/25; pin checks desktop 16/16, phone 16/16, 320x568 15/15 (one drag test skipped there:
+  its starting spot is under the search box on that screen; it passes at the other sizes); review
+  fixes 12/12; Cancel during a zoom 3/3; regression 10/10; fallback 3/3; audit fixes 8/8;
+  `npx tsc --noEmit` and `npx eslint` exit 0 over the whole repo; `npx next build` succeeds. Pin
+  check tiles: from the cache in every check at 375 px and up; on the 320 px screen, checks that
+  read the whole 500 m box fetched 1–2 of 4 tiles from CARTO (recorded in the handoff doc).
+- **Not verified** (and why): a real Supabase project (none here; posting ran against the fake, so
+  real inserts, the database's rounding and rules, and Realtime were not exercised); real devices and
+  GPUs (headless Chromium with software WebGL; touch was emulated through the DevTools protocol);
+  Firefox and Safari; a Vercel deployment (in particular that the worker's own CSP header from
+  `next.config.ts` is served there); real Windows high-contrast themes on the new notice and icon.
+- **Open questions for the user**: (1) CARTO's basemap terms cover the vector tiles, and the free tier
+  is described for customers who use a key; vector styles load without one today, but CARTO says it
+  may require a key later. If it does, the map falls back to images, but every pin check fails
+  closed ("Couldn't check this spot") until the key is added to vector requests. The terms forbid
+  bulk extraction and server-side caching or proxying, and don't mention decoding a few tiles in the
+  browser to test a point; ask CARTO to be certain. (2) On the image map (no WebGL 2), each check
+  downloads vector tiles at the moment a pin is placed, which CARTO could link to the pin's area; a
+  sentence in policy.tsx may be wanted (not changed: it needs the user's OK). (3) Fail closed when
+  CARTO can't be reached (current) or place with plain rounding? (4) The street label lookup
+  (`/api/reverse`, the snapped spot only) still runs when the form opens, before "Post sighting",
+  as before this work. (5) A tap now zooms the map to street level (zoom 16) before the pin lands.
+  (6) A bare street name ("Broad Street") is not treated as a large area.
 
 ## Sources
 
