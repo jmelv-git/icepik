@@ -15,8 +15,9 @@ import {
 } from "@/lib/device-storage";
 import { ONE_MILE_M, distanceMeters } from "@/lib/geo";
 import { readLayout, useLayout } from "@/lib/layout";
-import { setTileTemplate, snapToPinnable, type SnapResult } from "@/lib/pinnable";
+import { anySpotIn, setTileTemplate, snapToPinnable, type SnapResult } from "@/lib/pinnable";
 import {
+  OUTSIDE_SERVICE_AREA,
   STATUS_LABEL,
   sightingSummary,
   sightingTitle,
@@ -135,7 +136,14 @@ const LARGE_AREA =
 const SNAP_FAILED: Record<Extract<SnapResult, { ok: false }>["reason"], string> = {
   "none-nearby": "No spot for a pin near here. Pins go on land within 200 m of a road or path.",
   unavailable: "Couldn't check this spot. Try again.",
+  outside: OUTSIDE_SERVICE_AREA,
 };
+
+// Where ICE works (lib/service-area.ts). Loaded the first time a pin is
+// placed, so its outline isn't part of the page's first download.
+function loadServiceArea() {
+  return import("@/lib/service-area").then((module) => module.inServiceArea);
+}
 // Before a pin goes near a spot, the map shows it at least this close, so the
 // check reads the same map data the map is showing.
 const DETAIL_ZOOM = 16;
@@ -916,9 +924,17 @@ export function MapApp() {
     setCheckingSpot(true);
     let result: SnapResult;
     try {
-      await mapApi.current?.focusSpot(point, mapPadding(), DETAIL_ZOOM);
+      const inArea = await loadServiceArea();
       if (seq !== placeSeq.current) return "stale";
-      result = await snapToPinnable(point);
+      // Outside the places ICE works: say so before showing the spot in
+      // detail or reading any map data for it.
+      if (!anySpotIn(point, inArea)) {
+        result = { ok: false, reason: "outside" };
+      } else {
+        await mapApi.current?.focusSpot(point, mapPadding(), DETAIL_ZOOM);
+        if (seq !== placeSeq.current) return "stale";
+        result = await snapToPinnable(point, { inArea });
+      }
     } catch {
       result = { ok: false, reason: "unavailable" };
     }
@@ -935,7 +951,12 @@ export function MapApp() {
   async function reportAtSearchedPlace(place: SearchedPlace) {
     if (place.large) {
       reportSnapshot.current = null;
-      return showNotice(LARGE_AREA);
+      // A whole country or region where ICE doesn't work: say that, not
+      // "search inside it".
+      const outside = await loadServiceArea()
+        .then((inArea) => !anySpotIn(place, inArea))
+        .catch(() => false);
+      return showNotice(outside ? OUTSIDE_SERVICE_AREA : LARGE_AREA);
     }
     // Dropped if, meanwhile, the search changed, a dialog opened or another
     // spot is being chosen.

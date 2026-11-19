@@ -622,6 +622,23 @@ project, real devices and their GPUs).
   road check (that check is for report pins; saved places never leave the device). Checked in the
   browser (`places/check-places.mjs`): 39/39 on desktop and on a phone; report flows still 26/26
   and 25/25, regression 10/10; `tsc` and `eslint` exit 0.
+- **Follow-up: pins only where ICE works.** Researched on 2026-11-19 (README, section 6): the
+  INA's "United States" (8 U.S.C. 1101(a)(38)), which every ERO field office covers, with ICE
+  arrests in 2025-2026 in each part; no state can exclude ICE; American Samoa (own immigration
+  system), the minor outlying islands, Guantanamo and every other country left out.
+  `lib/service-area.json` is OSM relation 148838 (to 12 nautical miles out), simplified with
+  Douglas-Peucker at 25 m: checked against the full outline at 167,740 points near the land
+  borders, every wrong answer was within 25 m of the true border. 293 KB, 95 KB gzipped, loaded
+  with import() at the first pin. `snapToPinnable` takes `inArea` and answers "outside" with no
+  tile read; the map checks it before zooming in; a large-area search outside gets the outside
+  message instead of "search inside it"; `postSighting` refuses points outside. Home and work
+  aren't limited (device only). Checked: the app's decoder agrees with a reference checker at
+  20,000 random border points; browser (`area/check-area.mjs`) 19/19 on desktop and on a phone
+  (Tijuana, Pago Pago refused; San Ysidro pinned; a tap 150 m into Mexico moved north into the
+  U.S.; Beijing and a Tijuana search refused; San Juan, PR opens the form; a tampered post with
+  Tijuana's coordinates refused by the server, nothing inserted; the outline not downloaded until
+  the first pin); report flows 26/26 and 25/25, pin checks 16/16, regression 10/10, saved places
+  39/39.
 
 ## Sources
 
