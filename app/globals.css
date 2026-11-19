@@ -1213,8 +1213,9 @@ textarea::placeholder {
 }
 
 /* With a "Searched" notice above the sentence, "Move pin" lines up with the
-   sentence, not with the middle of the two. */
-.spot-row:has(.spot-searched, .spot-searched-return) {
+   sentence, not with the middle of the two. (With the search icon beside
+   the sentence, the row's centre already does.) */
+.spot-row:has(.spot-searched) {
   align-items: end;
 }
 

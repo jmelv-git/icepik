@@ -1,6 +1,7 @@
 "use client";
 
 import type * as Leaflet from "leaflet";
+import type { Map as VectorMap } from "maplibre-gl";
 import { useEffect, useImperativeHandle, useRef, useState, type Ref } from "react";
 import { MAP_CENTER } from "@/lib/geo";
 import { readLayout } from "@/lib/layout";
@@ -113,6 +114,8 @@ export function SightingsMap({
   const meAccuracy = useRef<Leaflet.Circle | null>(null);
   const placeMarkers = useRef<Leaflet.LayerGroup | null>(null);
   const moved = useRef(false);
+  // The MapLibre map drawing the vector map, while it does.
+  const vectorMap = useRef<VectorMap | null>(null);
   // Set while centerOn moves the map, so that move doesn't count as moved.
   const centering = useRef(false);
   const [ready, setReady] = useState(false);
@@ -157,23 +160,42 @@ export function SightingsMap({
         const instance = map.current;
         if (!L || !instance) return Promise.resolve();
         const inView = instance.getBounds().contains([point.lat, point.lng]);
-        if (instance.getZoom() >= minZoom && inView) return Promise.resolve();
-        return new Promise<void>((resolve) => {
-          // A move that changes nothing may not fire moveend: don't wait forever.
-          const timer = window.setTimeout(done, 1500);
-          function done() {
-            window.clearTimeout(timer);
-            instance?.off("moveend", done);
-            resolve();
-          }
-          instance.on("moveend", done);
-          const zoom = Math.max(instance.getZoom(), minZoom);
-          const [left, top] = padding.paddingTopLeft;
-          const [right, bottom] = padding.paddingBottomRight;
-          const shift = L.point((left - right) / 2, (top - bottom) / 2);
-          const middle = instance.project([point.lat, point.lng], zoom).subtract(shift);
-          instance.setView(instance.unproject(middle, zoom), zoom, { animate: true });
-        });
+        const moving =
+          instance.getZoom() >= minZoom && inView
+            ? Promise.resolve()
+            : new Promise<void>((resolve) => {
+                // A move that changes nothing may not fire moveend: don't wait forever.
+                const timer = window.setTimeout(done, 1500);
+                function done() {
+                  window.clearTimeout(timer);
+                  instance?.off("moveend", done);
+                  resolve();
+                }
+                instance.on("moveend", done);
+                const zoom = Math.max(instance.getZoom(), minZoom);
+                const [left, top] = padding.paddingTopLeft;
+                const [right, bottom] = padding.paddingBottomRight;
+                const shift = L.point((left - right) / 2, (top - bottom) / 2);
+                const middle = instance.project([point.lat, point.lng], zoom).subtract(shift);
+                instance.setView(instance.unproject(middle, zoom), zoom, { animate: true });
+              });
+        // Then let the vector map load what it now shows, so the pin check
+        // finds those tiles in the browser's cache instead of asking CARTO for
+        // them a second time (up to 4 seconds).
+        return moving
+          .then(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))))
+          .then(
+            () =>
+              new Promise<void>((resolve) => {
+                const gl = vectorMap.current;
+                if (!gl || gl.areTilesLoaded()) return resolve();
+                const timer = window.setTimeout(resolve, 4000);
+                gl.once("idle", () => {
+                  window.clearTimeout(timer);
+                  resolve();
+                });
+              }),
+          );
       },
       view() {
         const instance = map.current;
@@ -315,6 +337,7 @@ export function SightingsMap({
         const fallBack = () => {
           if (failed || cancelled) return;
           failed = true;
+          vectorMap.current = null;
           stopFollowingScheme();
           layer?.remove();
           showRasterMap();
@@ -348,6 +371,7 @@ export function SightingsMap({
           created.getContainer().setAttribute("aria-hidden", "true");
 
           const glMap = created.getMaplibreMap();
+          vectorMap.current = glMap;
           let styled = false;
           // A style that never arrives (a stalled connection) would leave the
           // map blank: after 12 seconds without one, show the map images.
@@ -455,6 +479,7 @@ export function SightingsMap({
       cancelled = true;
       stopFollowingScheme();
       stopWatchingSize();
+      vectorMap.current = null;
       map.current?.remove();
       map.current = null;
       pins.current = null;

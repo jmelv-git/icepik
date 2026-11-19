@@ -867,7 +867,8 @@ export function MapApp() {
       setStarterHidden(false);
       return showNotice("Your account is still being set up. Try again in a moment.");
     }
-    if (checkingSpot) return;
+    // Tapped again while it checks the spot near a searched place: stop.
+    if (checkingSpot) return cancelReport();
     // Remember the screen as it is now, for Cancel.
     reportSnapshot.current = {
       view: mapApi.current?.view() ?? null,
@@ -881,8 +882,9 @@ export function MapApp() {
       searchError,
       noResults,
     };
-    // A place was searched for: the report starts there.
-    if (searchResult) return void reportAtSearchedPlace(searchResult);
+    // A place was searched for, and the search box still shows it (text typed
+    // since then, without choosing a result, doesn't count): start there.
+    if (searchResult && query === searchResult.label) return void reportAtSearchedPlace(searchResult);
     setSelectedId(null);
     setGroupIds(null);
     setDraft(null);
@@ -1733,7 +1735,13 @@ export function MapApp() {
             <PlusIcon />
             {/* Starting at a searched place: the spot near it is being checked
                 (Escape stops it). */}
-            {checkingSpot ? "Checking the spot…" : "Submit a report"}
+            {checkingSpot ? (
+              <>
+                Checking the spot…<span className="visually-hidden"> Press again to stop.</span>
+              </>
+            ) : (
+              "Submit a report"
+            )}
           </button>
         )}
 
