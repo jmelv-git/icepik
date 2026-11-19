@@ -22,6 +22,11 @@
 // from CARTO's Positron style, once. Nothing here logs anything.
 //
 // Self-contained on purpose (no imports), so Node can run it directly in tests.
+//
+// Distances use a local flat projection, which is exact enough (centimetres)
+// at Philadelphia's latitude. Not handled, because the map never goes there:
+// above about 80 degrees the nearest-first order can be off by a few
+// centimetres, and near the 180-degree meridian distances across it are wrong.
 
 export const SNAP_RANGE_M = 300; // how far a pin may move from where it was put
 export const ROAD_RANGE_M = 200; // a pinnable spot is within this of a road or footpath
@@ -70,13 +75,16 @@ export async function snapToPinnable(point: LatLng, options: CheckOptions = {}):
   const [nearest, ...others] = candidates(point);
   let area: CheckArea;
   try {
+    // One template for the whole check, so a failed style lookup isn't
+    // repeated within it.
+    const template = await abortable(currentTemplate(), signal);
     // Most pins are put somewhere pinnable. The nearest grid point needs only
     // the tiles within ROAD_RANGE_M of it, which the map is most likely
     // showing, so check it before reading the whole box (tilesAround).
-    const near = await abortable(loadArea(nearest, ROAD_RANGE_M), signal);
+    const near = await abortable(loadArea(template, nearest, ROAD_RANGE_M), signal);
     throwIfAborted(signal);
     if (near.isPinnable(nearest)) return { ok: true, spot: nearest };
-    area = await abortable(loadArea(point, SNAP_RANGE_M + ROAD_RANGE_M), signal);
+    area = await abortable(loadArea(template, point, SNAP_RANGE_M + ROAD_RANGE_M), signal);
   } catch {
     throwIfAborted(signal); // the caller's abort; a fetch timeout is "unavailable"
     return { ok: false, reason: "unavailable" };
@@ -99,7 +107,8 @@ export async function isPinnable(gridPoint: LatLng, options: CheckOptions = {}):
   throwIfAborted(signal);
   if (!isValid(gridPoint)) return false;
   const spot = { lat: roundCoord(gridPoint.lat), lng: roundCoord(gridPoint.lng) };
-  const area = await abortable(loadArea(spot, ROAD_RANGE_M), signal);
+  const template = await abortable(currentTemplate(), signal);
+  const area = await abortable(loadArea(template, spot, ROAD_RANGE_M), signal);
   throwIfAborted(signal);
   return area.isPinnable(spot);
 }
@@ -352,8 +361,7 @@ async function templateFromStyle(): Promise<string> {
   return DEFAULT_TEMPLATE;
 }
 
-async function loadArea(center: LatLng, rangeM: number): Promise<CheckArea> {
-  const template = await currentTemplate();
+async function loadArea(template: string, center: LatLng, rangeM: number): Promise<CheckArea> {
   const wanted = tilesInBox(center, rangeM);
   const loaded = await Promise.all(
     wanted.map((t) =>
@@ -364,9 +372,9 @@ async function loadArea(center: LatLng, rangeM: number): Promise<CheckArea> {
       ),
     ),
   );
-  // A single missing tile counts as empty (sea). But CARTO serves the open sea
-  // as a tile with an ocean polygon, so when every tile is missing the
-  // template is stale or wrong, and the place isn't known to be sea.
+  // An empty tile (204, or no body) counts as sea. But CARTO serves the open
+  // sea as a tile with an ocean polygon, so when every tile is empty the
+  // template is probably wrong, and the place isn't known to be sea.
   if (loaded.every((t) => t === null)) throw new Error("No tiles at this URL template");
   const tiles = new Map<string, Tile>();
   wanted.forEach((t, i) => tiles.set(`${t.x}/${t.y}`, loaded[i] ?? EMPTY_TILE));
@@ -395,11 +403,13 @@ function loadTile(url: string, x: number, y: number): Promise<Tile | null> {
   return promise;
 }
 
-// null for a tile the server doesn't have (404 or 204): treated as empty, so
-// as sea.
+// null for an empty tile (204, or no body): treated as sea. A missing tile
+// (404) is an error, not sea: CARTO serves every tile of the world, sea
+// included, so a 404 means a CDN or template problem, and the check answers
+// "unavailable" rather than refusing the spot.
 async function fetchTile(url: string, x: number, y: number): Promise<Tile | null> {
   const res = await fetchBytes(url);
-  if (res.status === 404 || res.status === 204) return null;
+  if (res.status === 204) return null;
   if (!res.ok) throw new Error(`Tile request failed (${res.status})`);
   return res.body.byteLength ? decodeTile(new Uint8Array(res.body), x, y) : null;
 }
