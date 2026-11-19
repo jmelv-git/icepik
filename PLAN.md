@@ -18,7 +18,7 @@ Next.js (16.2.4) differs from what you know: after `npm ci`, read the relevant g
 - [x] 3. Dragging the pin, and the search icon that brings it back
 - [x] 4. No pins in impossible places (on land, within 200 m of a road or footpath)
 - [x] 5. Nothing pinnable nearby, and large search results
-- [ ] 6. Draw the map from CARTO's vector tiles, so it can zoom past 18 (added by the user on 18 Nov)
+- [x] 6. Draw the map from CARTO's vector tiles, so it can zoom past 18 (added by the user on 18 Nov)
 
 ## Decisions from the user
 
@@ -560,6 +560,18 @@ project, real devices and their GPUs).
   centre; a report placed by tapping the map on land posts ("Sighting posted. Everyone can see it
   now.") and opens its card, at both sizes; no console errors other than the fake Supabase's
   realtime socket.
+- Independent review of change 6 (rebuilt and run on its own ports): verdict pass, 37/37 browser
+  checks in all four size and scheme combinations; the served CSP equals the old one plus the two
+  approved connect-src hosts; only the two approved packages (and their own dependencies) added;
+  keyboard: Tab reaches the map, the arrow keys pan, Enter places the pin at the centre. Fixed from its
+  findings: when the style loads but CARTO's vector tiles can't (an outage, a blocked host), the map
+  now falls back to CARTO's images instead of staying blank (an error before the first tile, or no
+  tile 15 s after the style); the docs say WebGL 2. Checked: `main/check-fallback.mjs` 3/3 (tiles
+  blocked → images, style blocked → images, nothing blocked → vector map). Accepted: the build copies
+  about 5 MB of MapLibre files nobody downloads into `.next/static/media` (deploy size only).
+- **Change 6 verified**: the builder's and the reviewer's checks above, plus every suite of this
+  session re-run on the vector map (flows, pin checks, review fixes, regression, fallback).
+- Clean-up: the agents' three git worktrees and their local branches were removed after merging.
 
 ## Sources
 
