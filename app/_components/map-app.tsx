@@ -350,15 +350,28 @@ export function MapApp() {
   const NOTICE_MS = 20000;
   const [noticePaused, setNoticePaused] = useState(false);
   const noticePausedRef = useRef(false);
+  // The message on screen, and a pending re-show of it (see showNotice).
+  const noticeNow = useRef("");
+  const noticeAgain = useRef<number | undefined>(undefined);
   const startNoticeTimer = useCallback(() => {
     window.clearTimeout(noticeTimer.current);
-    noticeTimer.current = window.setTimeout(() => setNotice(""), NOTICE_MS);
+    noticeTimer.current = window.setTimeout(() => {
+      noticeNow.current = "";
+      setNotice("");
+    }, NOTICE_MS);
   }, []);
   const showNotice = useCallback(
     (message: string) => {
       noticePausedRef.current = false;
       setNoticePaused(false);
-      setNotice(message);
+      window.clearTimeout(noticeAgain.current);
+      if (noticeNow.current === message) {
+        // The same message again (a second pin refused in a row): screen
+        // readers only announce a change, so it goes away for a moment first.
+        setNotice("");
+        noticeAgain.current = window.setTimeout(() => setNotice(message), 150);
+      } else setNotice(message);
+      noticeNow.current = message;
       startNoticeTimer();
     },
     [startNoticeTimer],
