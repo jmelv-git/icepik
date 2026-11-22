@@ -16,6 +16,26 @@ Checked on 12 November 2026, on the work branch after the style pass (glass card
 
 Nothing was tested with a real screen reader, a real phone or a real user. Those lines say **Needs a person**.
 
+## Account recovery screens (22 November 2026)
+
+The recovery-key screens (`app/_components/account-recovery.tsx`, Settings) use the Log in and Save account layout, so they get the same glass, lamp, focus rings, forced-colors outlines and reduced-motion behaviour. Checked against a production build and the stand-ins (`scripts/mock-supabase.mjs` for the real map and the demo), tiles blocked:
+
+- `node scripts/a11y-audit.mjs`: RESULT_A11Y
+- `node scripts/glass-contrast.mjs`: 181 of 181 pass, with the new items: "Forgot password?" (`#8ec3ee`, 6.40:1 at worst), what Copy did (`--muted`, 4.93:1), the key on `--card` (12.43:1), and the box of "I've stored my recovery key" (white 12.01:1; ticked, `--blue` 3.62:1; `--blue-strong` would have been 2.2:1).
+- `node scripts/capture-layout.mjs --compare`: RESULT_LAYOUT
+- `node scripts/recovery-flows.mjs`: RESULT_FLOWS
+- Forced colors and reduced motion, emulated in Chromium at 1280×800 and 390×844: the key's box, the warning and the buttons keep outlines; the lamp stops (no running animation) with reduced motion and in forced colors; focus rings show on every new control.
+
+What the screens do for keyboard and screen-reader users:
+
+- Each screen's heading takes focus when it opens; Back returns focus to the control that opened it ("Forgot password?", "Make a new recovery key").
+- The key field on "Reset your password" is a plain text box named "Recovery key" (its hint and, on `/demo`, the demo note are part of its label), so it can be typed, pasted or filled by a password manager; dashes, spaces and capitals don't matter. Errors are tied to the fields with `aria-invalid` and `aria-describedby`; a wrong key marks the username and the key, as the answer is the same for both.
+- The key shown once is text, every character in view at every size down to 320 px (it wraps only between its groups of 4), with a Copy button; what Copy did is read from a live region. Done without ticking "I've stored my recovery key" says so and moves focus to the box.
+- Closing Settings while a key is on screen (Close, Escape, a click outside) asks first with the browser's own dialog.
+- On phones nothing in these screens is under 16 px (the audit now checks this in dialogs and pages: RESULT_PHONE).
+
+**Needs a person:** VoiceOver and TalkBack on the key screen and the key field (T2 below).
+
 ## Changes in this pass
 
 The "Fix now" changes keep every element where it was. The owner then approved eight of the nine Ask-first changes (see [Ask-first findings](#ask-first-findings)); with the test data none of them moves anything either, and `capture-layout.mjs --compare` still reports no difference above 1 px in 188 screen states.

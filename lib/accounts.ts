@@ -46,6 +46,36 @@ export function checkPassword(password: string) {
   return null;
 }
 
+// Recovery keys: 128 random bits shown as 8 groups of 4 (0-9 and a-f), for
+// example 3f9a-0c21-…. People may type them with or without the dashes, with
+// spaces, or in capitals; the database ignores all of that too.
+export const RECOVERY_KEY_RULES = "8 groups of 4 letters and numbers. Dashes and spaces don't matter";
+// The reset's one answer for unknown usernames and wrong keys.
+export const RECOVERY_NO_MATCH = "That username and recovery key don't match.";
+export const DEMO_RECOVERY_KEY_NOTE =
+  "Demo only: any letters and numbers work as the key here. On the real ICEPik, only the account's own key does.";
+
+export function normalizeRecoveryKey(input: string) {
+  return input.replace(/[\s-]/g, "").toLowerCase();
+}
+
+// A problem with the key's form, before it's sent. On the demo any letters
+// and numbers work.
+export function checkRecoveryKey(input: string, demo: boolean) {
+  const key = normalizeRecoveryKey(input);
+  if (demo) {
+    return /^[a-z0-9]{1,64}$/.test(key) ? null : "On the demo, the key can be any letters and numbers.";
+  }
+  return /^[0-9a-f]{32}$/.test(key)
+    ? null
+    : "Check your recovery key: it has 32 letters and numbers, in 8 groups of 4.";
+}
+
+// The key in its groups of 4, for showing it.
+export function recoveryKeyGroups(key: string) {
+  return normalizeRecoveryKey(key).match(/.{1,4}/g) ?? [];
+}
+
 // Supabase Auth errors carry a stable `code`; never match on the message.
 export function authErrorMessage(error: { code?: string; message?: string } | null) {
   switch (error?.code) {

@@ -14,7 +14,7 @@ It started as Vercel's Next.js and Supabase starter. We then used Claude Code to
 
 - `app/_components/`: the screens, like the map, the report form and Settings.
 - `app/actions/sightings.ts`: posting, voting and deleting, which run on the server.
-- `app/actions/recovery.ts` and `lib/supabase/admin.ts`: the password reset with a recovery key, the only code that uses Supabase's secret key. The screens for it aren't built yet.
+- `app/actions/recovery.ts` and `lib/supabase/admin.ts`: the password reset with a recovery key, the only code that uses a Supabase secret key. Its screens are in `app/_components/account-recovery.tsx` and Settings.
 - `lib/`: the Supabase clients and shared code.
 - `database/icepik_schema.sql` and `docs/database-handoff.md`: the database and how to set it up.
 - `database/migrations/`: upgrades for the live database that keep its data.
@@ -33,7 +33,7 @@ Home and work places stay in the browser and never reach the database. The map p
 
 Where the browser has WebGL 2, the map is drawn from CARTO's vector map instead of its pictures, by MapLibre GL, which is bundled from npm like Leaflet. So the Content-Security-Policy's `connect-src` also allows `https://basemaps.cartocdn.com` and `https://tiles.basemaps.cartocdn.com`, for the map's style, tiles, fonts and icons (none of them carry the CARTO key). Without WebGL 2, or if CARTO's vector map can't be loaded, the map shows CARTO's pictures as before.
 
-The site needs these environment variables, in Vercel and (all except `SUPABASE_SECRET_KEY`) in `.env.local` for `npm run dev`:
+The site needs these environment variables, in Vercel and (all except the two secret keys) in `.env.local` for `npm run dev`:
 
 | Variable | What it is |
 | --- | --- |
@@ -42,6 +42,7 @@ The site needs these environment variables, in Vercel and (all except `SUPABASE_
 | `NEXT_PUBLIC_CARTO_KEY` | CARTO's free basemap key, from https://carto.com/basemaps/apikey. Without it, every map picture reads "API KEY REQUIRED". |
 | `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | Optional. ICEPik's Cloudflare Turnstile site key (`0x4AAAAAAGD9-RGFXV2Fys3x`) is built into `app/_components/captcha.tsx`, so leave this unset. Set it only to use a different widget. An empty value turns the check off, for local checks against `scripts/mock-supabase.mjs`; CAPTCHA is required in Supabase, so a production build stops with an error if it's set to an empty value. |
 | `SUPABASE_SECRET_KEY` | Supabase's secret key (`sb_secret_…`), used only by the password reset in `app/actions/recovery.ts`. It skips every database rule. Add it in Vercel to the **Production** environment only, with **Sensitive** turned on, never to Preview or Development, and never with a `NEXT_PUBLIC_` name. Never put the production key in `.env.local`: to try the reset locally, use a scratch project's URL and keys. Without the key, the reset says it isn't available. |
+| `DEMO_SUPABASE_SECRET_KEY` | Optional. The **demo** project's secret key, used only by the demo's own password reset on `/demo` (`app/actions/recovery.ts`, through `createDemoAdminClient()` in `lib/supabase/admin.ts`), where any letters and numbers work as the recovery key. It skips every rule in the demo project, so treat it like `SUPABASE_SECRET_KEY`: Vercel's **Production** environment only, **Sensitive** on, never a `NEXT_PUBLIC_` name. It's only ever sent to the demo project's URL, and the demo's reset refuses to run if that URL is the real project's. Without it, the reset on `/demo` says it isn't set up. |
 | `NEXT_PUBLIC_DEMO_SUPABASE_URL` | Optional. The URL of the separate Supabase project for the demo at `/demo`. |
 | `NEXT_PUBLIC_DEMO_SUPABASE_PUBLISHABLE_KEY` | Optional. That demo project's publishable key (or `NEXT_PUBLIC_DEMO_SUPABASE_ANON_KEY`). Without the demo variables, `/demo` shows the map as "not connected". |
 
@@ -54,7 +55,7 @@ Anyone can copy the CARTO key from the page, and our free 5 million map tiles a 
 
 ### The security check (CAPTCHA)
 
-Creating an account, logging in and deleting a saved account show Cloudflare Turnstile's check, after the terms are agreed. The app sends its one-time token to Supabase, and Supabase checks it with Cloudflare. ICEPik's site key is built into `app/_components/captcha.tsx`, so there's nothing to set in Vercel. To turn it on, in this order:
+Creating an account, logging in, saving an account, "Forgot password?", making a new recovery key and deleting a saved account show Cloudflare Turnstile's check, after the terms are agreed. The app sends its one-time token to Supabase, and Supabase checks it with Cloudflare. ICEPik's site key is built into `app/_components/captcha.tsx`, so there's nothing to set in Vercel. To turn it on, in this order:
 
 1. In the Cloudflare dashboard (Turnstile → the ICEPik widget → Settings), make sure the hostnames include `icepik.vercel.app`. Copy the widget's **secret key**. Never paste it into the code, a chat or a pull request.
 2. Make sure `NEXT_PUBLIC_TURNSTILE_SITE_KEY` isn't set in Vercel (it would replace the built-in key), deploy, and check in a private window that the check completes and a new anonymous user appears in Supabase (Authentication → Users). Until CAPTCHA is on, Supabase ignores the token.
@@ -67,7 +68,9 @@ The check only works on the hostnames in the widget's list, so on a Vercel previ
 
 `/demo` is the same app on a second Supabase project, with sample sightings and looser rules for verifying them: anyone can confirm or dispute a sighting from anywhere, and one confirmation marks it Verified. The real map and its database don't change, and a vote on `/demo` can't reach a real sighting. The page says it's a demo, and search engines are asked not to list it.
 
-To set it up, follow the steps at the top of `database/icepik_demo_changes.sql`: create a second Supabase project, run `database/icepik_schema.sql` and then `database/icepik_demo_changes.sql` in its SQL Editor (the file stops unless you uncomment the line near its top that confirms this is the demo project), turn on every Authentication setting the real project has, CAPTCHA included with the same widget's secret key, add the two demo variables above in Vercel, and redeploy. The demo opens on four sample sightings near City Hall, one Verified, two Unverified and one Disputed, wherever the presenter is. One vote changes a status: confirm an Unverified sample to make it Verified, then switch to dispute to make it Disputed. Before presenting, run `select public.reset_demo();` in the demo project's SQL Editor: it puts the samples back and clears everyone else's pins and votes. It also runs every night.
+To set it up, follow the steps at the top of `database/icepik_demo_changes.sql`: create a second Supabase project, run `database/icepik_schema.sql` and then `database/icepik_demo_changes.sql` in its SQL Editor (the file stops unless you uncomment the line near its top that confirms this is the demo project), turn on every Authentication setting the real project has, CAPTCHA included with the same widget's secret key, add the two demo variables above in Vercel (and `DEMO_SUPABASE_SECRET_KEY`, for the demo's password reset), and redeploy.
+
+On `/demo`, "Forgot password?" is a demo-only reset, so a presenter can show it without remembering a real key: any letters and numbers work as the recovery key, and the screen says so in a small note. It sets the new password for that username in the demo project only, shows a new key once and logs in. The real site always needs the account's real key and never shows the note. The demo opens on four sample sightings near City Hall, one Verified, two Unverified and one Disputed, wherever the presenter is. One vote changes a status: confirm an Unverified sample to make it Verified, then switch to dispute to make it Disputed. Before presenting, run `select public.reset_demo();` in the demo project's SQL Editor: it puts the samples back and clears everyone else's pins and votes. It also runs every night.
 
 The demo keeps its session in its own cookie and its saved places under their own names in the browser, so a demo shown on a shared screen never shows the person's real places. "Clear this device" on either page signs out of both and clears both.
 
@@ -85,6 +88,7 @@ The demo keeps its session in its own cookie and its saved places under their ow
 The first version is built:
 
 - **Accounts:** the terms and privacy notice show before anything loads. Agreeing creates an anonymous account, with no sign-up screen. People can save it with a username and password, log in on another phone, or delete it.
+- **Recovery key:** saving an account shows a recovery key once (32 letters and numbers in 8 groups of 4), with Copy and a reminder to write it on paper or keep it in a password manager. Only a hash of it is stored. "Forgot password?" on Log in takes the username, the key and a new password, shows a new key once and logs in. Settings can make a new key (after the password), and a saved account without one is asked once, after logging in, to make one. On `/demo` the reset takes any letters and numbers as the key, says so on the screen, and changes only the demo project.
 - **Live map:** it opens on the whole country and, once you share your location, flies to your city. A new sighting shows up for everyone within a few seconds, without a refresh. Each pin shows whether it's verified, unverified or disputed, how many people confirmed or disputed it, and how long ago it was posted. Pins leave the map after 4 hours, and each confirmation keeps one there for at least 2 more hours.
 - **Posting:** place the pin on the map, or search for a place and tap "Submit a report" to start there, then choose what you saw. The pin snaps to the nearest spot on land within 200 m of a road or footpath, so it can't land in water or deep in the woods, and only in the places ICE works (section 6); nothing is sent until "Post sighting". The counts, street names and details are optional, and the street names are suggested for you. If someone already reported a sighting nearby, the form offers to confirm it instead.
 - **"Are they still there?":** people within 1 km can confirm or dispute a sighting.

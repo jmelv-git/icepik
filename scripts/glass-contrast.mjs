@@ -18,7 +18,8 @@
 //      over the result. For a status icon or an error message, lay its chip.
 //   5. Compute the WCAG contrast ratio of the foreground against the result.
 //
-// The lava lamp (consent, Log in and Save account) has its own backdrop:
+// The lava lamp (consent, Log in, Save account and the account-recovery
+// screens) has its own backdrop:
 //   - the lamp bound: per channel, the highest of --lava-base and the four
 //     blob colours (on phones each blob is first mixed with --lava-base by
 //     --lava-strength-phone);
@@ -358,6 +359,12 @@ const LAMP_GLASS_ITEMS = [
   ["#ffb4b4 on chip: .form-error", "#ffb4b4", TEXT, CHIPS.error],
   ["--control-line: text box edge", "var(--control-line)", GRAPHIC],
   ["--blue: focus ring", "var(--blue)", GRAPHIC],
+  // Account recovery (account-recovery.tsx, the Log in form).
+  ["#8ec3ee: .text-button (Forgot password?)", "#8ec3ee", TEXT],
+  ["--muted: .detail-hint (what Copy did)", "var(--muted)", TEXT],
+  ["--text on --card: .recovery-key", "var(--text)", TEXT, "var(--card)"],
+  ["#ffffff: .check-row box (not ticked)", "#ffffff", GRAPHIC],
+  ["--blue: .check-row box (ticked)", "var(--blue)", GRAPHIC],
 ];
 
 // Per channel, the highest value in a list of opaque colours.

@@ -504,6 +504,19 @@ export function MapApp() {
     setModal(kind);
   }
 
+  // What closing Settings must ask first: set while a recovery key is on
+  // screen (it's shown only once), otherwise null.
+  const closeGuard = useRef<string | null>(null);
+  const setCloseGuard = useCallback((question: string | null) => {
+    closeGuard.current = question;
+  }, []);
+  // Close, Escape and a click outside the dialog.
+  function closeModal() {
+    if (closeGuard.current && !window.confirm(closeGuard.current)) return;
+    closeGuard.current = null;
+    setModal(null);
+  }
+
   // Close the alert card. If focus was in it, go back to the row or pin that
   // opened it, or else to the map.
   function closeCard(close: () => void) {
@@ -540,7 +553,7 @@ export function MapApp() {
   // Escape closes one thing at a time, the top one first: a dialog, the
   // report form, the place being named, choosing a spot, then a card.
   const onEscape = useEffectEvent(() => {
-    if (modal) setModal(null);
+    if (modal) closeModal();
     else if (reportShown) cancelReport();
     // A report starting at a searched place, still checking its spot.
     else if (checkingSpot && !picking && !reportFormOpen) cancelReport();
@@ -1951,7 +1964,7 @@ export function MapApp() {
         <div
           className="modal-layer"
           data-kind={modal}
-          onClick={() => setModal(null)}
+          onClick={closeModal}
           role="presentation"
         >
           {/* Log in and Save account only (CSS :has): the logo above the
@@ -1974,7 +1987,7 @@ export function MapApp() {
               <button
                 type="button"
                 className="icon-button"
-                onClick={() => setModal(null)}
+                onClick={closeModal}
                 aria-label="Close"
               >
                 <CloseIcon />
@@ -2033,6 +2046,7 @@ export function MapApp() {
                 onShowPlace={showPlace}
                 onNotice={showNotice}
                 onClose={() => setModal(null)}
+                onCloseGuard={setCloseGuard}
               />
             ) : (
               <p>ICEPik isn&apos;t connected to its database yet.</p>
