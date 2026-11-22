@@ -1326,10 +1326,10 @@ textarea::placeholder {
   line-height: 1.25;
 }
 
+/* The short name wraps rather than being cut off when it doesn't fit (with
+   wider text spacing, WCAG 1.4.12, or a long first part of a name). */
 .spot-searched span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .spot-searched svg {

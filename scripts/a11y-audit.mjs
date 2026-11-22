@@ -28,12 +28,14 @@
 // (scripts/mock-supabase.mjs on port 54321), like scripts/capture-layout.mjs,
 // and the demo's stand-in on port 54322 for the forgot-demo state. The
 // account-recovery states save accounts on the stand-in, so they run last.
-// Map tiles are blocked, and the place search and reverse lookup are stubbed,
-// so nothing here reaches CARTO or Nominatim. Nothing about the network is
+// Map tiles are blocked (the pin-spot check gets a local stand-in tile, see
+// scripts/stand-in-tile.mjs), and the place search and reverse lookup are
+// stubbed, so nothing here reaches CARTO or Nominatim. Nothing about the network is
 // recorded: the output names elements by their classes, never by HTML or URL.
 import { createRequire } from "node:module";
 import { spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
+import { blockCarto } from "./stand-in-tile.mjs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -123,7 +125,9 @@ const SEARCH_RESULTS = [
 ];
 
 async function guard(page) {
-  await page.route("**/*cartocdn.com/**", (route) => route.abort());
+  // Nothing reaches CARTO; the pin-spot check gets a stand-in tile
+  // (scripts/stand-in-tile.mjs), so the report form can be checked.
+  await blockCarto(page);
   await page.route("**/api/search**", (route) =>
     route.fulfill({ contentType: "application/json", body: JSON.stringify(SEARCH_RESULTS) }),
   );
@@ -204,34 +208,25 @@ async function openReports(page, compact) {
   await page.waitForSelector(".report-list .report-row");
 }
 
-async function startReportAt(page, onPin) {
-  await page.click(".report-button");
-  await page.waitForSelector(".pick-banner");
-  if (onPin) {
-    // In pick mode a tap on a pin places the new pin there: the form then
-    // lists the sightings already reported nearby.
-    const pin = await page.evaluate(() => {
-      for (const el of document.querySelectorAll(".pin-icon")) {
-        const r = el.getBoundingClientRect();
-        const x = r.left + r.width / 2;
-        const y = r.top + r.height / 2;
-        const top = document.elementFromPoint(x, y);
-        if (top && el.contains(top)) return { x, y };
-      }
-      return null;
-    });
-    if (pin) await page.mouse.click(pin.x, pin.y);
-    else {
-      // No pin in sight (400% zoom): place it at the map's center with the
-      // keyboard. The sightings are around the center.
-      await page.focus(".map-shell .leaflet-container");
-      await page.keyboard.press("Enter");
-    }
-  } else {
-    const { x, y } = await mapPoint(page);
-    await page.mouse.click(x, y);
+// The report form, started at a searched place ("Submit a report" with a
+// place in the search box), as the README describes. The map opens on the
+// whole country, where a tap can fall outside the places pins can go, and an
+// emulated tap on a touch screen doesn't reliably reach the map, so the
+// search starts it instead. City Hall is within 200 m of a fixture sighting,
+// so the form lists the sightings nearby; Rittenhouse Square has none near.
+async function startReportAt(page, onPin, layout) {
+  if (layout === "phone") {
+    await openReports(page, true);
+    await page.click(".panel-tabs button:nth-child(2)");
   }
-  await page.getByRole("button", { name: "Use this spot" }).click();
+  await page.fill(".search input", onPin ? "city hall" : "rittenhouse square");
+  await page.press(".search input", "Enter");
+  await page.waitForSelector(".search-results button");
+  await page.locator(".search-results button").nth(onPin ? 0 : 1).click();
+  await settle(page);
+  // Upright phones: the Reports sheet covers the map and its button.
+  if (layout === "phone") await page.click(".rail-home");
+  await page.click(".report-button");
   await page.waitForSelector(".modal .report-form");
 }
 
@@ -380,15 +375,15 @@ const STEPS = {
     await page.mouse.click(x, y);
     await page.waitForSelector(".place-form");
   },
-  async "report-form"(page) {
-    await startReportAt(page, false);
+  async "report-form"(page, { layout }) {
+    await startReportAt(page, false, layout);
   },
-  async "report-nearby"(page) {
-    await startReportAt(page, true);
+  async "report-nearby"(page, { layout }) {
+    await startReportAt(page, true, layout);
     await page.waitForSelector(".modal .nearby");
   },
-  async "report-error"(page) {
-    await startReportAt(page, false);
+  async "report-error"(page, { layout }) {
+    await startReportAt(page, false, layout);
     await page.click(".report-submit");
     await page.waitForSelector(".modal .form-error");
   },
@@ -894,6 +889,12 @@ async function auditSize(browser, size, scheme) {
       await audit(page, `${size} ${scheme} ${state}`, sizeLayout);
     } catch (error) {
       problems.push(`${size} ${scheme} ${state}: state could not be reached (${firstLine(error)})`);
+      // A picture of where it stopped, for finding out why (outside the repo).
+      if (process.env.A11Y_FAILURE_SHOTS) {
+        await page
+          .screenshot({ path: join(process.env.A11Y_FAILURE_SHOTS, `${size}-${scheme}-${state}.png`) })
+          .catch(() => {});
+      }
     }
   }
   const storage = await context.storageState();
