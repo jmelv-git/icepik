@@ -14,7 +14,10 @@ Branch: `claude/account-recovery-screens-su9s7c`, from `origin/main` (`06c9d67`)
       contrast, accessibility and layout scripts cover the new screens
 - [x] Phase 3. Testing window on the demo project: live checks, then every flow end to end
 - [x] Phase 4. Every check in "Done when"
-- [ ] Phase 5. Demo project put back, branch pushed, compare link handed over
+- [x] Phase 5. Demo project put back (test accounts deleted, `reset_demo()` run), branch pushed,
+      compare link handed over. Left to the owner: switch the demo's CAPTCHA secret back to the real
+      Turnstile key, add `DEMO_SUPABASE_SECRET_KEY` in Vercel, check the real project's Password
+      Requirements setting.
 
 ## Decisions from the owner
 
