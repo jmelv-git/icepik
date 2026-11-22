@@ -10,7 +10,7 @@ Branch: `claude/account-recovery-screens-su9s7c`, from `origin/main` (`06c9d67`)
 ## Checklist
 
 - [x] Phase 1. Plan, approved by the owner (22 Nov 2026)
-- [ ] Phase 2. Build against the mock: layout baseline first, mock extended, screens built, the
+- [x] Phase 2. Build against the mock: layout baseline first, mock extended, screens built, the
       contrast, accessibility and layout scripts cover the new screens
 - [ ] Phase 3. Testing window on the demo project: live checks, then every flow end to end
 - [ ] Phase 4. Every check in "Done when"
@@ -80,5 +80,14 @@ is unchanged.
 ## Notes
 
 - Layout baseline recorded from `06c9d67` before any screen changed. The `report-form` state can't be
-  reached while map tiles are blocked (the pin-spot check needs CARTO's vector tiles), at most sizes;
-  that was already so, and the comparison treats it the same on both sides.
+  reached by `capture-layout.mjs` while map tiles are blocked (the pin-spot check needs CARTO's vector
+  tiles); that was already so, and the comparison treats it the same on both sides.
+- Phase 2 against the stand-ins: `recovery-flows.mjs` 45 of 45; `capture-layout.mjs --compare` no
+  difference above 1 px in 272 states (84 new recovery states and the new "Forgot password?" button
+  listed as new); `glass-contrast.mjs` 181 of 181; `a11y-audit.mjs` failed only on the report form's
+  three states, unreachable at every size (pre-existing, as above).
+- So the audit can exit 0, `scripts/stand-in-tile.mjs` answers the spot check's vector tiles with a
+  local stand-in (every other CARTO request is still aborted in the browser; nothing reaches CARTO),
+  and the audit starts the report form at a searched place. That surfaced a pre-existing WCAG 1.4.12
+  failure on the report form ("Searched:" name cut off with wider text spacing), fixed by letting the
+  name wrap.
