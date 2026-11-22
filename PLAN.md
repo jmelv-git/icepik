@@ -12,8 +12,8 @@ Branch: `claude/account-recovery-screens-su9s7c`, from `origin/main` (`06c9d67`)
 - [x] Phase 1. Plan, approved by the owner (22 Nov 2026)
 - [x] Phase 2. Build against the mock: layout baseline first, mock extended, screens built, the
       contrast, accessibility and layout scripts cover the new screens
-- [ ] Phase 3. Testing window on the demo project: live checks, then every flow end to end
-- [ ] Phase 4. Every check in "Done when"
+- [x] Phase 3. Testing window on the demo project: live checks, then every flow end to end
+- [x] Phase 4. Every check in "Done when"
 - [ ] Phase 5. Demo project put back, branch pushed, compare link handed over
 
 ## Decisions from the owner
@@ -91,3 +91,45 @@ is unchanged.
   and the audit starts the report form at a searched place. That surfaced a pre-existing WCAG 1.4.12
   failure on the report form ("Searched:" name cut off with wider text spacing), fixed by letting the
   name wrap.
+
+## Phase 3: the testing window (22 Nov 2026)
+
+The owner switched the demo project's CAPTCHA secret to Cloudflare's test key. The demo project had
+no accounts when the window opened.
+
+- `scripts/supabase-live-checks.mjs` (demo values under the names it reads,
+  `ICEPIK_SCRATCH_PROJECT=yes`). First run: 0 and 1 passed, **2a failed**: the demo project required
+  lowercase, uppercase, digits and symbols in every password (Supabase's "Password Requirements"),
+  which the handoff doesn't ask for and which refuses ICEPik's advice ("a few random words"). Stopped
+  and asked; the owner set it to "No required characters". Second run: **all 28 checks passed** (2 for
+  information: 3, the token after saving; 6c, `/recover` for an unknown username, which answers
+  differently from 6a, as the handoff's known gaps say). 6b's SQL Editor lookup wasn't run by hand
+  (not a terminal, so the script didn't pause).
+- Build A, `/` pointed at the demo project with its secret key as `SUPABASE_SECRET_KEY` (the real
+  reset path, `check_recovery_key` with the real key, against real Supabase; the real project was
+  never touched): `recovery-flows.mjs --live`, save, nokey and keyboard flows, 35 of 35 (the keyboard
+  check first failed on the test's own timing with CAPTCHA on; the test now waits for the token).
+- Build B, the normal `/demo`: the demo flow 8 of 8 (any letters and numbers reset the password, the
+  note shows, a key with other characters and an unknown username are refused, it logs in at once),
+  and a scratch run of the rest on `/demo` (Recovery key section, Make a new recovery key, an
+  interrupted save, the offer after logging in) 11 of 11 (its log-in step first stalled on the test's
+  own click while the security check's widget moved the form; it presses Enter now).
+- Both builds used Cloudflare's test site key, only locally. No password or key in any request URL
+  or in the server's output.
+- Afterwards: all 26 accounts the tests made were deleted (the demo project has 0 again) and
+  `public.reset_demo()` ran with the secret key. The owner was asked to switch the CAPTCHA secret
+  back.
+
+## Phase 4: checks on the final code
+
+- `npx tsc --noEmit`, `npx eslint`, `npx next build`: pass. No new dependency; `proxy.ts`,
+  `next.config.ts` and the package files unchanged.
+- The browser bundle holds neither name `SUPABASE_SECRET_KEY` nor `DEMO_SUPABASE_SECRET_KEY`, nor the
+  demo secret's value (not even in the server output); only `app/actions/recovery.ts` imports
+  `lib/supabase/admin.ts`.
+- `capture-layout.mjs --compare`: no difference above 1 px in 272 states.
+- `glass-contrast.mjs`: 181 of 181. `a11y-audit.mjs`: no failures in 498 states, exit 0; no phone text
+  under 16 px anywhere.
+- `recovery-flows.mjs`: 45 of 45. Forced colors and reduced motion checked by emulation (outlines
+  kept, the lamp stops).
+- Screenshots: `docs/recovery-screenshots/`, 9 screens at 7 sizes, device scale factor 2.

@@ -19,7 +19,7 @@ The ICEPik backend is ready for the MVP: a Supabase Postgres database with five 
 
 ## Before you start
 
-Confirm these eight Supabase settings with the backend owner, then set up the client. The browser uses only the project URL and the publishable key. The secret key (sb\_secret\_…) stays on the server for the password reset; the older service\_role key isn't used.
+Confirm these nine Supabase settings with the backend owner, then set up the client. The browser uses only the project URL and the publishable key. The secret key (sb\_secret\_…) stays on the server for the password reset; the older service\_role key isn't used.
 
 | Setting (Authentication section) | Value | Why |
 | --- | --- | --- |
@@ -30,6 +30,7 @@ Confirm these eight Supabase settings with the backend owner, then set up the cl
 | Hooks → Send Email → Postgres function block\_auth\_emails | On | Supabase never creates an emailed reset or sign-in code, so there is no hidden code to guess for a known username |
 | Sign In / Providers → Email → Secure password change | Off | It emails a code to the account's address, which can never arrive; saving an account would fail once a session is a day old |
 | Sign In / Providers → Email → Minimum password length | 15 | NIST's minimum when the password is an account's only protection |
+| Sign In / Providers → Email → Password Requirements | No required characters | The app suggests a few random words; requiring capitals, digits or symbols refuses those (the live checks' step 2a fails), and NIST advises against such rules |
 | Sign In / Providers → Email → Require current password when changing password | On | Someone holding an unlocked phone can't change the password without knowing it |
 
 **Secret key.** The password reset needs Supabase's secret key (`sb_secret_…`; the older service\_role keys are being retired at the end of 2026). Add it in Vercel as `SUPABASE_SECRET_KEY` to the **Production** environment only, with **Sensitive** turned on: never to Preview or Development or a developer's .env.local (use a scratch project's keys to try the reset locally), and never with a `NEXT_PUBLIC_` name. Only `lib/supabase/admin.ts` reads it; on a deployment without it, the reset answers that it isn't available. The key skips every database rule, so a leak would expose the private links between people and pins, and every account. If it leaks, make a new secret key in Supabase and delete the old one. The demo project's secret key, `DEMO_SUPABASE_SECRET_KEY`, follows the same rules (Production only, Sensitive, never `NEXT_PUBLIC_`); only the demo's reset uses it.

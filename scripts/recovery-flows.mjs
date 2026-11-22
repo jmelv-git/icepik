@@ -227,7 +227,11 @@ async function login(page, username, password) {
   await page.waitForSelector(".account-form");
   await page.getByLabel("Username").fill(username);
   await page.locator('.account-form input[type="password"]').fill(password);
-  await page.click('.account-form button[type="submit"]');
+  // Enter once the security check (if any) has given its token: a click can
+  // land while the check's widget still moves the form.
+  await page.waitForSelector('.account-form button[type="submit"]:not([disabled])', { timeout: 60000 });
+  await page.waitForTimeout(500);
+  await page.press('.account-form input[type="password"]', "Enter");
 }
 
 // Every place the browser keeps things, for one page.
@@ -457,16 +461,24 @@ if (wants("keyboard")) {
   // form sends with Enter.
   const page = await newPage("/");
   await openForgot(page);
+  // With CAPTCHA on, Reset password works (and takes focus) once the check
+  // has given a token, as on Log in.
+  await page.waitForSelector('.account-form button[type="submit"]:not([disabled])', { timeout: 60000 });
   const order = [];
   await page.focus(".account-form input[autocomplete='username']");
-  for (let i = 0; i < 6; i++) {
+  // Until six named stops (the check's frame has a few stops of its own).
+  for (let i = 0; i < 16 && order.filter((name) => name !== "security check").length < 6; i++) {
     order.push(await page.evaluate(() => {
       const el = document.activeElement;
+      if (el?.tagName === "IFRAME" || el?.closest(".captcha")) return "security check";
       return el?.closest("label")?.childNodes[0]?.textContent?.trim() || el?.textContent?.trim() || el?.tagName;
     }));
     await page.keyboard.press("Tab");
   }
-  check("Tab goes Username, Recovery key, New password, Repeat, Back, Reset", order.join(" > ") === "Username > Recovery key > New password > Repeat new password > Back > Reset password", order.join(" > "));
+  // The security check's own frame may take Tab stops between them.
+  const seen = order.filter((name) => name !== "security check").join(" > ");
+  const stops = [...new Set(order)].join(" > ");
+  check("Tab goes Username, Recovery key, New password, Repeat, Back, Reset", seen === "Username > Recovery key > New password > Repeat new password > Back > Reset password", stops);
   const named = await page.getByRole("textbox", { name: /^Recovery key/ }).count();
   check("The key field is named Recovery key for screen readers", named === 1);
   await page.context().close();
