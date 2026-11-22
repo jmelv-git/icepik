@@ -3,10 +3,16 @@
 import { useEffect, useRef } from "react";
 
 // Cloudflare Turnstile, one of the two CAPTCHA providers Supabase Auth
-// supports. Set NEXT_PUBLIC_TURNSTILE_SITE_KEY once CAPTCHA protection is on
-// in Supabase (Authentication -> Attack Protection), with the matching secret
-// key there. Without it, no CAPTCHA script ever loads.
-const SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
+// supports. Supabase checks each token on its own server with the widget's
+// secret key (Authentication -> Attack Protection), so the secret never
+// comes near this app. A site key is public: it is in every page that shows
+// the widget. ICEPik's widget is the default; NEXT_PUBLIC_TURNSTILE_SITE_KEY
+// replaces it, and setting it to an empty value turns the check off (local
+// checks against scripts/mock-supabase.mjs do that, so they stay offline).
+// CAPTCHA is required in Supabase, so production builds stop when it's set
+// to an empty value (next.config.ts).
+const ICEPIK_SITE_KEY = "0x4AAAAAAGD9-RGFXV2Fys3x";
+const SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? ICEPIK_SITE_KEY;
 export const captchaEnabled = Boolean(SITE_KEY);
 
 type Turnstile = {
@@ -14,6 +20,7 @@ type Turnstile = {
     element: HTMLElement,
     options: {
       sitekey: string;
+      action?: string;
       theme?: "dark" | "light" | "auto";
       callback: (token: string) => void;
       "expired-callback": () => void;
@@ -54,23 +61,27 @@ function loadTurnstile() {
 
 // Shows the check and reports each new token, or null when it expires or
 // fails. A token works once: change resetKey after using one to get another.
-// onError means the check couldn't load at all, for example when the script
-// is blocked; mounting it again tries again.
+// onError means the check couldn't run: the script is blocked, or the widget
+// failed (offline, or this site isn't one of the widget's hostnames).
+// Mounting it again tries again. action names the form in Cloudflare's
+// analytics (letters, numbers, _ and -, up to 32).
 export function Captcha({
+  action,
   onToken,
   onError,
   resetKey = 0,
 }: {
+  action: string;
   onToken: (token: string | null) => void;
   onError: () => void;
   resetKey?: number;
 }) {
   const box = useRef<HTMLDivElement>(null);
   const widget = useRef<{ turnstile: Turnstile; id: string } | null>(null);
-  const latest = useRef({ onToken, onError });
+  const latest = useRef({ action, onToken, onError });
 
   useEffect(() => {
-    latest.current = { onToken, onError };
+    latest.current = { action, onToken, onError };
   });
 
   useEffect(() => {
@@ -79,11 +90,15 @@ export function Captcha({
       (turnstile) => {
         if (cancelled || !box.current) return;
         const id = turnstile.render(box.current, {
-          sitekey: SITE_KEY!,
+          sitekey: SITE_KEY,
+          action: latest.current.action,
           theme: "dark",
           callback: (token) => latest.current.onToken(token),
           "expired-callback": () => latest.current.onToken(null),
-          "error-callback": () => latest.current.onToken(null),
+          "error-callback": () => {
+            latest.current.onToken(null);
+            latest.current.onError();
+          },
         });
         widget.current = { turnstile, id };
       },

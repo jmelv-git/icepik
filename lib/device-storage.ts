@@ -3,14 +3,25 @@ import { useMemo, useSyncExternalStore } from "react";
 // Things ICEPik keeps only in this browser's localStorage. Never cookies:
 // cookies travel to the server with every request.
 const POLICY_KEY = "icepik.policy-version";
-const PLACES_KEY = "icepik.places";
+// Saved places are kept apart for the demo at /demo, so a demo shown on a
+// shared screen never draws the person's real home, work or named places, and
+// places added in the demo don't appear on the real map.
+const PLACES_KEYS = { real: "icepik.places", demo: "icepik.demo.places" };
 // Only the answer to "may ICEPik use your location?", never a position.
 const LOCATION_KEY = "icepik.location";
 // Places people add and name themselves. Names can say a lot ("Mom's
 // house"), so like home and work they never leave this browser.
-const CUSTOM_PLACES_KEY = "icepik.custom-places";
+const CUSTOM_PLACES_KEYS = { real: "icepik.custom-places", demo: "icepik.demo.custom-places" };
 // "on" or "off": the moving background (Settings, "Moving background").
 const BACKGROUND_MOTION_KEY = "icepik.background-motion";
+
+function onDemoPage() {
+  if (typeof window === "undefined") return false;
+  const path = window.location.pathname;
+  return path === "/demo" || path.startsWith("/demo/");
+}
+const placesKey = () => PLACES_KEYS[onDemoPage() ? "demo" : "real"];
+const customPlacesKey = () => CUSTOM_PLACES_KEYS[onDemoPage() ? "demo" : "real"];
 
 export const PLACE_NAME_MAX = 40;
 export const CUSTOM_PLACES_MAX = 25;
@@ -75,16 +86,16 @@ export function acceptPolicy(version: string) {
 }
 
 export function useSavedPlaces(): SavedPlaces {
-  const raw = useStored(PLACES_KEY);
+  const raw = useStored(placesKey());
   return useMemo(() => parsePlaces(raw), [raw]);
 }
 
 // False when it couldn't be saved: storage is blocked or full.
 export function savePlace(name: PlaceName, place: SavedPlace | null) {
-  const places = parsePlaces(read(PLACES_KEY));
+  const places = parsePlaces(read(placesKey()));
   if (place) places[name] = place;
   else delete places[name];
-  return write(PLACES_KEY, Object.keys(places).length ? JSON.stringify(places) : null);
+  return write(placesKey(), Object.keys(places).length ? JSON.stringify(places) : null);
 }
 
 export type LocationAnswer = "granted" | "denied" | "unavailable";
@@ -111,7 +122,7 @@ export function rememberBackgroundMotion(on: boolean) {
 }
 
 export function useCustomPlaces(): CustomPlace[] {
-  const raw = useStored(CUSTOM_PLACES_KEY);
+  const raw = useStored(customPlacesKey());
   return useMemo(() => parseCustomPlaces(raw), [raw]);
 }
 
@@ -120,7 +131,7 @@ export type AddPlaceResult = { status: "saved" | "limit" | "failed"; name: strin
 // The name it was saved under comes back: a name already in use gets a
 // number ("Clinic 2"), so places can be told apart.
 export function addCustomPlace(name: string, place: SavedPlace): AddPlaceResult {
-  const places = parseCustomPlaces(read(CUSTOM_PLACES_KEY));
+  const places = parseCustomPlaces(read(customPlacesKey()));
   let unique = cleanName(name);
   if (places.length >= CUSTOM_PLACES_MAX) return { status: "limit", name: unique };
   const taken = new Set(places.map((p) => p.name.toLowerCase()));
@@ -134,14 +145,14 @@ export function addCustomPlace(name: string, place: SavedPlace): AddPlaceResult 
     lat: Math.round(place.lat * 1e4) / 1e4,
     lng: Math.round(place.lng * 1e4) / 1e4,
   };
-  const saved = write(CUSTOM_PLACES_KEY, JSON.stringify([...places, added]));
+  const saved = write(customPlacesKey(), JSON.stringify([...places, added]));
   return { status: saved ? "saved" : "failed", name: unique };
 }
 
 // False when it couldn't be removed: storage is blocked.
 export function removeCustomPlace(id: string) {
-  const places = parseCustomPlaces(read(CUSTOM_PLACES_KEY)).filter((place) => place.id !== id);
-  return write(CUSTOM_PLACES_KEY, places.length ? JSON.stringify(places) : null);
+  const places = parseCustomPlaces(read(customPlacesKey())).filter((place) => place.id !== id);
+  return write(customPlacesKey(), places.length ? JSON.stringify(places) : null);
 }
 
 // Cut by characters, not UTF-16 units, so an emoji is never split in half.
@@ -161,8 +172,8 @@ function newId() {
 
 // "Clear this device": forget everything ICEPik stored in this browser.
 export function clearDeviceStorage() {
-  write(PLACES_KEY, null);
-  write(CUSTOM_PLACES_KEY, null);
+  // Both the real map's places and the demo's, wherever it's run from.
+  for (const key of [...Object.values(PLACES_KEYS), ...Object.values(CUSTOM_PLACES_KEYS)]) write(key, null);
   write(LOCATION_KEY, null);
   write(BACKGROUND_MOTION_KEY, null);
   write(POLICY_KEY, null);

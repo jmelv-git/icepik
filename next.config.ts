@@ -9,6 +9,20 @@ if (process.env.VERCEL_ENV === "production" && !process.env.NEXT_PUBLIC_CARTO_KE
   );
 }
 
+// CAPTCHA is required in Supabase. ICEPik's Turnstile site key is built into
+// app/_components/captcha.tsx, and NEXT_PUBLIC_TURNSTILE_SITE_KEY set to an
+// empty value turns the check off (for local checks). In production that
+// would make every sign-in fail, so stop the build instead.
+if (
+  process.env.VERCEL_ENV === "production" &&
+  process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY !== undefined &&
+  !process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY.trim()
+) {
+  throw new Error(
+    "NEXT_PUBLIC_TURNSTILE_SITE_KEY is set to an empty value, which turns the CAPTCHA check off. Delete it in Vercel (Settings > Environment Variables) to use the built-in key, then redeploy.",
+  );
+}
+
 const nextConfig: NextConfig = {
   async headers() {
     return [

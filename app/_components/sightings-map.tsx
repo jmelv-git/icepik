@@ -103,6 +103,9 @@ type Props = {
   onVectorTiles?: (template: string) => void;
   // The part of the map the panels and cards leave visible, as padding.
   visibleArea?: () => Padding;
+  // Where the map opens, as [[south, west], [north, east]]. The lower 48
+  // states when not given.
+  openOn?: [[number, number], [number, number]];
 };
 
 export function SightingsMap({
@@ -120,6 +123,7 @@ export function SightingsMap({
   onViewChange,
   onVectorTiles,
   visibleArea,
+  openOn,
 }: Props) {
   const node = useRef<HTMLDivElement>(null);
   const leaflet = useRef<typeof Leaflet | null>(null);
@@ -139,9 +143,9 @@ export function SightingsMap({
   const [zoom, setZoom] = useState(13);
 
   // Leaflet handlers are attached once; they call the latest props.
-  const latest = useRef({ onSelect, onSelectGroup, onPlace, placing, onViewChange, visibleArea });
+  const latest = useRef({ onSelect, onSelectGroup, onPlace, placing, onViewChange, visibleArea, openOn });
   useEffect(() => {
-    latest.current = { onSelect, onSelectGroup, onPlace, placing, onViewChange, visibleArea };
+    latest.current = { onSelect, onSelectGroup, onPlace, placing, onViewChange, visibleArea, openOn };
   });
 
   useImperativeHandle(
@@ -277,16 +281,16 @@ export function SightingsMap({
       // MapLibre needs WebGL2. Without it, the map shows CARTO's map images.
       const vector = hasWebGL2();
       const instance = L.map(node.current, {
-        center: L.latLngBounds(LOWER_48).getCenter(),
+        center: L.latLngBounds(latest.current.openOn ?? LOWER_48).getCenter(),
         zoom: 4,
         minZoom: MIN_ZOOM,
         maxZoom: vector ? VECTOR_MAX_ZOOM : RASTER_MAX_ZOOM,
         zoomControl: false,
       });
-      // Open on the lower 48 states, as large as fits the part of the map the
-      // panels leave visible (map-app.tsx flies to the person's city once
-      // they share their location).
-      instance.fitBounds(LOWER_48, { ...(latest.current.visibleArea?.() ?? NO_PADDING), animate: false });
+      // Open on the lower 48 states (or openOn), as large as fits the part of
+      // the map the panels leave visible (map-app.tsx flies to the person's
+      // city once they share their location, except in the demo).
+      instance.fitBounds(latest.current.openOn ?? LOWER_48, { ...(latest.current.visibleArea?.() ?? NO_PADDING), animate: false });
 
       // The raster map: CARTO's Positron style, or its Dark Matter style when
       // the device is set to dark, with their attribution visible. Both come

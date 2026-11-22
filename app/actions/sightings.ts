@@ -2,7 +2,9 @@
 
 // Posting, voting and deleting run here, on Vercel, instead of in the browser.
 // Supabase then logs Vercel's IP address for these requests instead of the
-// user's, so its logs can't tie a person's IP to a pin, a vote or a deletion.
+// user's. Its logs still record the user id from the session token, so while
+// it keeps them they can match these requests to the same user's browser
+// requests, which do carry their IP. See the known gaps in the handoff doc.
 //
 // Rules for this file:
 // - Anyone can call these actions directly with any input, not just through
@@ -20,8 +22,14 @@
 // Usage from a client component:
 //   const result = await voteOnSighting({ sightingId, vote: 'confirm', myLat, myLng })
 //   if (!result.ok) showMessage(result.message)
+//
+// The demo at /demo passes demo = true as the last argument. That only picks
+// the demo database (its own project, with looser rules); anything else
+// means the real one. The demo database decides what is allowed, as the real
+// one does, so a caller who sets the flag gains nothing on the real map.
 
 import type { PostgrestError } from '@supabase/supabase-js'
+import { pickDemo } from '@/lib/supabase/config'
 import { createClient } from '@/lib/supabase/server'
 import { inServiceArea } from '@/lib/service-area'
 import { OUTSIDE_SERVICE_AREA } from '@/lib/sightings'
@@ -47,12 +55,21 @@ const CATEGORIES: readonly Category[] = ['patrol', 'vehicle', 'checkpoint', 'rai
 const VOTES: readonly Vote[] = ['confirm', 'dispute']
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const TRY_AGAIN = 'Something went wrong. Please try again.'
+const NO_DEMO = "The demo isn't set up yet."
 
-export async function postSighting(input: NewSighting): Promise<ActionResult<Sighting>> {
+// pickDemo() (lib/supabase/config.ts): true for the demo database, false for
+// the real one, null if the demo was asked for but isn't set up.
+
+export async function postSighting(
+  input: NewSighting,
+  demo?: boolean,
+): Promise<ActionResult<Sighting>> {
+  const useDemo = pickDemo(demo)
+  if (useDemo === null) return { ok: false, message: NO_DEMO }
   const problem = checkNewSighting(input)
   if (problem) return { ok: false, message: problem }
 
-  const supabase = await createClient()
+  const supabase = await createClient(useDemo)
   const { data, error } = await supabase
     .from('sightings')
     .insert({
@@ -70,35 +87,48 @@ export async function postSighting(input: NewSighting): Promise<ActionResult<Sig
   return error ? failure(error) : { ok: true, data }
 }
 
-export async function voteOnSighting(input: {
-  sightingId: string
-  vote: Vote
-  myLat: number
-  myLng: number
-}): Promise<ActionResult<Sighting>> {
+export async function voteOnSighting(
+  input: {
+    sightingId: string
+    vote: Vote
+    // The demo votes from anywhere and sends no location.
+    myLat: number | null
+    myLng: number | null
+  },
+  demo?: boolean,
+): Promise<ActionResult<Sighting>> {
+  const useDemo = pickDemo(demo)
+  if (useDemo === null) return { ok: false, message: NO_DEMO }
   if (!isRecord(input)) return { ok: false, message: TRY_AGAIN }
-  if (!isInRange(input.myLat, -90, 90) || !isInRange(input.myLng, -180, 180)) {
+  const located = isInRange(input.myLat, -90, 90) && isInRange(input.myLng, -180, 180)
+  if (!located && !useDemo) {
     return { ok: false, message: 'Turn on location to confirm or dispute a sighting.' }
   }
   if (!UUID.test(String(input.sightingId)) || !VOTES.includes(input.vote)) {
     return { ok: false, message: TRY_AGAIN }
   }
 
-  const supabase = await createClient()
+  const supabase = await createClient(useDemo)
   const { data, error } = await supabase.rpc('vote_on_sighting', {
     target_sighting_id: input.sightingId,
     my_vote: input.vote,
-    my_lat: input.myLat,
-    my_lng: input.myLng,
+    // The demo app sends no location (null); the demo database ignores it.
+    my_lat: (located ? input.myLat : null) as number,
+    my_lng: (located ? input.myLng : null) as number,
   })
 
   return error ? failure(error) : { ok: true, data }
 }
 
-export async function deleteSighting(sightingId: string): Promise<ActionResult<null>> {
+export async function deleteSighting(
+  sightingId: string,
+  demo?: boolean,
+): Promise<ActionResult<null>> {
+  const useDemo = pickDemo(demo)
+  if (useDemo === null) return { ok: false, message: NO_DEMO }
   if (!UUID.test(String(sightingId))) return { ok: false, message: TRY_AGAIN }
 
-  const supabase = await createClient()
+  const supabase = await createClient(useDemo)
   const { error } = await supabase.rpc('delete_my_sighting', { target_sighting_id: sightingId })
 
   return error ? failure(error) : { ok: true, data: null }
@@ -141,7 +171,8 @@ function isCount(value: unknown): boolean {
 function failure(error: PostgrestError): ActionResult<never> {
   // P0001 = a message from ICEPik's own database checks, written for users.
   if (error.code === 'P0001') return { ok: false, message: error.message }
-  // 42501 = row-level security refused it, usually an expired session.
+  // 42501 = no session: the function's permission check or row-level
+  // security refused it, usually because the session cookie expired.
   if (error.code === '42501') {
     return { ok: false, message: 'Your session has expired. Reload the page and try again.' }
   }

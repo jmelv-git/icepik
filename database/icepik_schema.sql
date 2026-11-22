@@ -2,36 +2,66 @@
 -- ICEPik: MVP database schema for Supabase
 --
 -- How to run: Supabase Dashboard -> SQL Editor -> New query -> paste -> Run.
--- Run it once on a fresh project.
+-- Run it once on a fresh project. A project that already runs an earlier
+-- version keeps its data with database/migrations/20261116_recovery_keys.sql
+-- instead; never use the "Starting over" lines at the bottom on real data.
 --
 -- Dashboard settings this schema expects (Authentication section):
 --   1. Sign In / Providers -> "Allow anonymous sign-ins": ON
---      The app calls supabase.auth.signInAnonymously() on first launch, so
---      people can post and verify right away without giving any personal info.
+--      Once a visitor accepts the terms and privacy policy, the app calls
+--      supabase.auth.signInAnonymously(), so people can post and verify right
+--      away without giving any personal info.
 --   2. Sign In / Providers -> Email -> "Confirm email": OFF
 --      Lets an anonymous user save their account with a username + password
 --      (no real email inbox needed). See "Saving an account" below.
---   3. Attack Protection -> CAPTCHA: ON (strongly recommended)
---      Without it, one person can create many throwaway accounts to fake
---      confirmations or get around the posting limit.
+--   3. Attack Protection -> CAPTCHA: ON (required), provider Turnstile
+--      It guards account creation, password sign-in and Supabase's own
+--      password-reset endpoint. Without it, one person can create many
+--      throwaway accounts to fake confirmations or get around the posting
+--      limit, and anyone can check whether a username has an account
+--      (that endpoint answers differently for a username that exists).
+--      Saving an account ("That username is taken") has no CAPTCHA; only
+--      Supabase's per-IP rate limits (Authentication -> Rate Limits) slow
+--      checks made that way. Put the Turnstile site key in the app's build
+--      before turning CAPTCHA on, or every sign-in fails.
 --   4. Audit Logs -> "Write audit logs to the database": OFF
 --      Otherwise every sign-in's IP address is copied into auth.audit_log_entries.
+--      Supabase Auth still keeps each session's latest IP address and browser
+--      in auth.sessions; that can't be turned off (see the handoff doc's gaps).
+--   5. Hooks -> Send Email -> Postgres -> public.block_auth_emails (defined below)
+--      Supabase then never creates an emailed reset or sign-in code for an
+--      account, so there is no hidden code to guess for a known username.
+--   6. Sign In / Providers -> Email -> "Minimum password length": 15
+--      NIST's rule for accounts where the password is the only factor.
+--   7. Sign In / Providers -> Email -> "Require current password when
+--      changing password": ON. Someone holding an unlocked phone then can't
+--      change the password without knowing it.
+--   Keep "Secure password change" OFF: it emails a code to the account's
+--   address, which for ICEPik can never arrive, and saving accounts would break.
 --
 -- Saving an account (optional for users):
 --   Supabase signs people in by email, so the app turns a username into a
 --   login ID ending in the reserved domain ".invalid", which can never receive
 --   mail. That way nobody can be emailed a password reset for someone else.
---     save: supabase.auth.updateUser({ email: `${username}@icepik.invalid`, password })
---     log in on a new phone: supabase.auth.signInWithPassword({ email: `${username}@icepik.invalid`, password })
+--   Usernames are 3 to 20 lowercase letters, numbers or underscores, and a
+--   saved username can't be changed (the check_login_id trigger enforces both).
+--     loginId: `${username.trim().toLowerCase()}@icepik.invalid`
+--     save:    supabase.auth.updateUser({ email: loginId, password })
+--     then:    supabase.auth.signInWithPassword({ email: loginId, password, options: { captchaToken } })
+--              and supabase.rpc('create_recovery_key')
+--     log in on another device: the same signInWithPassword call
 --   The user keeps the same id, so their posts and votes carry over.
 --   Passwords are stored (hashed) by Supabase Auth, never in these tables.
---   There is no password reset: a forgotten password means a new account.
+--   A forgotten password is reset with the recovery key shown when the
+--   account was saved (see "Forgot password" below). Without the key, a
+--   forgotten password means a new account.
 --
 -- Tables
 --   profiles            one row per app user, no personal info
 --   sightings           public ICE sighting pins shown on the map
 --   sighting_votes      confirm / dispute votes that drive the verification factor
 --   sighting_reporters  private link between a sighting and the user who posted it
+--   recovery_keys       a hash of each saved account's recovery key
 --
 -- Privacy model (PRD Part 5):
 --   * Nothing anyone else can read links a person to a place. Active
@@ -40,12 +70,13 @@
 --   * Those private links are deleted within an hour after a sighting
 --     expires, so even someone with full database access (a breach, a legal
 --     demand) can't rebuild who reported what in the past.
---   * Pin locations are rounded to about 100 m. Voter locations and saved
---     places (home, work) are used for distance checks and never stored.
---   * Supabase's request logs record each request's IP address and full URL
---     (not its body). So nothing that identifies a pin or a person goes in a
---     URL: deleting a post and changing settings go through rpc() calls,
---     which send their arguments in the request body.
+--   * Pin locations are rounded to about 100 m. Voter locations are used for
+--     the 1 km check and never stored. Saved places (home, work) never leave
+--     the device: the app checks them against the pins it has loaded.
+--   * Supabase's request logs record each request's IP address, full URL and
+--     the user id from its session token, but not its body. So nothing that
+--     identifies a pin goes in a URL: deleting a post and changing settings
+--     go through rpc() calls, which send their arguments in the body.
 -- =====================================================================
 
 
@@ -81,8 +112,8 @@ create table public.profiles (
 -- A reported ICE sighting. Everything here is safe to show publicly.
 -- category + agent_count + vehicle_count are the at-a-glance summary;
 -- description is optional extra detail.
--- Sightings expire after 4 hours; each new confirmation keeps a sighting
--- on the map for at least 2 more hours.
+-- Sightings expire after 4 hours. Each person's first vote on a sighting, if
+-- it's a confirmation, keeps it on the map for at least 2 more hours.
 create table public.sightings (
   id                  uuid primary key default gen_random_uuid(),
   lat                 double precision not null check (lat between -90 and 90),   -- rounded to ~100 m on save
@@ -159,6 +190,38 @@ as $$
 $$;
 
 
+-- True when this session signed in with its password in the last 10 minutes
+-- and still exists. Supabase writes how and when a session signed in into the
+-- access token's amr claim, e.g. [{"method": "password", "timestamp": 1794614400}];
+-- a refreshed token keeps the original sign-in time. The session check matters
+-- because the database accepts an access token until it expires (1 hour by
+-- default), even after a password reset or sign-out has ended its session.
+-- Functions that someone holding an unlocked phone shouldn't run without the
+-- password check this. Only security definer functions call it, so it reads
+-- auth.sessions as their owner.
+create function public.signed_in_with_password_recently()
+returns boolean
+language sql
+stable
+set search_path = ''
+as $$
+  select case
+    when jsonb_typeof(auth.jwt() -> 'amr') = 'array' then
+      exists (
+        select 1 from jsonb_array_elements(auth.jwt() -> 'amr') m
+        where m ->> 'method' = 'password'
+          and (m ->> 'timestamp')::numeric > extract(epoch from now()) - 600)
+      and exists (
+        select 1 from auth.sessions s
+        where s.user_id = auth.uid()
+          and s.id::text = auth.jwt() ->> 'session_id')
+    else false
+  end;
+$$;
+
+revoke execute on function public.signed_in_with_password_recently() from public, anon, authenticated;
+
+
 -- ---------------------------------------------------------------------
 -- Triggers
 -- ---------------------------------------------------------------------
@@ -183,6 +246,54 @@ create trigger on_auth_user_created
 insert into public.profiles (id)
 select id from auth.users
 on conflict (id) do nothing;
+
+-- Saved accounts: the login ID must be username@icepik.invalid, with a
+-- username of 3 to 20 lowercase letters, numbers or underscores (the rule the
+-- password reset uses), and it can't change once saved. This keeps real email
+-- addresses and phone numbers out of auth.users, and stops someone holding an
+-- unlocked phone from renaming the account so its owner can't log in or reset
+-- the password. Supabase reports a refusal here only as "Database error ..."
+-- (code unexpected_failure), so the app checks the username before saving.
+-- Supabase Auth's own soft delete overwrites the email and phone with hashes,
+-- so that one update is let through.
+-- If this trigger ever blocks Supabase Auth, run
+--   drop function public.check_login_id() cascade;
+-- (drop trigger is refused: Supabase's Auth role owns auth.users), then fix it
+-- and run the migration again to put it back.
+create function public.check_login_id()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if tg_op = 'UPDATE' and (to_jsonb(new) ->> 'deleted_at') is not null
+     and (to_jsonb(old) ->> 'deleted_at') is null then
+    return new;
+  end if;
+
+  if tg_op = 'UPDATE' and nullif(old.email, '') is not null
+     and new.email is distinct from old.email then
+    raise exception 'A saved username can''t be changed.';
+  end if;
+
+  if (tg_op = 'INSERT' or new.email is distinct from old.email)
+     and nullif(new.email, '') is not null
+     and new.email !~ '^[a-z0-9_]{3,20}@icepik\.invalid$' then
+    raise exception 'Usernames are 3 to 20 lowercase letters, numbers or underscores.';
+  end if;
+
+  if (tg_op = 'INSERT' or new.phone is distinct from old.phone)
+     and nullif(new.phone, '') is not null then
+    raise exception 'ICEPik accounts have no phone number.';
+  end if;
+
+  return new;
+end;
+$$;
+
+create trigger before_auth_user_saved
+  before insert or update of email, phone on auth.users
+  for each row execute function public.check_login_id();
 
 -- Before a new sighting is saved: round the location to about 100 m, then
 -- rate-limit the reporter and set the server-controlled fields so the app
@@ -259,8 +370,9 @@ create trigger after_sighting_insert
 -- Recount confirm/dispute totals whenever a vote is added, changed or removed.
 -- Counts only change while the sighting is active, so the hourly cleanup
 -- can delete old votes without erasing the final verification result.
--- Each person's first confirmation also keeps the sighting on the map for at
--- least 2 more hours; switching a vote back and forth doesn't.
+-- Each person's first vote on a sighting, if it's a confirmation, also keeps
+-- the sighting on the map for at least 2 more hours. Switching a vote later
+-- (dispute to confirm or back) doesn't.
 create function public.refresh_sighting_votes()
 returns trigger
 language plpgsql
@@ -316,7 +428,8 @@ create trigger after_vote_change
 -- ---------------------------------------------------------------------
 
 -- Active sightings within radius_m meters of a point, nearest first.
--- Use it for "Is ICE near my home / work?" and for a dropped map pin.
+-- Use it only for a pin dropped on the map. Never pass home or work: the app
+-- checks saved places against the pins it has loaded, on the device.
 -- The point you pass in is used for the calculation and never stored.
 --   supabase.rpc('sightings_near', { pin_lat: 39.9526, pin_lng: -75.1652, radius_m: 1600 })
 create function public.sightings_near(
@@ -361,6 +474,7 @@ $$;
 -- The voter must be within 1 km of the pin (PRD: verified by "users near
 -- the area"). Their location is checked and never stored.
 -- Returns the updated sighting so the app can redraw the pin.
+-- Called only by the voteOnSighting server action, never from the browser.
 --   supabase.rpc('vote_on_sighting', { target_sighting_id, my_vote: 'confirm', my_lat, my_lng })
 create function public.vote_on_sighting(
   target_sighting_id uuid,
@@ -419,8 +533,12 @@ grant execute on function public.vote_on_sighting(uuid, public.vote_type, double
 -- Permanently delete the signed-in user's account (Settings page).
 -- Removes their profile and every private link to sightings they posted or
 -- voted on; the sightings themselves stay on the map.
--- App stores require in-app account deletion once accounts can be saved.
---   await supabase.rpc('delete_my_account'); await supabase.auth.signOut()
+-- Users must be able to delete their account themselves from Settings.
+-- A saved account must have signed in with its password in the last 10
+-- minutes, so someone holding an unlocked phone can't delete it. An anonymous
+-- account has no password and can always delete itself.
+--   saved accounts first: await supabase.auth.signInWithPassword({ email: loginId, password, options: { captchaToken } })
+--   await supabase.rpc('delete_my_account'); await supabase.auth.signOut({ scope: 'local' })
 create function public.delete_my_account()
 returns void
 language plpgsql
@@ -431,6 +549,12 @@ begin
     raise exception 'Sign in to delete your account.';
   end if;
 
+  if exists (select 1 from auth.users u
+             where u.id = auth.uid() and nullif(u.email, '') is not null)
+     and not public.signed_in_with_password_recently() then
+    raise exception 'Enter your password again to delete your account.';
+  end if;
+
   delete from auth.users where id = auth.uid();
 end;
 $$;
@@ -439,7 +563,8 @@ revoke execute on function public.delete_my_account() from public, anon;
 grant execute on function public.delete_my_account() to authenticated;
 
 -- Delete an active sighting you posted. The pin's id travels in the request
--- body, not in a URL that Supabase logs next to your IP address.
+-- body, not in a URL that Supabase logs. Called by the deleteSighting server
+-- action.
 --   supabase.rpc('delete_my_sighting', { target_sighting_id })
 create function public.delete_my_sighting(target_sighting_id uuid)
 returns void
@@ -485,6 +610,148 @@ grant execute on function public.set_my_language(text) to authenticated;
 
 
 -- ---------------------------------------------------------------------
+-- Supabase Auth email hook: ICEPik never sends email
+-- ---------------------------------------------------------------------
+
+-- Login IDs end in .invalid, so no email can ever arrive. Supabase's own
+-- "forgot password" and magic-link endpoints would still store a 6-digit code
+-- for a known username if an email provider accepted the message, leaving a
+-- code that nobody receives but someone could guess. Refusing every email
+-- that carries a code stops Supabase from storing one. Notification-only
+-- emails are dropped quietly so they can't block a password change.
+-- Turn it on: Authentication -> Hooks -> Send Email -> Postgres -> block_auth_emails.
+create function public.block_auth_emails(event jsonb)
+returns jsonb
+language sql
+stable
+set search_path = ''
+as $$
+  select case
+    when event -> 'email_data' ->> 'email_action_type' like '%\_notification' then '{}'::jsonb
+    else jsonb_build_object('error', jsonb_build_object(
+      'http_code', 403,
+      'message', 'ICEPik does not send email.'))
+  end;
+$$;
+
+grant usage on schema public to supabase_auth_admin;
+grant execute on function public.block_auth_emails(jsonb) to supabase_auth_admin;
+revoke execute on function public.block_auth_emails(jsonb) from authenticated, anon, public;
+
+
+-- ---------------------------------------------------------------------
+-- Forgot password: recovery keys (no email, no phone)
+-- ---------------------------------------------------------------------
+
+-- When someone saves their account, the app shows them a one-time recovery
+-- key; only a SHA-256 hash of it is stored. To reset a forgotten password
+-- they enter their username, the key and a new password. The server action
+-- resetPasswordWithRecoveryKey checks the pair, sets the new password with
+-- the secret key and replaces the used key with a new one shown on the spot.
+-- The reset ends every session on the account. A device that is already
+-- signed in can still read and post until its access token expires (1 hour
+-- by default), but it can no longer make a recovery key or delete the account:
+-- those check that the token's session still exists.
+
+create extension if not exists pgcrypto with schema extensions;
+
+-- One recovery key per saved account. Nobody reads or writes this table
+-- through the API; only the functions below touch it. Row level security
+-- with no policies blocks every row, and the browser roles also lose their
+-- table grants, so a policy added by mistake later still exposes nothing.
+create table public.recovery_keys (
+  user_id  uuid primary key references public.profiles (id) on delete cascade,
+  key_hash bytea not null
+);
+
+alter table public.recovery_keys enable row level security;
+revoke all on public.recovery_keys from anon, authenticated;
+
+-- Server only (secret key): give an account a new recovery key and return it
+-- once. Any older key stops working. 128 random bits, shown as 8 groups of 4
+-- hex characters; at 128 bits a plain SHA-256 hash is enough to store it.
+create function public.replace_recovery_key(p_user_id uuid)
+returns text
+language plpgsql
+volatile
+security definer set search_path = ''
+as $$
+declare
+  raw_key text := encode(extensions.gen_random_bytes(16), 'hex');
+begin
+  insert into public.recovery_keys (user_id, key_hash)
+  values (p_user_id, extensions.digest(raw_key, 'sha256'))
+  on conflict (user_id) do update set key_hash = excluded.key_hash;
+
+  return rtrim(regexp_replace(raw_key, '(.{4})', '\1-', 'g'), '-');
+end;
+$$;
+
+-- The signed-in user's first key (right after saving the account), or a new
+-- one from Settings when they think someone saw theirs. Works only within
+-- 10 minutes of signing in with the password, so someone holding an unlocked
+-- phone can't make a key (and then reset the password) without knowing it.
+-- The app signs in with the password first, then calls it:
+--   await supabase.auth.signInWithPassword({ email: loginId, password, options: { captchaToken } })
+--   const { data: key } = await supabase.rpc('create_recovery_key')
+create function public.create_recovery_key()
+returns text
+language plpgsql
+volatile
+security definer set search_path = ''
+as $$
+begin
+  if auth.uid() is null or coalesce((auth.jwt() ->> 'is_anonymous')::boolean, true) then
+    raise exception 'Save your account with a username and password first.';
+  end if;
+
+  if not public.signed_in_with_password_recently() then
+    raise exception 'Enter your password again to make a recovery key.';
+  end if;
+
+  return public.replace_recovery_key(auth.uid());
+end;
+$$;
+
+-- Whether the signed-in user has a recovery key. Ask a saved account with
+-- none to make one (for example when saving was interrupted).
+--   const { data: hasKey } = await supabase.rpc('has_recovery_key')
+create function public.has_recovery_key()
+returns boolean
+language sql
+stable
+security definer set search_path = ''
+as $$
+  select exists (select 1 from public.recovery_keys where user_id = auth.uid());
+$$;
+
+-- Server only (secret key): the account id when the username and recovery key
+-- match, otherwise null. Unknown usernames and wrong keys look the same.
+-- Dashes, spaces and letter case in the typed key don't matter.
+create function public.check_recovery_key(p_username text, p_key text)
+returns uuid
+language sql
+stable
+security definer set search_path = ''
+as $$
+  select k.user_id
+  from public.recovery_keys k
+  join auth.users u on u.id = k.user_id
+  where u.email = lower(btrim(p_username)) || '@icepik.invalid'
+    and k.key_hash = extensions.digest(regexp_replace(lower(p_key), '[^0-9a-f]', '', 'g'), 'sha256');
+$$;
+
+revoke execute on function public.create_recovery_key() from public, anon;
+grant execute on function public.create_recovery_key() to authenticated;
+revoke execute on function public.has_recovery_key() from public, anon;
+grant execute on function public.has_recovery_key() to authenticated;
+revoke execute on function public.replace_recovery_key(uuid) from public, anon, authenticated;
+revoke execute on function public.check_recovery_key(text, text) from public, anon, authenticated;
+grant execute on function public.replace_recovery_key(uuid) to service_role;
+grant execute on function public.check_recovery_key(text, text) to service_role;
+
+
+-- ---------------------------------------------------------------------
 -- Hourly cleanup: forget who posted and voted on expired sightings
 -- ---------------------------------------------------------------------
 
@@ -511,9 +778,16 @@ $$;
 
 revoke execute on function public.purge_expired_links() from public, anon, authenticated;
 
-create extension if not exists pg_cron with schema pg_catalog;
-grant usage on schema cron to postgres;
-grant all privileges on all tables in schema cron to postgres;
+-- Create pg_cron only when it's missing. Supabase gives the postgres role
+-- access to it when it's created; asking again on a project where it's
+-- already on makes Supabase redo those grants, which can fail with
+-- "dependent privileges exist".
+do $$
+begin
+  if not exists (select 1 from pg_extension where extname = 'pg_cron') then
+    create extension pg_cron with schema pg_catalog;
+  end if;
+end $$;
 
 select cron.schedule('purge-expired-links', '0 * * * *', 'select public.purge_expired_links()');
 
@@ -589,11 +863,14 @@ alter publication supabase_realtime add table public.sightings;
 
 
 -- =====================================================================
--- Starting over: if you already ran an earlier version of this script,
--- run these three lines first (this deletes all ICEPik data), then run
--- the script again.
+-- Starting over (test projects only): to wipe ICEPik and run this script
+-- again, copy the three commented lines below into a new query, remove the
+-- "-- " at the start of each, and run them. They delete every ICEPik table
+-- and all its data: pins, votes and profile totals (accounts in
+-- Authentication -> Users are kept). To upgrade a project with data, use
+-- database/migrations/20261116_recovery_keys.sql instead.
 -- =====================================================================
 
--- drop table if exists public.sighting_votes, public.sighting_reporters, public.sightings, public.profiles cascade;
--- drop function if exists public.handle_new_user, public.prepare_new_sighting, public.record_sighting_reporter, public.refresh_sighting_votes, public.sightings_near, public.distance_m, public.vote_on_sighting, public.delete_my_account, public.delete_my_sighting, public.set_my_language, public.purge_expired_links, public.can_vote_on cascade;
+-- drop table if exists public.recovery_keys, public.sighting_votes, public.sighting_reporters, public.sightings, public.profiles cascade;
+-- drop function if exists public.handle_new_user, public.prepare_new_sighting, public.record_sighting_reporter, public.refresh_sighting_votes, public.sightings_near, public.distance_m, public.vote_on_sighting, public.delete_my_account, public.delete_my_sighting, public.set_my_language, public.block_auth_emails, public.signed_in_with_password_recently, public.create_recovery_key, public.has_recovery_key, public.replace_recovery_key, public.check_recovery_key, public.check_login_id, public.purge_expired_links, public.can_vote_on cascade;
 -- drop type if exists public.sighting_category, public.vote_type cascade;

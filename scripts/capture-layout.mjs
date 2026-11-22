@@ -15,7 +15,16 @@
 // lookup are stubbed, so nothing here reaches CARTO or Nominatim. Nothing
 // about the network is recorded: only element boxes. Screenshots go outside
 // the repo (to --shots, default <tmp>/icepik-capture/<baseline|current>).
+//
+// The account-recovery screens are states too (forgot, forgot-demo, key,
+// settings-saved, newkey, nokey). They save accounts on the stand-in, so they
+// run after the others. A recovery key on screen is replaced by a
+// placeholder of the same width before anything is measured or pictured.
+// --compare fails when an element of a state in the baseline moved, changed
+// size or went missing; a state or element the baseline doesn't have yet is
+// listed as new, without failing.
 import { createRequire } from "node:module";
+import { randomBytes } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -44,6 +53,13 @@ const STATES = [
   "save",
   "rights",
   "starter",
+  // Account recovery: these save accounts, so they come last.
+  "forgot",
+  "forgot-demo",
+  "key",
+  "settings-saved",
+  "newkey",
+  "nokey",
 ];
 
 function option(name, fallback) {
@@ -100,6 +116,9 @@ const KEYS = [
   ["consent-logo", ".consent-logo", 1],
   ["consent-text", ".consent-text", 1],
   ["consent-agree", ".consent-agree", 1],
+  ["field-link", ".account-form .field-link", 1],
+  ["recovery-key", ".recovery-key", 1],
+  ["check-row", ".check-row", 1],
 ];
 
 const SEARCH_RESULTS = [
@@ -225,7 +244,92 @@ async function openReports(page, compact) {
   await page.waitForSelector(".report-list .report-row");
 }
 
+// --- Account recovery -------------------------------------------------------
+
+// A test password for the stand-in, never printed.
+const PASSWORD = `${randomBytes(9).toString("base64url")} layout check`;
+const newUsername = () => `rktest_${randomBytes(5).toString("hex")}`;
+const STAND_IN = "http://127.0.0.1:54321";
+
+// The key on screen becomes a placeholder of the same width.
+async function hideKey(page) {
+  await page.evaluate(() => {
+    document.querySelectorAll(".recovery-key span").forEach((span, i, all) => {
+      span.textContent = i < all.length - 1 ? "xxxx-" : "xxxx";
+    });
+  });
+}
+
+async function openForgot(page) {
+  await openSettings(page);
+  await page.click('[data-opens="login"]');
+  await page.waitForSelector(".account-form");
+  await page.click('[data-opens="forgot"]');
+  await page.waitForSelector(".account-form input[maxlength='64']");
+}
+
+async function saveAccount(page) {
+  await openSettings(page);
+  await page.click('[data-opens="save"]');
+  await page.waitForSelector(".account-form");
+  await page.fill(".account-form input[autocomplete='username']", newUsername());
+  for (const input of await page.locator('.account-form input[type="password"]').all()) await input.fill(PASSWORD);
+  await page.click('.account-form button[type="submit"]');
+  await page.waitForSelector(".recovery-key");
+  await hideKey(page);
+}
+
+// A saved account with no recovery key, made straight on the stand-in (as
+// an interrupted save leaves one).
+async function accountWithoutKey() {
+  const headers = { apikey: "test-anon-key", "Content-Type": "application/json" };
+  const session = await (await fetch(`${STAND_IN}/auth/v1/signup`, { method: "POST", headers, body: "{}" })).json();
+  const username = newUsername();
+  await fetch(`${STAND_IN}/auth/v1/user`, {
+    method: "PUT",
+    headers: { ...headers, Authorization: `Bearer ${session.access_token}` },
+    body: JSON.stringify({ email: `${username}@icepik.invalid`, password: PASSWORD }),
+  });
+  return username;
+}
+
+const RECOVERY_STEPS = {
+  async forgot(page) {
+    await openForgot(page);
+  },
+  async "forgot-demo"(page) {
+    await page.goto(`${url}/demo`, { waitUntil: "domcontentloaded" });
+    await page.waitForSelector(".pin-icon", { state: "attached" });
+    await page.waitForFunction(() => !document.querySelector(".starter"));
+    await settle(page);
+    await openForgot(page);
+  },
+  async key(page) {
+    await saveAccount(page);
+  },
+  async "settings-saved"(page) {
+    await openSettings(page);
+    await page.waitForSelector('[data-opens="newkey"]');
+  },
+  async newkey(page) {
+    await openSettings(page);
+    await page.click('[data-opens="newkey"]');
+    await page.waitForSelector(".account-form");
+  },
+  async nokey(page) {
+    const username = await accountWithoutKey();
+    await openSettings(page);
+    await page.click('[data-opens="login"]');
+    await page.waitForSelector(".account-form");
+    await page.fill(".account-form input[autocomplete='username']", username);
+    await page.fill('.account-form input[type="password"]', PASSWORD);
+    await page.click('.account-form button[type="submit"]');
+    await page.waitForSelector(".account-form .primary-button:text('Make my recovery key')");
+  },
+};
+
 const STEPS = {
+  ...RECOVERY_STEPS,
   async home() {},
   async "map-only"(page, { compact }) {
     await page.click(compact ? ".rail-home" : ".rail-reports");
@@ -382,8 +486,10 @@ async function captureSize(browser, size, scheme) {
   return result;
 }
 
+// Differences (failures) and additions (new states and elements, listed only).
 function diff(before, after) {
   const lines = [];
+  const added = [];
   for (const key of Object.keys(after)) {
     const [size, scheme] = key.split("|");
     for (const state of Object.keys(after[key])) {
@@ -391,7 +497,8 @@ function diff(before, after) {
       const a = after[key][state];
       const where = `${size} ${scheme} ${state}`;
       if (!b) {
-        lines.push(`${where}: not in the baseline`);
+        if (a.error) lines.push(`${where}: new state could not be reached`);
+        else added.push(`${where}: new state`);
         continue;
       }
       if (a.error || b.error) {
@@ -400,7 +507,7 @@ function diff(before, after) {
       }
       for (const el of new Set([...Object.keys(b), ...Object.keys(a)])) {
         if (!a[el]) lines.push(`${where} ${el}: missing (was ${JSON.stringify(b[el])})`);
-        else if (!b[el]) lines.push(`${where} ${el}: new (${JSON.stringify(a[el])})`);
+        else if (!b[el]) added.push(`${where} ${el}: new element (${JSON.stringify(a[el])})`);
         else {
           const moved = ["x", "y", "w", "h"]
             .filter((p) => Math.abs(a[el][p] - b[el][p]) > tolerance)
@@ -410,7 +517,7 @@ function diff(before, after) {
       }
     }
   }
-  return lines;
+  return { lines, added };
 }
 
 // Errors print their first line only: Playwright's call logs can hold
@@ -454,11 +561,18 @@ if (compare) {
     process.exit(2);
   }
   const baseline = JSON.parse(readFileSync(BASELINE, "utf8"));
-  const lines = diff(baseline.positions, positions);
+  const { lines, added } = diff(baseline.positions, positions);
   console.log(
     `Compared with the baseline from commit ${baseline.commit} (tolerance ${tolerance} px).`,
   );
   console.log(`Screenshots: ${shots}`);
+  if (added.length) {
+    const states = added.filter((line) => line.endsWith("new state")).length;
+    console.log(
+      `${states} new screen states and ${added.length - states} new elements, not in the baseline (not failures; --verbose lists them).`,
+    );
+    if (process.argv.includes("--verbose")) for (const line of added) console.log(`  ${line}`);
+  }
   if (lines.length) {
     console.log(`${lines.length} difference(s):`);
     for (const line of lines) console.log(`  ${line}`);

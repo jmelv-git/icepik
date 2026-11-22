@@ -4,13 +4,18 @@ Features from the Figma mobile design (`docs/figma-mobile-design/`) that are lef
 
 ## Stretch goals
 
-### Account recovery with backup codes (in progress)
-Planned with the backend team. Accounts stay username and password with no email; backup codes give a way back in after a forgotten password.
-- When someone saves an account, show a set of one-time backup codes to write down or save, shown only once. A code lets them set a new password.
-- Agree with the backend team on: the code format and how many codes there are; storing only a hash of each code; each code working once; limiting and CAPTCHA-checking code attempts; making new codes from Settings, which cancels the old ones.
-- Never keep the codes in the browser's storage.
-- Change the text that says a forgotten password can't be recovered: the Save account screen in `app/_components/settings-dialog.tsx` (about line 321) and `docs/database-handoff.md` (about lines 406 and 516). Check whether the terms in `app/_components/policy.tsx` need a new `POLICY_VERSION`; changing the policy needs the owner's approval.
-- Design: Figma's Forgot Password and Code Verification screens (`docs/figma-mobile-design/`) are a style reference for "Use a backup code". Their five-box entry assumes a short code, so match it to the format the backend chooses.
+### Account recovery with a recovery key (built, November 2026)
+Built: the backend (`database/icepik_schema.sql`, or for the live project `database/migrations/20261116_recovery_keys.sql`, and `app/actions/recovery.ts`) and the screens (`app/_components/account-recovery.tsx` and Settings), with the terms updated (`POLICY_VERSION` `2026-11-22-draft`). The live checks run against the demo project, used as the scratch project; PLAN.md has their results, what was tested and the owner's decisions. What follows is the spec the screens were built to, kept for reference. Accounts stay username and password with no email. `docs/database-handoff.md` ("Save the account", "Forgot password", "Settings") has the calls.
+- One recovery key per saved account: 128 random bits shown as 8 groups of 4 (for example `3f9a-0c21-…`), shown once. Only a hash is stored. It works once; a reset or "Make a new recovery key" replaces it.
+- Saving: after `updateUser`, sign in with the new password (fresh CAPTCHA token), then `rpc('create_recovery_key')` and show the key once. The database makes a key only within 10 minutes of a password sign-in. Offer Copy, and tell people to write the key on paper or keep it in a password manager, not on the phone. Never keep it in the browser's storage.
+- Log in screen: "Forgot password?" asks for the username, the key and a new password, calls the `resetPasswordWithRecoveryKey` server action, shows the new key once, then signs in (fresh CAPTCHA token).
+- On `/demo` (the owner's decision, 22 Nov 2026, replacing "not on `/demo`"): "Forgot password?" is a demo-only reset. Any letters and numbers work as the key, the screen says so in a small note, and it changes only the demo project, through its own server-side path chosen like `pickDemo()` and its own client built from `DEMO_SUPABASE_SECRET_KEY`. The real site always needs the real key and never shows the note.
+- Settings: "Make a new recovery key" asks for the password and signs in with it first. After a saved account logs in, call `rpc('has_recovery_key')`; if it returns false, ask once to make one.
+- Change the text that says a forgotten password can't be recovered: the Save account screen in `app/_components/settings-dialog.tsx` (the warning list in `SaveAccount`).
+- In the same change, add the recovery key to the terms in `app/_components/policy.tsx` and change `POLICY_VERSION`, so the terms never describe a screen that isn't there yet. The owner approved this text (November 16, 2026):
+  - Terms of use: "If you save your account, keep your password and recovery key to yourself. Anyone who has them can use or reset your account."
+  - Privacy, after "No name, email or phone number": "**Recovery key.** When you save your account, ICEPik shows you a recovery key once. With no email, it's the only way to reset a forgotten password: anyone who has your username and key can set a new password, which signs your other devices out within about an hour. Each key works once, and a reset gives you a new one. We keep only a scrambled form of the key (a hash), so we can't show it to you again. Write it down or keep it in a password manager, not on this device. If you lose both your password and your key, the account can't be recovered."
+- Design: Figma's Forgot Password and Code Verification screens (`docs/figma-mobile-design/`) are a style reference. Their five-box entry assumes a short code; the key is 32 characters in 8 groups, so use one text field that accepts it with or without dashes and spaces.
 
 ### Photos on reports
 Figma shows a photo in each alert card and in the reports list, and an "Add an image (optional)" row on Submit a Report.
@@ -45,5 +50,5 @@ Figma's search box shows the state and city of the map area ("PA | Philadelphia"
 
 These are in the Figma design but go against how ICEPik protects people. Leave them out unless the privacy model changes.
 
-- **Email sign-up and password reset by email.** Accounts use a username and password with no email, so no inbox is linked to anyone (`lib/accounts.ts`, `docs/database-handoff.md`). Recovery comes from backup codes instead (see above).
+- **Email sign-up and password reset by email.** Accounts use a username and password with no email, so no inbox is linked to anyone (`lib/accounts.ts`, `docs/database-handoff.md`). Recovery comes from a recovery key instead (see above).
 - **"Critical" and "Warning" labels.** The app keeps its own status labels: Verified, Unverified and Disputed.

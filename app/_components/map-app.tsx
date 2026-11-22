@@ -28,12 +28,13 @@ import {
   type VoteType,
 } from "@/lib/sightings";
 import { createClient, type Client } from "@/lib/supabase/client";
-import { isSupabaseConfigured } from "@/lib/supabase/config";
+import { projectFor } from "@/lib/supabase/config";
 import { useLiveSightings } from "@/lib/use-live-sightings";
 import { useMyActivity } from "@/lib/use-my-activity";
 import { useMyPosition } from "@/lib/use-my-position";
 import { AccountStarter } from "./account-starter";
 import { BrandLogo } from "./brand-logo";
+import { DEMO_ABOUT, DEMO_AREA, useDemo } from "./demo-context";
 import { LavaLamp, LavaToggle } from "./lava-lamp";
 import {
   ArrowIcon,
@@ -257,8 +258,10 @@ function inBounds(point: Point, bounds: Bounds) {
 }
 
 export function MapApp() {
+  // The demo at /demo has its own database (demo-context.tsx).
+  const demo = useDemo();
   const [supabase] = useState<Client | null>(() =>
-    isSupabaseConfigured ? createClient() : null,
+    projectFor(demo).configured ? createClient(demo) : null,
   );
   // undefined until the saved session (if any) has been read.
   const [user, setUser] = useState<User | null | undefined>(undefined);
@@ -396,6 +399,10 @@ export function MapApp() {
     },
     [startNoticeTimer],
   );
+  // The demo says what it is when it opens.
+  useEffect(() => {
+    if (demo) showNotice(DEMO_ABOUT);
+  }, [demo, showNotice]);
   const holdNotice = () => window.clearTimeout(noticeTimer.current);
   const releaseNotice = () => {
     if (!noticePausedRef.current) startNoticeTimer();
@@ -497,6 +504,19 @@ export function MapApp() {
     setModal(kind);
   }
 
+  // What closing Settings must ask first: set while a recovery key is on
+  // screen (it's shown only once), otherwise null.
+  const closeGuard = useRef<string | null>(null);
+  const setCloseGuard = useCallback((question: string | null) => {
+    closeGuard.current = question;
+  }, []);
+  // Close, Escape and a click outside the dialog.
+  function closeModal() {
+    if (closeGuard.current && !window.confirm(closeGuard.current)) return;
+    closeGuard.current = null;
+    setModal(null);
+  }
+
   // Close the alert card. If focus was in it, go back to the row or pin that
   // opened it, or else to the map.
   function closeCard(close: () => void) {
@@ -533,7 +553,7 @@ export function MapApp() {
   // Escape closes one thing at a time, the top one first: a dialog, the
   // report form, the place being named, choosing a spot, then a card.
   const onEscape = useEffectEvent(() => {
-    if (modal) setModal(null);
+    if (modal) closeModal();
     else if (reportShown) cancelReport();
     // A report starting at a searched place, still checking its spot.
     else if (checkingSpot && !picking && !reportFormOpen) cancelReport();
@@ -726,9 +746,10 @@ export function MapApp() {
       else showNotice(LOCATION_OUTSIDE);
     } else if (!centeredOnMe.current) {
       // The first position: from the whole country, fly to the person's city.
+      // Not in the demo, which stays on its sample sightings.
       centeredOnMe.current = true;
       const busy = selectedId || groupIds || searchResult || picking || mapApi.current.moved();
-      if (!busy && covered) mapApi.current.centerOn(position, mapPadding(), CITY_ZOOM);
+      if (!busy && covered && !demo) mapApi.current.centerOn(position, mapPadding(), CITY_ZOOM);
     }
   });
   useEffect(() => {
@@ -1328,7 +1349,12 @@ export function MapApp() {
     };
   }
 
-  const noticeText = notice || (me.status === "asking" ? LOCATION_ASK : "");
+  // On a first visit to /demo, the demo's opening notice and the reason for
+  // the location prompt show together, so the prompt is never unexplained.
+  const noticeText =
+    notice === DEMO_ABOUT && me.status === "asking"
+      ? `${DEMO_ABOUT} ${LOCATION_ASK}`
+      : notice || (me.status === "asking" ? LOCATION_ASK : "");
 
   return (
     <div className="app" data-panel={panelState} data-modal={modal ?? undefined} data-tab={reportsTab}>
@@ -1443,7 +1469,7 @@ export function MapApp() {
             setMapKeyboardFocus(false);
         }}
       >
-        <h1 className="visually-hidden">ICEPik map</h1>
+        <h1 className="visually-hidden">{demo ? "ICEPik demo map" : "ICEPik map"}</h1>
         <SightingsMap
           ref={mapApi}
           sightings={sightings}
@@ -1465,6 +1491,7 @@ export function MapApp() {
           onVectorTiles={setTileTemplate}
           // The map keeps part of the U.S. in the part people can see.
           visibleArea={mapPadding}
+          openOn={demo ? DEMO_AREA : undefined}
         />
 
         <div className="panel">
@@ -1937,7 +1964,7 @@ export function MapApp() {
         <div
           className="modal-layer"
           data-kind={modal}
-          onClick={() => setModal(null)}
+          onClick={closeModal}
           role="presentation"
         >
           {/* Log in and Save account only (CSS :has): the logo above the
@@ -1960,7 +1987,7 @@ export function MapApp() {
               <button
                 type="button"
                 className="icon-button"
-                onClick={() => setModal(null)}
+                onClick={closeModal}
                 aria-label="Close"
               >
                 <CloseIcon />
@@ -2019,6 +2046,7 @@ export function MapApp() {
                 onShowPlace={showPlace}
                 onNotice={showNotice}
                 onClose={() => setModal(null)}
+                onCloseGuard={setCloseGuard}
               />
             ) : (
               <p>ICEPik isn&apos;t connected to its database yet.</p>

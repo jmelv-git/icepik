@@ -14,6 +14,7 @@ import {
   type Category,
   type Sighting,
 } from "@/lib/sightings";
+import { useDemo } from "./demo-context";
 import { SearchIcon, StatusIcon } from "./icons";
 import { shortPlaceName } from "./map-pins";
 import type { Point } from "./sightings-map";
@@ -66,6 +67,7 @@ export function ReportForm({
   const [returnStatus, setReturnStatus] = useState("");
   const moveButton = useRef<HTMLButtonElement>(null);
   const id = useId();
+  const demo = useDemo();
   const errorId = `${id}-error`;
   const nearbyTitleId = `${id}-nearby-title`;
 
@@ -146,7 +148,7 @@ export function ReportForm({
         vehicleCount,
         locationLabel: label.trim() || null,
         description: description.trim() || null,
-      }),
+      }, demo),
     );
     setBusy(false);
 
