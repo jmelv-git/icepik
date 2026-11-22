@@ -25,12 +25,17 @@
 //            --url http://127.0.0.1:3000  --skip-glass  --verbose
 //
 // Needs the app on --url, built and started against the stand-in database
-// (scripts/mock-supabase.mjs on port 54321), like scripts/capture-layout.mjs.
-// Map tiles are blocked, and the place search and reverse lookup are stubbed,
-// so nothing here reaches CARTO or Nominatim. Nothing about the network is
+// (scripts/mock-supabase.mjs on port 54321), like scripts/capture-layout.mjs,
+// and the demo's stand-in on port 54322 for the forgot-demo state. The
+// account-recovery states save accounts on the stand-in, so they run last.
+// Map tiles are blocked (the pin-spot check gets a local stand-in tile, see
+// scripts/stand-in-tile.mjs), and the place search and reverse lookup are
+// stubbed, so nothing here reaches CARTO or Nominatim. Nothing about the network is
 // recorded: the output names elements by their classes, never by HTML or URL.
 import { createRequire } from "node:module";
 import { spawnSync } from "node:child_process";
+import { randomBytes } from "node:crypto";
+import { blockCarto } from "./stand-in-tile.mjs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -65,6 +70,16 @@ const STATES = [
   "save-error",
   "rights",
   "starter",
+  // Account recovery: these save accounts on the stand-in, so they come last.
+  "forgot",
+  "forgot-error",
+  "forgot-demo",
+  "key",
+  "settings-saved",
+  "newkey",
+  "newkey-error",
+  "key-error",
+  "nokey",
 ];
 
 function option(name, fallback) {
@@ -110,7 +125,9 @@ const SEARCH_RESULTS = [
 ];
 
 async function guard(page) {
-  await page.route("**/*cartocdn.com/**", (route) => route.abort());
+  // Nothing reaches CARTO; the pin-spot check gets a stand-in tile
+  // (scripts/stand-in-tile.mjs), so the report form can be checked.
+  await blockCarto(page);
   await page.route("**/api/search**", (route) =>
     route.fulfill({ contentType: "application/json", body: JSON.stringify(SEARCH_RESULTS) }),
   );
@@ -191,38 +208,125 @@ async function openReports(page, compact) {
   await page.waitForSelector(".report-list .report-row");
 }
 
-async function startReportAt(page, onPin) {
-  await page.click(".report-button");
-  await page.waitForSelector(".pick-banner");
-  if (onPin) {
-    // In pick mode a tap on a pin places the new pin there: the form then
-    // lists the sightings already reported nearby.
-    const pin = await page.evaluate(() => {
-      for (const el of document.querySelectorAll(".pin-icon")) {
-        const r = el.getBoundingClientRect();
-        const x = r.left + r.width / 2;
-        const y = r.top + r.height / 2;
-        const top = document.elementFromPoint(x, y);
-        if (top && el.contains(top)) return { x, y };
-      }
-      return null;
-    });
-    if (pin) await page.mouse.click(pin.x, pin.y);
-    else {
-      // No pin in sight (400% zoom): place it at the map's center with the
-      // keyboard. The sightings are around the center.
-      await page.focus(".map-shell .leaflet-container");
-      await page.keyboard.press("Enter");
-    }
-  } else {
-    const { x, y } = await mapPoint(page);
-    await page.mouse.click(x, y);
+// The report form, started at a searched place ("Submit a report" with a
+// place in the search box), as the README describes. The map opens on the
+// whole country, where a tap can fall outside the places pins can go, and an
+// emulated tap on a touch screen doesn't reliably reach the map, so the
+// search starts it instead. City Hall is within 200 m of a fixture sighting,
+// so the form lists the sightings nearby; Rittenhouse Square has none near.
+async function startReportAt(page, onPin, layout) {
+  if (layout === "phone") {
+    await openReports(page, true);
+    await page.click(".panel-tabs button:nth-child(2)");
   }
-  await page.getByRole("button", { name: "Use this spot" }).click();
+  await page.fill(".search input", onPin ? "city hall" : "rittenhouse square");
+  await page.press(".search input", "Enter");
+  await page.waitForSelector(".search-results button");
+  await page.locator(".search-results button").nth(onPin ? 0 : 1).click();
+  await settle(page);
+  // Upright phones: the Reports sheet covers the map and its button.
+  if (layout === "phone") await page.click(".rail-home");
+  await page.click(".report-button");
   await page.waitForSelector(".modal .report-form");
 }
 
+// --- Account recovery (as in scripts/capture-layout.mjs) --------------------
+
+// A test password for the stand-in, never printed.
+const PASSWORD = `${randomBytes(9).toString("base64url")} audit check`;
+const newUsername = () => `rktest_${randomBytes(5).toString("hex")}`;
+const STAND_IN = "http://127.0.0.1:54321";
+
+async function openForgot(page) {
+  await openSettings(page);
+  await page.click('[data-opens="login"]');
+  await page.waitForSelector(".account-form");
+  await page.click('[data-opens="forgot"]');
+  await page.waitForSelector(".account-form input[maxlength='64']");
+}
+
+async function openNewKey(page) {
+  await openSettings(page);
+  await page.click('[data-opens="newkey"]');
+  await page.waitForSelector(".account-form");
+}
+
+// A saved account with no recovery key, made straight on the stand-in (as
+// an interrupted save leaves one).
+async function accountWithoutKey() {
+  const headers = { apikey: "test-anon-key", "Content-Type": "application/json" };
+  const session = await (await fetch(`${STAND_IN}/auth/v1/signup`, { method: "POST", headers, body: "{}" })).json();
+  const username = newUsername();
+  await fetch(`${STAND_IN}/auth/v1/user`, {
+    method: "PUT",
+    headers: { ...headers, Authorization: `Bearer ${session.access_token}` },
+    body: JSON.stringify({ email: `${username}@icepik.invalid`, password: PASSWORD }),
+  });
+  return username;
+}
+
+const RECOVERY_STEPS = {
+  async forgot(page) {
+    await openForgot(page);
+  },
+  async "forgot-error"(page) {
+    await openForgot(page);
+    await page.click('.account-form button[type="submit"]');
+    await page.waitForSelector(".account-form .form-error");
+  },
+  async "forgot-demo"(page) {
+    await page.goto(`${url}/demo`, { waitUntil: "domcontentloaded" });
+    await page.waitForSelector(".pin-icon", { state: "attached" });
+    await page.waitForFunction(() => !document.querySelector(".starter"));
+    await settle(page);
+    await openForgot(page);
+  },
+  async key(page) {
+    await openSettings(page);
+    await page.click('[data-opens="save"]');
+    await page.waitForSelector(".account-form");
+    await page.fill(".account-form input[autocomplete='username']", newUsername());
+    for (const input of await page.locator('.account-form input[type="password"]').all()) await input.fill(PASSWORD);
+    await page.click('.account-form button[type="submit"]');
+    await page.waitForSelector(".recovery-key");
+  },
+  async "settings-saved"(page) {
+    await openSettings(page);
+    await page.waitForSelector('[data-opens="newkey"]');
+  },
+  async newkey(page) {
+    await openNewKey(page);
+  },
+  async "newkey-error"(page) {
+    await openNewKey(page);
+    await page.click('.account-form button[type="submit"]');
+    await page.waitForSelector(".account-form .form-error");
+  },
+  // A new key, with what Copy did and the message for Done before the box.
+  async "key-error"(page) {
+    await openNewKey(page);
+    await page.fill('.account-form input[type="password"]', PASSWORD);
+    await page.click('.account-form button[type="submit"]');
+    await page.waitForSelector(".recovery-key");
+    await page.getByRole("button", { name: "Copy" }).click();
+    await page.waitForFunction(() => document.querySelector(".copy-block [role=status]")?.textContent);
+    await page.getByRole("button", { name: "Done" }).click();
+    await page.waitForSelector(".account-form .form-error");
+  },
+  async nokey(page) {
+    const username = await accountWithoutKey();
+    await openSettings(page);
+    await page.click('[data-opens="login"]');
+    await page.waitForSelector(".account-form");
+    await page.fill(".account-form input[autocomplete='username']", username);
+    await page.fill('.account-form input[type="password"]', PASSWORD);
+    await page.click('.account-form button[type="submit"]');
+    await page.waitForSelector(".account-form .primary-button:text('Make my recovery key')");
+  },
+};
+
 const STEPS = {
+  ...RECOVERY_STEPS,
   async home() {},
   async "map-only"(page, { compact }) {
     await page.click(compact ? ".rail-home" : ".rail-reports");
@@ -271,15 +375,15 @@ const STEPS = {
     await page.mouse.click(x, y);
     await page.waitForSelector(".place-form");
   },
-  async "report-form"(page) {
-    await startReportAt(page, false);
+  async "report-form"(page, { layout }) {
+    await startReportAt(page, false, layout);
   },
-  async "report-nearby"(page) {
-    await startReportAt(page, true);
+  async "report-nearby"(page, { layout }) {
+    await startReportAt(page, true, layout);
     await page.waitForSelector(".modal .nearby");
   },
-  async "report-error"(page) {
-    await startReportAt(page, false);
+  async "report-error"(page, { layout }) {
+    await startReportAt(page, false, layout);
     await page.click(".report-submit");
     await page.waitForSelector(".modal .form-error");
   },
@@ -665,6 +769,33 @@ function clippedText() {
   return out;
 }
 
+// Phones: text a person reads is at least 16px (the rule in app/globals.css).
+// Its exceptions there: the tab labels and the map's credits.
+function smallText() {
+  const out = [];
+  const name = (el) => {
+    const parts = [];
+    for (let e = el; e && e !== document.body && parts.length < 3; e = e.parentElement) {
+      const cls = typeof e.className === "string" ? e.className.trim().split(/\s+/)[0] : "";
+      parts.unshift(cls ? `${e.tagName.toLowerCase()}.${cls}` : e.tagName.toLowerCase());
+    }
+    return parts.join(" > ");
+  };
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  const done = new Set();
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    if (!node.textContent.trim()) continue;
+    const el = node.parentElement;
+    if (!el || done.has(el)) continue;
+    done.add(el);
+    if (el.closest("script, style, svg, .visually-hidden, [inert], .leaflet-control-attribution, .rail, .panel-tabs, .skip-link:not(:focus)")) continue;
+    if (!el.getClientRects().length || getComputedStyle(el).visibility === "hidden") continue;
+    const size = parseFloat(getComputedStyle(el).fontSize);
+    if (size < 15.95) out.push({ at: name(el), size: Math.round(size * 10) / 10, dialog: Boolean(el.closest(".modal-layer")) });
+  }
+  return out;
+}
+
 const SPACING = `
   *:not(.leaflet-container):not(.leaflet-container *) {
     line-height: 1.5 !important;
@@ -680,12 +811,20 @@ const problems = [];
 const notes = new Map();
 const totals = { states: 0, text: 0, icon: 0, edge: 0, glass: 0, targets: 0 };
 
-async function audit(page, where) {
+async function audit(page, where, layout) {
   await settle(page);
   totals.states++;
   const note = (text) => {
     if (!notes.has(text)) notes.set(text, where);
   };
+  if (layout === "phone") {
+    for (const t of await page.evaluate(smallText)) {
+      // In dialogs and pages (Settings, the forms): a failure. Elsewhere
+      // listed, so a later pass can look at it.
+      if (t.dialog) problems.push(`${where}: phone text ${t.size}px (needs 16px) ${t.at}`);
+      else note(`phone text ${t.size}px ${t.at}`);
+    }
+  }
   const result = await page.evaluate(inPageChecks);
   for (const key of ["text", "icon", "edge", "glass", "targets"]) totals[key] += result.counts[key];
   for (const c of result.contrast)
@@ -716,6 +855,8 @@ async function audit(page, where) {
 
 async function auditSize(browser, size, scheme) {
   const [width, height] = size.split("x").map(Number);
+  // The app's phone layout (app/globals.css), known before the map loads.
+  const sizeLayout = width < 768 || (width < 1280 && height < 500) ? "phone" : "wide";
   const contextOptions = {
     viewport: { width, height },
     deviceScaleFactor: 1,
@@ -732,7 +873,7 @@ async function auditSize(browser, size, scheme) {
 
   await page.goto(url, { waitUntil: "domcontentloaded" });
   await page.waitForSelector(".consent-card");
-  if (states.includes("consent")) await audit(page, `${size} ${scheme} consent`);
+  if (states.includes("consent")) await audit(page, `${size} ${scheme} consent`, sizeLayout);
   await passConsent(page);
   await page.waitForSelector(".pin-icon", { state: "attached" });
   const layout = await page.evaluate(
@@ -745,9 +886,15 @@ async function auditSize(browser, size, scheme) {
     await openApp(page);
     try {
       if ((await STEPS[state](page, { layout, compact })) === false) continue;
-      await audit(page, `${size} ${scheme} ${state}`);
+      await audit(page, `${size} ${scheme} ${state}`, sizeLayout);
     } catch (error) {
       problems.push(`${size} ${scheme} ${state}: state could not be reached (${firstLine(error)})`);
+      // A picture of where it stopped, for finding out why (outside the repo).
+      if (process.env.A11Y_FAILURE_SHOTS) {
+        await page
+          .screenshot({ path: join(process.env.A11Y_FAILURE_SHOTS, `${size}-${scheme}-${state}.png`) })
+          .catch(() => {});
+      }
     }
   }
   const storage = await context.storageState();
@@ -770,7 +917,7 @@ async function auditSize(browser, size, scheme) {
     await sp.route("**/auth/v1/signup**", () => {});
     await sp.goto(url, { waitUntil: "domcontentloaded" });
     await sp.waitForSelector(".starter");
-    await audit(sp, `${size} ${scheme} starter`);
+    await audit(sp, `${size} ${scheme} starter`, sizeLayout);
     await starter.close();
   }
 }

@@ -9,6 +9,7 @@ import {
   checkPassword,
   checkUsername,
   loginIdFor,
+  normalizeUsername,
   usernameOf,
 } from "@/lib/accounts";
 import {
@@ -28,16 +29,41 @@ import type { Sighting } from "@/lib/sightings";
 import { projectFor } from "@/lib/supabase/config";
 import { createClient, forgetSession, type Client } from "@/lib/supabase/client";
 import type { ProfileTotals } from "@/lib/use-my-activity";
+import {
+  AskForRecoveryKey,
+  CAPTCHA_FAILED,
+  ForgotPassword,
+  MakeRecoveryKey,
+  RecoveryKeyShown,
+  signInWithPasswordAgain,
+  useCaptcha,
+  type ShownKey,
+} from "./account-recovery";
 import { BrandLogo } from "./brand-logo";
 import { DEMO_ABOUT, useDemo } from "./demo-context";
 import { Captcha, captchaEnabled } from "./captcha";
 import { PlaceIcon } from "./icons";
 import { PolicyText } from "./policy";
 
-const CAPTCHA_FAILED =
-  "The security check couldn't load. Check your connection, then go back and try again.";
+// forgot: "Forgot password?" from Log in. key: a recovery key, shown once.
+// newkey: "Make a new recovery key". nokey: the offer to make one after
+// logging in to an account without one (account-recovery.tsx).
+type View =
+  | "main"
+  | "save"
+  | "login"
+  | "delete"
+  | "clear"
+  | "policy"
+  | "forgot"
+  | "key"
+  | "newkey"
+  | "nokey";
 
-type View = "main" | "save" | "login" | "delete" | "clear" | "policy";
+// What the browser's confirm asks when Settings is closed while a recovery
+// key is on screen.
+const CLOSE_WITH_KEY =
+  "Close without storing your recovery key? ICEPik can't show it again.";
 
 type Props = {
   supabase: Client;
@@ -52,36 +78,72 @@ type Props = {
   onShowPlace: (place: SavedPlace) => void;
   onNotice: (message: string) => void;
   onClose: () => void;
+  // Sets what closing Settings (Close, Escape, a click outside) must ask
+  // first, or null to close at once.
+  onCloseGuard: (question: string | null) => void;
 };
 
 export const PLACE_LABEL: Record<PlaceName, string> = { home: "Home", work: "Work" };
 
 export function SettingsDialog(props: Props) {
-  const { user, reloadActivity } = props;
+  const { supabase, user, reloadActivity, onNotice, onClose, onCloseGuard } = props;
   const [view, setView] = useState<View>("main");
+  // The recovery key on screen, if any. React state only: it's gone when
+  // its screen or Settings closes.
+  const [shownKey, setShownKey] = useState<ShownKey | null>(null);
+  // Whether the saved account has a recovery key (null: not known).
+  const [hasKey, setHasKey] = useState<boolean | null>(null);
+  const username = usernameOf(user);
 
   // Fresh totals each time Settings opens.
   useEffect(() => {
     reloadActivity();
   }, [reloadActivity]);
 
-  // Each view starts at the top, and Back returns focus to the button that
-  // opened it, so keyboard users keep their place.
+  // A saved account without a recovery key is told so in Settings.
+  useEffect(() => {
+    if (!username) return;
+    let cancelled = false;
+    void supabase.rpc("has_recovery_key").then(({ data, error }) => {
+      if (!cancelled) setHasKey(error || typeof data !== "boolean" ? null : data);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [supabase, username]);
+
+  // Closing Settings while a key shows asks first.
+  useEffect(() => {
+    onCloseGuard(view === "key" ? CLOSE_WITH_KEY : null);
+  }, [view, onCloseGuard]);
+  useEffect(() => () => onCloseGuard(null), [onCloseGuard]);
+
+  // Each view starts at the top. Its heading takes focus, so keyboard users
+  // carry on from the top and screen readers read it; Back returns focus to
+  // the button that opened the view, so keyboard users keep their place.
   const opener = useRef<View>("main");
-  const open = (next: View) => {
-    opener.current = next;
+  const focusNext = useRef<string | null>(null);
+  const go = (next: View, focus: string | null = null) => {
+    focusNext.current = focus;
     setView(next);
   };
-  const back = () => {
-    setView("main");
-    window.requestAnimationFrame(() =>
-      document.querySelector<HTMLElement>(`[data-opens="${opener.current}"]`)?.focus(),
-    );
+  const open = (next: View) => {
+    opener.current = next;
+    go(next);
+  };
+  const back = () => go("main", `[data-opens="${opener.current}"]`);
+  const showKey = (shown: ShownKey) => {
+    setShownKey(shown);
+    go("key");
   };
   useEffect(() => {
+    // The dialog scrolls on tablets and desktop; on phones Log in, Save
+    // account and the recovery screens are pages, and the layer scrolls.
     document.querySelector(".modal")?.scrollTo(0, 0);
-    // The button that opened this view is gone: its heading takes focus, so
-    // keyboard users carry on from the top and screen readers read it.
+    document.querySelector(".modal-layer")?.scrollTo(0, 0);
+    const target = focusNext.current ? document.querySelector<HTMLElement>(focusNext.current) : null;
+    focusNext.current = null;
+    if (target) return target.focus();
     if (view === "main") return;
     const heading = document.querySelector<HTMLElement>(".modal .settings h3");
     if (!heading) return;
@@ -89,11 +151,88 @@ export function SettingsDialog(props: Props) {
     heading.focus({ preventScroll: true });
   }, [view]);
 
+  // The key has been stored: where each way of getting one goes next.
+  function keyDone(shown: ShownKey) {
+    setShownKey(null);
+    onCloseGuard(null);
+    if (shown.reason === "saved") {
+      setHasKey(true);
+      onNotice(`Account saved. Your username is ${shown.username}.`);
+      return go("main", '[data-opens="newkey"]');
+    }
+    if (shown.reason === "reset" && !shown.signedIn) {
+      onNotice("Your password is changed. Log in with your new password.");
+      return go("login");
+    }
+    if (shown.reason === "reset" || opener.current !== "newkey") {
+      // After a reset or a log-in, Settings closes as after any log-in.
+      onNotice(`Logged in as ${shown.username}.`);
+      return onClose();
+    }
+    setHasKey(true);
+    onNotice(
+      shown.reason === "first"
+        ? "Your recovery key is ready."
+        : "Your new recovery key is ready. The old one no longer works.",
+    );
+    go("main", '[data-opens="newkey"]');
+  }
+
   return (
     <div className="settings">
-      {view === "main" ? <MainView {...props} onOpen={open} /> : null}
-      {view === "save" ? <SaveAccount {...props} onBack={back} /> : null}
-      {view === "login" ? <LogIn {...props} onBack={back} /> : null}
+      {view === "main" ? <MainView {...props} hasKey={hasKey} onOpen={open} /> : null}
+      {view === "save" ? (
+        <SaveAccount
+          {...props}
+          onBack={back}
+          onSaved={(name, key) => {
+            if (key) return showKey({ key, reason: "saved", username: name, signedIn: true });
+            // Saved, but the sign-in or the key didn't work. Settings says
+            // the account has no key and offers to make one.
+            setHasKey(false);
+            onNotice("Your account is saved. Make your recovery key in Settings.");
+            go("main", '[data-opens="newkey"]');
+          }}
+        />
+      ) : null}
+      {view === "login" ? (
+        <LogIn
+          {...props}
+          onBack={back}
+          onForgot={() => go("forgot")}
+          onNoKey={() => {
+            setHasKey(false);
+            go("nokey");
+          }}
+        />
+      ) : null}
+      {view === "forgot" ? (
+        <ForgotPassword
+          supabase={supabase}
+          user={user}
+          activePosts={props.activePosts}
+          onBack={() => go("login", '[data-opens="forgot"]')}
+          onKey={showKey}
+        />
+      ) : null}
+      {view === "newkey" ? (
+        <MakeRecoveryKey supabase={supabase} user={user} hasKey={hasKey} onBack={back} onKey={showKey} />
+      ) : null}
+      {view === "nokey" ? (
+        <AskForRecoveryKey
+          supabase={supabase}
+          username={username ?? ""}
+          onLater={() => {
+            onNotice(`Logged in as ${username}.`);
+            onClose();
+          }}
+          onKey={showKey}
+          onNeedPassword={() => go("newkey")}
+        />
+      ) : null}
+      {view === "key" && shownKey ? (
+        <RecoveryKeyShown shown={shownKey} onDone={() => keyDone(shownKey)} />
+      ) : null}
       {view === "delete" ? <DeleteAccount {...props} onBack={back} /> : null}
       {view === "clear" ? <ClearDevice {...props} onBack={back} /> : null}
       {view === "policy" ? (
@@ -123,8 +262,9 @@ function MainView({
   customPlaces,
   onPickPlace,
   onShowPlace,
+  hasKey,
   onOpen,
-}: Props & { onOpen: (view: View) => void }) {
+}: Props & { hasKey: boolean | null; onOpen: (view: View) => void }) {
   const username = usernameOf(user);
   const motion = useBackgroundMotion();
   const demo = useDemo();
@@ -182,6 +322,33 @@ function MainView({
           </div>
         </dl>
       </section>
+
+      {username ? (
+        <section className="settings-section" aria-labelledby="recovery-title">
+          <h3 id="recovery-title">Recovery key</h3>
+          {hasKey === false ? (
+            <p>
+              This account has no recovery key yet. Without one, a forgotten password means starting
+              a new account.
+            </p>
+          ) : (
+            <p>
+              Your recovery key lets you set a new password if you forget yours. If you think someone
+              saw it, make a new one: the old one then stops working.
+            </p>
+          )}
+          <div className="button-row">
+            <button
+              type="button"
+              className={hasKey === false ? "primary-button" : "secondary-button"}
+              data-opens="newkey"
+              onClick={() => onOpen("newkey")}
+            >
+              {hasKey === false ? "Make a recovery key" : "Make a new recovery key"}
+            </button>
+          </div>
+        </section>
+      ) : null}
 
       <section className="settings-section" aria-labelledby="places-title">
         <h3 id="places-title">Saved places</h3>
@@ -347,12 +514,18 @@ function MainView({
   );
 }
 
-function SaveAccount({ supabase, onNotice, onBack }: Props & { onBack: () => void }) {
+function SaveAccount({
+  supabase,
+  onBack,
+  onSaved,
+}: Props & { onBack: () => void; onSaved: (username: string, recoveryKey: string | null) => void }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [repeat, setRepeat] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  // For the sign-in with the new password that comes after saving.
+  const captcha = useCaptcha("save-account", setMessage);
   // The field the message is about: it says it's invalid and points at it.
   const [field, setField] = useState<"username" | "password" | "repeat" | null>(null);
   const errorId = `${useId()}-error`;
@@ -375,8 +548,8 @@ function SaveAccount({ supabase, onNotice, onBack }: Props & { onBack: () => voi
     setField(null);
     // Same user id: posts and votes stay with the account.
     const { error } = await supabase.auth.updateUser({ email: loginIdFor(username), password });
-    setBusy(false);
     if (error) {
+      setBusy(false);
       const code = error.code ?? "";
       setField(
         ["email_exists", "user_already_exists", "email_address_invalid"].includes(code)
@@ -387,8 +560,16 @@ function SaveAccount({ supabase, onNotice, onBack }: Props & { onBack: () => voi
       );
       return setMessage(authErrorMessage(error));
     }
-    onNotice(`Account saved. Your username is ${username.trim().toLowerCase()}.`);
-    onBack();
+    // Saved. The database makes a recovery key only within 10 minutes of a
+    // password sign-in, so sign in with the new password (this form's CAPTCHA
+    // token), then make the key and show it once. If a step fails, the
+    // account is still saved, and Settings offers to make the key.
+    const name = normalizeUsername(username);
+    const signInError = await signInWithPasswordAgain(supabase, loginIdFor(name), password, captcha.options);
+    captcha.used();
+    const { data: key } = signInError ? { data: null } : await supabase.rpc("create_recovery_key");
+    setBusy(false);
+    onSaved(name, typeof key === "string" && key ? key : null);
   }
 
   return (
@@ -402,8 +583,8 @@ function SaveAccount({ supabase, onNotice, onBack }: Props & { onBack: () => voi
         <ul className="warning-list">
           <li>Don&apos;t use your real name or a name people know you by.</li>
           <li>
-            There&apos;s no password reset. If you forget your password, this account can&apos;t be
-            recovered.
+            Next you get a recovery key. If you lose it and your password, this account can&apos;t
+            be recovered.
           </li>
         </ul>
         <label>
@@ -440,6 +621,7 @@ function SaveAccount({ supabase, onNotice, onBack }: Props & { onBack: () => voi
             {...invalid("repeat")}
           />
         </label>
+        {captcha.widget}
         {message ? (
           <p id={errorId} className="form-error" role="alert">
             {message}
@@ -449,7 +631,7 @@ function SaveAccount({ supabase, onNotice, onBack }: Props & { onBack: () => voi
           <button type="button" className="secondary-button" onClick={onBack} disabled={busy}>
             Back
           </button>
-          <button type="submit" className="primary-button" disabled={busy}>
+          <button type="submit" className="primary-button" disabled={busy || !captcha.ready}>
             {busy ? "Saving…" : "Save account"}
           </button>
         </div>
@@ -458,7 +640,16 @@ function SaveAccount({ supabase, onNotice, onBack }: Props & { onBack: () => voi
   );
 }
 
-function LogIn({ supabase, user, activePosts, onNotice, onClose, onBack }: Props & { onBack: () => void }) {
+function LogIn({
+  supabase,
+  user,
+  activePosts,
+  onNotice,
+  onClose,
+  onBack,
+  onForgot,
+  onNoKey,
+}: Props & { onBack: () => void; onForgot: () => void; onNoKey: () => void }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [token, setToken] = useState<string | null>(null);
@@ -486,13 +677,18 @@ function LogIn({ supabase, user, activePosts, onNotice, onClose, onBack }: Props
       password,
       options: token ? { captchaToken: token } : undefined,
     });
-    setBusy(false);
     // A CAPTCHA token works once.
     if (captchaEnabled) setCaptchaReset((count) => count + 1);
     if (error) {
+      setBusy(false);
       setWrong(error.code === "invalid_credentials");
       return setMessage(authErrorMessage(error));
     }
+    // A saved account without a recovery key (an interrupted save, or one
+    // from before recovery keys) is asked once to make one.
+    const { data: hasKey } = await supabase.rpc("has_recovery_key");
+    setBusy(false);
+    if (hasKey === false) return onNoKey();
     onNotice(`Logged in as ${username.trim().toLowerCase()}.`);
     onClose();
   }
@@ -526,16 +722,28 @@ function LogIn({ supabase, user, activePosts, onNotice, onClose, onBack }: Props
             {...invalid}
           />
         </label>
-        <label>
-          Password
-          <input
-            type="password"
-            autoComplete="current-password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            {...invalid}
-          />
-        </label>
+        {/* "Forgot password?" sits on the label's line, so nothing moves. */}
+        <div className="field-with-link">
+          <label>
+            Password
+            <input
+              type="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              {...invalid}
+            />
+          </label>
+          <button
+            type="button"
+            className="text-button field-link"
+            data-opens="forgot"
+            onClick={onForgot}
+            disabled={busy}
+          >
+            Forgot password?
+          </button>
+        </div>
         {captchaEnabled ? (
           <Captcha
             action="login"

@@ -25,6 +25,15 @@ export const isDemoConfigured = Boolean(demoSupabaseUrl && demoSupabaseKey);
 // sign everyone out, and an unsaved account can't be recovered.
 const DEMO_COOKIE_NAME = "sb-icepik-demo-auth-token";
 
+// For server actions, which take a demo flag from the browser: true for the
+// demo project, false for the real one, null if the demo was asked for but
+// isn't set up. Only a literal true picks the demo; anything else means the
+// real project.
+export function pickDemo(demo: unknown): boolean | null {
+  if (demo !== true) return false;
+  return isDemoConfigured ? true : null;
+}
+
 // The project for the real map (demo false) or the demo (demo true).
 // cookieName: undefined means supabase-js's default.
 export function projectFor(demo: boolean) {

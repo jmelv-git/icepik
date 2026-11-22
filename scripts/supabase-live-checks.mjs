@@ -11,7 +11,8 @@
 //      (git show ab6e467:database/icepik_schema.sql), post a pin and a vote,
 //      then run database/migrations/20261116_recovery_keys.sql twice.
 //   2. Authentication settings: anonymous sign-ins ON, Confirm email OFF,
-//      Minimum password length 15, Require current password when changing
+//      Minimum password length 15, Password Requirements "No required
+//      characters" (check 2a fails otherwise), Require current password when changing
 //      password ON, Secure password change OFF, audit logs to the database OFF,
 //      Hooks -> Send Email -> Postgres -> public.block_auth_emails.
 //   3. CAPTCHA ON with provider Turnstile and Cloudflare's test secret key

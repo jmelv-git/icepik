@@ -1199,6 +1199,80 @@ textarea::placeholder {
   list-style: disc;
 }
 
+/* Account recovery (app/_components/account-recovery.tsx). */
+
+/* The recovery key, shown once: like a text box, in a fixed-width font so
+   it's easy to copy out by hand. Every character is always in view: each
+   group of 4 keeps its dash and never splits, the key wraps only between
+   groups, and two lines are balanced (4 and 4). One tap selects all of it. */
+.account-form .recovery-key {
+  padding: 0.875rem 1rem;
+  border-radius: 0.875rem;
+  background: var(--card);
+  box-shadow: inset 0 0 0 0.0625rem var(--control-line);
+  color: var(--text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  font-size: 1.125rem;
+  line-height: 1.6;
+  letter-spacing: 0.04em;
+  text-align: center;
+  text-wrap: balance;
+  -webkit-user-select: all;
+  user-select: all;
+}
+
+.recovery-key span {
+  white-space: nowrap;
+}
+
+.copy-block p:not(:empty) {
+  margin-top: 0.5rem;
+}
+
+/* "I've stored my recovery key": the box, then its words. */
+.form label.check-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.625rem;
+  line-height: 1.45;
+  cursor: pointer;
+}
+
+.form .check-row input {
+  flex: none;
+  width: 1.25rem;
+  height: 1.25rem;
+  margin-top: 0.0625rem;
+  padding: 0;
+  /* Checked, the box is --blue: 3:1 or more on the glass (scripts/glass-contrast.mjs). */
+  accent-color: var(--blue);
+  cursor: pointer;
+}
+
+/* .form input hides the outline (text boxes show a focus edge instead). */
+.form .check-row input:focus-visible {
+  outline: 0.1875rem solid var(--blue);
+  outline-offset: 0.125rem;
+}
+
+/* "Forgot password?" on the line of the Password label, at its end, so it
+   adds no height. At least 24px tall, centred on that line. */
+.field-with-link {
+  position: relative;
+}
+
+.field-with-link .field-link {
+  position: absolute;
+  top: 0;
+  top: calc(0.5lh - 12px);
+  right: 0;
+  display: inline-flex;
+  align-items: center;
+  /* Not the 2.75rem of other text buttons on phones and tablets: that would
+     reach over the text box below. */
+  min-height: 24px;
+}
+
 .spot-row {
   display: flex;
   align-items: center;
@@ -1252,10 +1326,10 @@ textarea::placeholder {
   line-height: 1.25;
 }
 
+/* The short name wraps rather than being cut off when it doesn't fit (with
+   wider text spacing, WCAG 1.4.12, or a long first part of a name). */
 .spot-searched span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .spot-searched svg {
@@ -2652,6 +2726,7 @@ textarea::placeholder {
   .form-error,
   .form-tip,
   .warning-list,
+  .form label.check-row,
   .spot-row,
   .choice-group legend,
   .choice-label,
@@ -4260,6 +4335,7 @@ textarea::placeholder {
   .place-row,
   .warning-list,
   .form-error,
+  .account-form .recovery-key,
   .badge:not(.badge-disputed) {
     outline: 0.0625rem solid CanvasText;
     outline-offset: -0.0625rem;

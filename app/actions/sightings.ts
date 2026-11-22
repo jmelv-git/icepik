@@ -29,7 +29,7 @@
 // one does, so a caller who sets the flag gains nothing on the real map.
 
 import type { PostgrestError } from '@supabase/supabase-js'
-import { isDemoConfigured } from '@/lib/supabase/config'
+import { pickDemo } from '@/lib/supabase/config'
 import { createClient } from '@/lib/supabase/server'
 import { inServiceArea } from '@/lib/service-area'
 import { OUTSIDE_SERVICE_AREA } from '@/lib/sightings'
@@ -57,12 +57,8 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const TRY_AGAIN = 'Something went wrong. Please try again.'
 const NO_DEMO = "The demo isn't set up yet."
 
-// true for the demo database, false for the real one, null if the demo was
-// asked for but isn't set up.
-function pickDemo(demo: unknown): boolean | null {
-  if (demo !== true) return false
-  return isDemoConfigured ? true : null
-}
+// pickDemo() (lib/supabase/config.ts): true for the demo database, false for
+// the real one, null if the demo was asked for but isn't set up.
 
 export async function postSighting(
   input: NewSighting,
